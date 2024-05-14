@@ -4,9 +4,11 @@ extern crate bootloader;
 extern crate bootloader_boot_config;
 
 use bootloader::BootConfig;
+#[allow(unused_imports)]
 use bootloader_boot_config::LevelFilter;
 
 fn main() {
+    #[allow(unused_mut)]
     let mut config = BootConfig::default();
     // config.log_level = LevelFilter::Off;
     // config.frame_buffer_logging = false;

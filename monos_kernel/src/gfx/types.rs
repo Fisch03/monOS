@@ -30,6 +30,7 @@ impl Dimension {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Color {
     pub r: u8,
     pub g: u8,

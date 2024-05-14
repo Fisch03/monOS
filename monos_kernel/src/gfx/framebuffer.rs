@@ -18,8 +18,10 @@ pub fn framebuffer() -> MutexGuard<'static, Framebuffer> {
 }
 
 pub struct Framebuffer {
-    dimensions: Dimension,
+    text_color: Color,
     cursor: Position,
+
+    dimensions: Dimension,
     info: FrameBufferInfo,
     buffer: &'static mut [u8],
 }
@@ -29,7 +31,9 @@ impl Framebuffer {
         let info = raw_fb.info();
 
         let mut framebuffer = Self {
+            text_color: Color::new(255, 255, 255),
             cursor: Position::new(0, 0),
+
             dimensions: Dimension::new(info.width / 2, info.height / 2),
             info,
             buffer: raw_fb.buffer_mut(),
@@ -52,13 +56,17 @@ impl Framebuffer {
         }
     }
 
-    pub fn write_string(&mut self, color: &Color, string: &str) {
+    pub fn set_color(&mut self, color: &Color) {
+        self.text_color = color.clone();
+    }
+
+    pub fn write_string(&mut self, string: &str) {
         for character in string.chars() {
             if character == '\n' {
                 self.cursor.x = 0;
                 self.cursor.y += 13; // just assume the font is 13px tall for now
             } else {
-                self.draw_char(color, character);
+                self.draw_char(&self.text_color.clone(), character);
             }
         }
     }
@@ -163,7 +171,7 @@ impl Framebuffer {
 use core::fmt;
 impl fmt::Write for Framebuffer {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write_string(&Color::new(255, 255, 255), s);
+        self.write_string(s);
         Ok(())
     }
 }
@@ -180,4 +188,19 @@ macro_rules! print {
 macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! eprint {
+    ($($arg:tt)*) => {{
+        $crate::gfx::framebuffer().set_color(&$crate::gfx::Color::new(230, 50, 50));
+        $crate::print!($($arg)*);
+        $crate::gfx::framebuffer().set_color(&$crate::gfx::Color::new(255, 255, 255));
+    }};
+}
+
+#[macro_export]
+macro_rules! eprintln {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::eprint!("{}\n", format_args!($($arg)*)));
 }

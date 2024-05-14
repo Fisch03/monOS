@@ -12,3 +12,5 @@ ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
 members = [ "font_gen","monos_kernel"]
+
+resolver = "2"

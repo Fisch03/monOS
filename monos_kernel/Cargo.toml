@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 bootloader_api = "0.11"
 spin = "0.9.8"
+#x86_64 = "0.15.1"
