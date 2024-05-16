@@ -1,8 +1,9 @@
 mod handlers;
 
 mod idt;
-pub use idt::init_idt;
+pub use idt::init;
 
+use crate::mem::VirtualAddress;
 use crate::utils::BitField;
 use core::arch::asm;
 use core::fmt;
@@ -10,25 +11,6 @@ use core::fmt;
 pub fn breakpoint() {
     unsafe {
         asm!("int3", options(nomem, nostack));
-    }
-}
-
-#[derive(Clone, Copy)]
-#[repr(C)]
-struct VirtualAddress(u64);
-impl VirtualAddress {
-    fn new(address: u64) -> Self {
-        VirtualAddress(address)
-    }
-
-    fn as_u64(&self) -> u64 {
-        self.0
-    }
-}
-
-impl fmt::Debug for VirtualAddress {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#x}", self.0)
     }
 }
 
@@ -70,11 +52,18 @@ impl PrivilegeLevel {
 pub struct SegmentSelector(u16);
 
 impl SegmentSelector {
+    #[inline]
     pub fn new(index: u16, privilege_level: PrivilegeLevel) -> Self {
         let mut selector = 0;
         selector.set_bits(0..2, privilege_level as u16);
         selector.set_bits(3.., index);
         SegmentSelector(selector)
+    }
+
+    /// short hand for `SegmentSelector::new(0, PrivilegeLevel::Ring0), but const!
+    #[inline]
+    pub const fn zero() -> Self {
+        SegmentSelector(0)
     }
 
     pub fn privilege_level(&self) -> PrivilegeLevel {
@@ -92,7 +81,7 @@ impl SegmentSelector {
     pub fn current() -> Self {
         let selector: u16;
         unsafe {
-            asm!("mov {0:x}, cs", out(reg) selector);
+            asm!("mov {0:x}, cs", out(reg) selector, options(nomem, nostack, preserves_flags));
         }
         SegmentSelector(selector)
     }

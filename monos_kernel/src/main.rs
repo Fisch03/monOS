@@ -5,12 +5,18 @@
 use bootloader_api::BootInfo;
 use core::panic::PanicInfo;
 
+mod gdt;
 mod gfx;
 mod interrupts;
+mod mem;
+mod serial;
 mod utils;
 
 fn kernel_init() {
-    interrupts::init_idt();
+    serial::init(); // todo: move down
+
+    gdt::init();
+    interrupts::init();
 }
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
@@ -18,6 +24,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     if let Some(raw_fb) = boot_info.framebuffer.as_mut() {
         gfx::init(raw_fb);
+
         println!("hello world!! :D\nthis is a new line");
         println!();
 
@@ -29,19 +36,23 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         // stack_overflow();
         println!();
 
-        unsafe {
-            *(0xdeadbeef as *mut u8) = 42;
-        };
+        // unsafe {
+        //     *(0xdeadbeef as *mut u8) = 42;
+        // };
 
         // panic!("terrible things");
     }
 
-    loop {}
+    loop {
+        x86_64::instructions::hlt();
+    }
 }
 bootloader_api::entry_point!(kernel_main);
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     eprintln!("oh noes! the kernel {}", info);
-    loop {}
+    loop {
+        x86_64::instructions::hlt();
+    }
 }

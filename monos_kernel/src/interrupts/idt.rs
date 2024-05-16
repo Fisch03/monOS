@@ -3,13 +3,14 @@ use super::{InterruptStackFrame, PrivilegeLevel, SegmentSelector, VirtualAddress
 
 use crate::utils::BitField;
 use core::arch::asm;
+use core::fmt;
 use core::marker::PhantomData;
 use core::ops::Range;
 use spin::Once;
 
 static IDT: Once<InterruptDescriptorTable> = Once::new();
 
-pub fn init_idt() {
+pub fn init() {
     IDT.call_once(|| {
         let mut idt = InterruptDescriptorTable::new();
         attach_handlers(&mut idt);
@@ -96,7 +97,8 @@ pub struct InterruptDescriptorTable {
 }
 
 impl InterruptDescriptorTable {
-    pub fn new() -> Self {
+    #[inline]
+    pub const fn new() -> Self {
         Self {
             division_error: IDTEntry::new_empty(),
             debug: IDTEntry::new_empty(),
@@ -148,7 +150,7 @@ where
 {
     pointer_lower: u16,
     gdt_selector: SegmentSelector,
-    options: IDTEntryOptions,
+    pub options: IDTEntryOptions,
     pointer_middle: u16,
     pointer_upper: u32,
     _reserved: u32,
@@ -160,6 +162,7 @@ impl<T: HandlerFn> IDTEntry<T> {
     /// create a new IDT entry.
     ///
     /// safety: the `handler_address` must be an adress to a valid interrupt handler.
+    #[inline]
     pub fn new(handler_fn: T) -> Self {
         let handler_address = handler_fn.address().as_u64();
         Self {
@@ -174,9 +177,10 @@ impl<T: HandlerFn> IDTEntry<T> {
         }
     }
 
-    pub fn new_empty() -> Self {
+    #[inline]
+    pub const fn new_empty() -> Self {
         Self {
-            gdt_selector: SegmentSelector::new(0, PrivilegeLevel::Ring0),
+            gdt_selector: SegmentSelector::zero(),
             options: IDTEntryOptions::new_empty(),
             pointer_lower: 0,
             pointer_middle: 0,
@@ -214,8 +218,8 @@ impl<T: HandlerFn> IDTEntry<T> {
 /// ├──┼───────────────┤
 /// │15│   Present     │
 /// └──┴───────────────┘
-#[derive(Debug, Clone, Copy)]
-struct IDTEntryOptions(u16);
+#[derive(Clone, Copy)]
+pub struct IDTEntryOptions(u16);
 
 impl IDTEntryOptions {
     const STACK_INDEX: Range<usize> = 0..3;
@@ -223,35 +227,57 @@ impl IDTEntryOptions {
     const DPL: Range<usize> = 13..15;
     const PRESENT: usize = 15;
 
+    #[inline]
     fn new() -> Self {
         *Self::new_empty().set_present(true).set_interrupts(false)
     }
 
+    #[inline]
     const fn new_empty() -> Self {
         Self(0b1110_0000_0000)
     }
 
+    /// set the stack index.
+    ///
+    /// safety: the `index` must be a valid index
     #[allow(dead_code)]
-    fn set_stack_index(&mut self, index: u16) -> &mut Self {
-        self.0.set_bits(Self::STACK_INDEX, index);
+    pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
+        self.0.set_bits(Self::STACK_INDEX, index + 1);
         self
     }
 
     #[allow(dead_code)]
-    fn set_privilege_level(&mut self, dpl: u16) -> &mut Self {
+    pub fn set_privilege_level(&mut self, dpl: u16) -> &mut Self {
         self.0.set_bits(Self::DPL, dpl);
         self
     }
 
     #[allow(dead_code)]
-    fn set_interrupts(&mut self, enable: bool) -> &mut Self {
+    pub fn set_interrupts(&mut self, enable: bool) -> &mut Self {
         self.0.set_bit(Self::INTERRUPT_TRAP, enable);
         self
     }
 
     #[allow(dead_code)]
-    fn set_present(&mut self, present: bool) -> &mut Self {
+    pub fn set_present(&mut self, present: bool) -> &mut Self {
         self.0.set_bit(Self::PRESENT, present);
         self
+    }
+}
+
+impl fmt::Debug for IDTEntryOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IDTEntryOptions")
+            .field(
+                "stack_index",
+                &self.0.get_bits(IDTEntryOptions::STACK_INDEX),
+            )
+            .field(
+                "interrupts",
+                &self.0.get_bit(IDTEntryOptions::INTERRUPT_TRAP),
+            )
+            .field("dpl", &self.0.get_bits(IDTEntryOptions::DPL))
+            .field("present", &self.0.get_bit(IDTEntryOptions::PRESENT))
+            .finish()
     }
 }
