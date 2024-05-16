@@ -1,12 +1,5 @@
 use core::{arch::asm, fmt, ops};
 
-use spin::Once;
-
-static PHYSICAL_MEMORY_OFFSET: Once<u64> = Once::new();
-pub fn set_physical_memory_offset(offset: u64) {
-    PHYSICAL_MEMORY_OFFSET.call_once(|| offset);
-}
-
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct VirtualAddress(u64);
@@ -24,11 +17,6 @@ impl VirtualAddress {
     #[inline]
     pub fn from_ptr<T: ?Sized>(ptr: *const T) -> Self {
         VirtualAddress(ptr as *const () as u64)
-    }
-
-    #[inline]
-    pub fn from_physical(physical: u64) -> Self {
-        VirtualAddress(physical + PHYSICAL_MEMORY_OFFSET.get().unwrap_or(&0))
     }
 
     #[inline]

@@ -3,6 +3,27 @@ use super::InterruptStackFrame;
 use crate::eprintln;
 use crate::gdt::DOUBLE_FAULT_IST_INDEX;
 
+#[derive(Debug, Clone)]
+#[repr(u8)]
+pub enum InterruptIndex {
+    SpuriousInterrupt = 0xFF,
+}
+impl InterruptIndex {
+    #[inline]
+    pub fn as_u8(self) -> u8 {
+        self as u8
+    }
+
+    pub fn as_u32(self) -> u32 {
+        self as u32
+    }
+
+    #[inline]
+    pub fn as_usize(self) -> usize {
+        self as usize
+    }
+}
+
 pub fn attach_handlers(idt: &mut InterruptDescriptorTable) {
     idt.division_error = IDTEntry::new(division_error_handler);
     idt.debug = IDTEntry::new(debug_handler);
@@ -31,11 +52,13 @@ pub fn attach_handlers(idt: &mut InterruptDescriptorTable) {
     idt.hypervisor_injection_exception = IDTEntry::new(hypervisor_injection_exception_handler);
     idt.vmm_communication_exception = IDTEntry::new(vmm_communication_exception_handler);
     idt.security_exception = IDTEntry::new(security_exception_handler);
+
+    idt[InterruptIndex::SpuriousInterrupt.as_usize()] = IDTEntry::new(spurious_interrupt_handler);
 }
 
 macro_rules! irq_handler {
     ($name:ident) => {
-        pub extern "x86-interrupt" fn $name(stack_frame: InterruptStackFrame) {
+        extern "x86-interrupt" fn $name(stack_frame: InterruptStackFrame) {
             eprintln!("unhandled interrupt: {}", stringify!($name));
             eprintln!("{:#?}", stack_frame);
         }
@@ -44,7 +67,7 @@ macro_rules! irq_handler {
 
 macro_rules! irq_handler_err {
     ($name:ident) => {
-        pub extern "x86-interrupt" fn $name(stack_frame: InterruptStackFrame, error_code: u64) {
+        extern "x86-interrupt" fn $name(stack_frame: InterruptStackFrame, error_code: u64) {
             eprintln!("unhandled interrupt: {}", stringify!($name));
             eprintln!("error code: {:#b}", error_code);
             eprintln!("{:#?}", stack_frame);
@@ -56,14 +79,14 @@ irq_handler!(division_error_handler);
 irq_handler!(debug_handler);
 irq_handler!(non_maskable_interrupt_handler);
 
-pub extern "x86-interrupt" fn breakpoint_handler(_stack_frame: InterruptStackFrame) {
+extern "x86-interrupt" fn breakpoint_handler(_stack_frame: InterruptStackFrame) {
     eprintln!("breakpoint interrupt!");
 }
 
 irq_handler!(invalid_opcode_handler);
 irq_handler!(device_not_available_handler);
 
-pub extern "x86-interrupt" fn double_fault_handler(
+extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     _error_code: u64,
 ) -> ! {
@@ -74,7 +97,7 @@ irq_handler_err!(invalid_tss_handler);
 irq_handler_err!(segment_not_present_handler);
 irq_handler_err!(stack_segment_fault_handler);
 
-pub extern "x86-interrupt" fn general_protection_fault_handler(
+extern "x86-interrupt" fn general_protection_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
 ) {
@@ -84,10 +107,7 @@ pub extern "x86-interrupt" fn general_protection_fault_handler(
     );
 }
 
-pub extern "x86-interrupt" fn page_fault_handler(
-    stack_frame: InterruptStackFrame,
-    error_code: u64,
-) {
+extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) {
     panic!(
         "page fault\nerror code: {:#x}\n{:#?}",
         error_code, stack_frame
@@ -105,3 +125,7 @@ irq_handler_err!(control_protection_exception_handler);
 irq_handler!(hypervisor_injection_exception_handler);
 irq_handler_err!(vmm_communication_exception_handler);
 irq_handler_err!(security_exception_handler);
+
+extern "x86-interrupt" fn spurious_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    eprintln!("spurious interrupt!");
+}

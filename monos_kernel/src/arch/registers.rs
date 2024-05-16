@@ -1,5 +1,7 @@
-use super::SegmentSelector;
+use crate::gdt::SegmentSelector;
 use core::arch::asm;
+
+pub struct MSR(u32);
 
 pub unsafe fn set_cs(selector: SegmentSelector) {
     asm!(
@@ -36,4 +38,44 @@ pub unsafe fn set_es(selector: SegmentSelector) {
 
 pub unsafe fn set_ss(selector: SegmentSelector) {
     set_segment!("ss", selector);
+}
+
+impl MSR {
+    #[inline]
+    pub const fn new(reg: u32) -> Self {
+        MSR(reg)
+    }
+
+    #[inline]
+    pub unsafe fn read(&self) -> u64 {
+        let low: u32;
+        let high: u32;
+
+        unsafe {
+            asm!(
+                "rdmsr",
+                in("ecx") self.0,
+                out("eax") low,
+                out("edx") high,
+                options(nomem, nostack, preserves_flags)
+            );
+        }
+
+        ((high as u64) << 32) | (low as u64)
+    }
+
+    #[inline]
+    pub unsafe fn write(&self, value: u64) {
+        let low = value as u32;
+        let high = (value >> 32) as u32;
+
+        unsafe {
+            asm!(
+                "wrmsr",
+                in("ecx") self.0,
+                in("eax") low,
+                in("edx") high
+            );
+        }
+    }
 }

@@ -14,7 +14,7 @@ struct Pics {
 }
 
 impl Pics {
-    fn new(offset: u8) -> Self {
+    fn new() -> Self {
         Pics {
             pic1: Pic {
                 command: Port::new(0x20),
@@ -57,7 +57,7 @@ impl Pics {
 }
 
 pub fn disable_pic() {
-    let mut pics = Pics::new(0x20);
+    let mut pics = Pics::new();
 
     let mut wait_port: Port<u8> = Port::new(0x80);
     let mut wait = || unsafe { wait_port.write(0) };

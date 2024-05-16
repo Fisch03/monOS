@@ -6,6 +6,7 @@ use bootloader_api::BootInfo;
 use core::arch::asm;
 use core::panic::PanicInfo;
 
+mod arch;
 mod gdt;
 mod gfx;
 mod interrupts;
@@ -13,13 +14,18 @@ mod mem;
 mod serial;
 mod utils;
 
-fn kernel_init() {
+fn kernel_init(boot_info: &BootInfo) {
+    if let Some(physical_memory_offset) = boot_info.physical_memory_offset.as_ref() {
+        mem::set_physical_memory_offset(*physical_memory_offset);
+    }
+
     gdt::init();
     interrupts::init();
 }
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
-    kernel_init();
+    kernel_init(boot_info);
+
     if let Some(raw_fb) = boot_info.framebuffer.as_mut() {
         gfx::init(raw_fb);
 

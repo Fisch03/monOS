@@ -1,4 +1,5 @@
 mod handlers;
+pub use handlers::InterruptIndex;
 
 mod apic;
 mod idt;

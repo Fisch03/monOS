@@ -1,11 +1,10 @@
-mod registers;
-
 mod gdt;
 use gdt::{GlobalDescriptorTable, SegmentDescriptor};
 
 mod tss;
 use tss::TaskStateSegment;
 
+use crate::arch::registers;
 use crate::mem::VirtualAddress;
 use crate::utils::BitField;
 use core::{arch::asm, ptr::addr_of};
