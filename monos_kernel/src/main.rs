@@ -13,15 +13,14 @@ mod serial;
 mod utils;
 
 fn kernel_init() {
-    serial::init(); // todo: move down
-
     gdt::init();
     interrupts::init();
+
+    serial::init(); // todo: move down
 }
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     kernel_init();
-
     if let Some(raw_fb) = boot_info.framebuffer.as_mut() {
         gfx::init(raw_fb);
 
@@ -30,17 +29,13 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
         interrupts::breakpoint();
 
-        // fn stack_overflow() {
-        //     stack_overflow();
-        // }
-        // stack_overflow();
         println!();
 
         // unsafe {
         //     *(0xdeadbeef as *mut u8) = 42;
         // };
 
-        // panic!("terrible things");
+        panic!("terrible things");
     }
 
     loop {

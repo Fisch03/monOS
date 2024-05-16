@@ -78,9 +78,6 @@ pub extern "x86-interrupt" fn general_protection_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
 ) {
-    use x86_64::structures::idt::SelectorErrorCode;
-    let error_code = SelectorErrorCode::new(error_code);
-    crate::dbg!(crate::gdt::GDT.get());
     panic!(
         "general protection fault\nerror code: {:#?}\n{:#?}",
         error_code, stack_frame

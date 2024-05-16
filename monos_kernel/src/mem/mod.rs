@@ -1,4 +1,4 @@
-use core::{fmt, ops};
+use core::{arch::asm, fmt, ops};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -41,5 +41,28 @@ impl ops::AddAssign<u64> for VirtualAddress {
 impl fmt::Debug for VirtualAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{:#x}", self.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+#[repr(C, packed(2))]
+pub struct DTPointer {
+    pub limit: u16,
+    pub base: VirtualAddress,
+}
+
+impl DTPointer {
+    /// load the IDT at the pointer adress.
+    ///
+    /// safety: the pointer must point to a valid IDT and have the correct limit.
+    pub unsafe fn load_idt(&self) {
+        asm!("lidt [{}]", in(reg) self, options(readonly, nostack, preserves_flags));
+    }
+
+    /// load the GDT at the pointer adress.
+    ///
+    /// safety: the pointer must point to a valid GDT and have the correct limit.
+    pub unsafe fn load_gdt(&self) {
+        asm!("lgdt [{}]", in(reg) self, options(readonly, nostack, preserves_flags));
     }
 }

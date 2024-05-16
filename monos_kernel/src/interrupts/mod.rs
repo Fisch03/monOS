@@ -3,97 +3,14 @@ mod handlers;
 mod idt;
 pub use idt::init;
 
+use crate::gdt::SegmentSelector;
 use crate::mem::VirtualAddress;
-use crate::utils::BitField;
 use core::arch::asm;
 use core::fmt;
 
 pub fn breakpoint() {
     unsafe {
         asm!("int3", options(nomem, nostack));
-    }
-}
-
-#[derive(Debug)]
-pub enum PrivilegeLevel {
-    Ring0 = 0,
-    Ring1 = 1,
-    Ring2 = 2,
-    Ring3 = 3,
-}
-
-impl PrivilegeLevel {
-    fn from_u16(value: u16) -> Self {
-        match value {
-            0 => PrivilegeLevel::Ring0,
-            1 => PrivilegeLevel::Ring1,
-            2 => PrivilegeLevel::Ring2,
-            3 => PrivilegeLevel::Ring3,
-            _ => panic!("invalid privilege level"),
-        }
-    }
-}
-
-///   Segment Selector
-/// ┌──┬───────────────┐
-/// │ 0│   Privilege   │
-/// │ 1│     Level     │
-/// ├──┼───────────────┤
-/// │ 2│    GDT/LDT    │
-/// ├──┼───────────────┤
-/// │ 3│               │
-/// │ .│               │
-/// │ .│     Index     │
-/// │ .│               │
-/// │15│               │
-/// └──┴───────────────┘
-#[derive(Clone, Copy)]
-#[repr(transparent)]
-pub struct SegmentSelector(u16);
-
-impl SegmentSelector {
-    #[inline]
-    pub fn new(index: u16, privilege_level: PrivilegeLevel) -> Self {
-        let mut selector = 0;
-        selector.set_bits(0..2, privilege_level as u16);
-        selector.set_bits(3.., index);
-        SegmentSelector(selector)
-    }
-
-    /// short hand for `SegmentSelector::new(0, PrivilegeLevel::Ring0), but const!
-    #[inline]
-    pub const fn zero() -> Self {
-        SegmentSelector(0)
-    }
-
-    pub fn privilege_level(&self) -> PrivilegeLevel {
-        PrivilegeLevel::from_u16(self.0.get_bits(0..2))
-    }
-
-    pub fn is_ldt(&self) -> bool {
-        self.0.get_bit(2)
-    }
-
-    pub fn index(&self) -> u16 {
-        self.0.get_bits(3..)
-    }
-
-    pub fn current() -> Self {
-        let selector: u16;
-        unsafe {
-            asm!("mov {0:x}, cs", out(reg) selector, options(nomem, nostack, preserves_flags));
-        }
-        SegmentSelector(selector)
-    }
-}
-
-impl fmt::Debug for SegmentSelector {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("SegmentSelector")
-            .field("privilege_level", &self.privilege_level())
-            // .field("is_ldt", &self.is_ldt())
-            .field("index", &self.index())
-            .finish()
     }
 }
 

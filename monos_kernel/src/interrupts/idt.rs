@@ -1,8 +1,8 @@
 use super::handlers::attach_handlers;
-use super::{InterruptStackFrame, PrivilegeLevel, SegmentSelector, VirtualAddress};
-
+use super::{InterruptStackFrame, SegmentSelector, VirtualAddress};
+use crate::mem::DTPointer;
 use crate::utils::BitField;
-use core::arch::asm;
+
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::Range;
@@ -46,22 +46,6 @@ impl_handler_fn!(IDTHandlerFunction);
 impl_handler_fn!(IDTHandlerFunctionErrCode);
 impl_handler_fn!(IDTHandlerFunctionDiverging);
 impl_handler_fn!(IDTHandlerFunctionErrCodeDiverging);
-
-#[derive(Debug, Clone)]
-#[repr(C, packed(2))]
-struct IDTPointer {
-    limit: u16,
-    base: VirtualAddress,
-}
-
-impl IDTPointer {
-    /// load the table at the pointer adress.
-    ///
-    /// safety: the pointer must point to a valid IDT and have the correct limit.
-    unsafe fn load(&self) {
-        asm!("lidt [{}]", in(reg) self, options(nostack, preserves_flags));
-    }
-}
 
 // https://wiki.osdev.org/Exceptions
 #[derive(Debug, Clone)]
@@ -132,12 +116,12 @@ impl InterruptDescriptorTable {
 
     pub fn load(&'static self) {
         use core::mem::size_of;
-        let ptr = IDTPointer {
+        let ptr = DTPointer {
             base: VirtualAddress::new(self as *const _ as u64),
             limit: (size_of::<Self>() - 1) as u16,
         };
         unsafe {
-            ptr.load();
+            ptr.load_idt();
         }
     }
 }
