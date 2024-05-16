@@ -1,7 +1,12 @@
 mod handlers;
 
+mod apic;
 mod idt;
-pub use idt::init;
+
+pub fn init() {
+    idt::init();
+    apic::init();
+}
 
 use crate::gdt::SegmentSelector;
 use crate::mem::VirtualAddress;
@@ -15,7 +20,7 @@ pub fn breakpoint() {
 }
 
 #[repr(C)]
-struct InterruptStackFrame {
+pub struct InterruptStackFrame {
     instruction_pointer: VirtualAddress,
     code_segment: SegmentSelector,
     _padding1: [u8; 6],

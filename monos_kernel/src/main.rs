@@ -3,6 +3,7 @@
 #![feature(abi_x86_interrupt)]
 
 use bootloader_api::BootInfo;
+use core::arch::asm;
 use core::panic::PanicInfo;
 
 mod gdt;
@@ -15,8 +16,6 @@ mod utils;
 fn kernel_init() {
     gdt::init();
     interrupts::init();
-
-    serial::init(); // todo: move down
 }
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
@@ -34,12 +33,12 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         // unsafe {
         //     *(0xdeadbeef as *mut u8) = 42;
         // };
-
-        panic!("terrible things");
     }
 
     loop {
-        x86_64::instructions::hlt();
+        unsafe {
+            asm!("hlt", options(nomem, nostack, preserves_flags));
+        }
     }
 }
 bootloader_api::entry_point!(kernel_main);
@@ -47,7 +46,10 @@ bootloader_api::entry_point!(kernel_main);
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     eprintln!("oh noes! the kernel {}", info);
+
     loop {
-        x86_64::instructions::hlt();
+        unsafe {
+            asm!("hlt", options(nomem, nostack, preserves_flags));
+        }
     }
 }

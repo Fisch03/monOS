@@ -5,18 +5,17 @@ use crate::utils::BitField;
 
 use core::fmt;
 use core::marker::PhantomData;
-use core::ops::Range;
-use spin::Once;
+use core::ops::{self, Range};
+use spin::Lazy;
 
-static IDT: Once<InterruptDescriptorTable> = Once::new();
+static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
+    let mut idt = InterruptDescriptorTable::new();
+    attach_handlers(&mut idt);
+    idt
+});
 
 pub fn init() {
-    IDT.call_once(|| {
-        let mut idt = InterruptDescriptorTable::new();
-        attach_handlers(&mut idt);
-        idt
-    })
-    .load();
+    IDT.load();
 }
 
 pub type IDTHandlerFunction = extern "x86-interrupt" fn(_: InterruptStackFrame);
@@ -78,6 +77,8 @@ pub struct InterruptDescriptorTable {
     pub vmm_communication_exception: IDTEntry<IDTHandlerFunctionErrCode>,
     pub security_exception: IDTEntry<IDTHandlerFunctionErrCode>,
     _reserved3: IDTEntry<IDTHandlerFunction>,
+
+    pub interrupts: [IDTEntry<IDTHandlerFunction>; 256 - 32],
 }
 
 impl InterruptDescriptorTable {
@@ -111,6 +112,8 @@ impl InterruptDescriptorTable {
             vmm_communication_exception: IDTEntry::new_empty(),
             security_exception: IDTEntry::new_empty(),
             _reserved3: IDTEntry::new_empty(),
+
+            interrupts: [IDTEntry::new_empty(); 256 - 32],
         }
     }
 
@@ -123,6 +126,21 @@ impl InterruptDescriptorTable {
         unsafe {
             ptr.load_idt();
         }
+    }
+}
+
+impl ops::Index<usize> for InterruptDescriptorTable {
+    type Output = IDTEntry<IDTHandlerFunction>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        assert!(index >= 32, "index must be greater than 32");
+        &self.interrupts[index - 32]
+    }
+}
+impl ops::IndexMut<usize> for InterruptDescriptorTable {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        assert!(index >= 32, "index must be greater than 32");
+        &mut self.interrupts[index - 32]
     }
 }
 
