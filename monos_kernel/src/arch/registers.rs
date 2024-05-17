@@ -1,7 +1,8 @@
 use crate::gdt::SegmentSelector;
-use core::arch::asm;
+use crate::mem::{Frame, PhysicalAddress};
+use crate::utils::BitField;
 
-pub struct MSR(u32);
+use core::arch::asm;
 
 pub unsafe fn set_cs(selector: SegmentSelector) {
     asm!(
@@ -40,6 +41,24 @@ pub unsafe fn set_ss(selector: SegmentSelector) {
     set_segment!("ss", selector);
 }
 
+pub struct CR3;
+impl CR3 {
+    #[inline]
+    pub fn read() -> (Frame, u16) {
+        let value: u64;
+
+        unsafe {
+            asm!("mov {}, cr3", out(reg) value, options(nomem, nostack, preserves_flags));
+        }
+
+        let addr = PhysicalAddress::new(value & 0x0000_ffff_ffff_f000);
+        let frame = Frame::around(addr);
+
+        (frame, (value & 0xFFF) as u16)
+    }
+}
+
+pub struct MSR(u32);
 impl MSR {
     #[inline]
     pub const fn new(reg: u32) -> Self {

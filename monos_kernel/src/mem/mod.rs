@@ -1,11 +1,6 @@
+pub mod paging;
+
 use core::{arch::asm, fmt, ops};
-
-use spin::Once;
-
-static PHYSICAL_MEMORY_OFFSET: Once<u64> = Once::new();
-pub fn set_physical_memory_offset(offset: u64) {
-    PHYSICAL_MEMORY_OFFSET.call_once(|| offset);
-}
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -27,8 +22,13 @@ impl VirtualAddress {
     }
 
     #[inline]
-    pub fn from_physical(physical: u64) -> Self {
-        VirtualAddress(physical + PHYSICAL_MEMORY_OFFSET.get().unwrap_or(&0))
+    pub const fn as_ptr<T>(self) -> *const T {
+        self.0 as *const T
+    }
+
+    #[inline]
+    pub const fn as_mut_ptr<T>(self) -> *mut T {
+        self.0 as *mut T
     }
 
     #[inline]
@@ -52,7 +52,84 @@ impl ops::AddAssign<u64> for VirtualAddress {
 
 impl fmt::Debug for VirtualAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#x}", self.0)
+        f.debug_tuple("VirtualAddress")
+            .field(&format_args!("{:#x}", self.0))
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct PhysicalAddress(u64);
+
+impl PhysicalAddress {
+    #[inline]
+    pub const fn new(address: u64) -> Self {
+        let address = address % (1 << 52);
+
+        // safety: we just truncated the address to 52 bits
+        unsafe { Self::new_unchecked(address) }
+    }
+
+    #[inline]
+    pub const unsafe fn new_unchecked(address: u64) -> Self {
+        PhysicalAddress(address)
+    }
+
+    // Align the address to a 4KiB boundary
+    #[inline]
+    fn align_4k(&self) -> PhysicalAddress {
+        PhysicalAddress::new(self.0 & !(4096 - 1))
+    }
+
+    #[inline]
+    pub const fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
+impl ops::Add<u64> for PhysicalAddress {
+    type Output = Self;
+    fn add(self, rhs: u64) -> Self {
+        PhysicalAddress(self.0 + rhs)
+    }
+}
+
+impl ops::AddAssign<u64> for PhysicalAddress {
+    fn add_assign(&mut self, rhs: u64) {
+        self.0 += rhs;
+    }
+}
+
+impl fmt::Debug for PhysicalAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("PhysicalAddress")
+            .field(&format_args!("{:#x}", self.0))
+            .finish()
+    }
+}
+///
+/// 4KiB aligned frame
+#[repr(C)]
+pub struct Frame {
+    start: PhysicalAddress,
+}
+impl Frame {
+    #[inline]
+    pub const unsafe fn new(start: PhysicalAddress) -> Self {
+        Frame { start }
+    }
+
+    #[inline]
+    pub fn around(addr: PhysicalAddress) -> Frame {
+        Frame {
+            start: addr.align_4k(),
+        }
+    }
+
+    #[inline]
+    pub fn start_address(&self) -> PhysicalAddress {
+        self.start
     }
 }
 
