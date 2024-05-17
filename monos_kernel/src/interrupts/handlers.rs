@@ -14,6 +14,7 @@ impl InterruptIndex {
         self as u8
     }
 
+    #[inline]
     pub fn as_u32(self) -> u32 {
         self as u32
     }

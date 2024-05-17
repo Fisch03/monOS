@@ -1,8 +1,14 @@
 mod page_table;
 use page_table::{PageTable, PageTableIndex};
 
+mod mapper;
+use mapper::Mapper;
+
+mod frame;
+pub use frame::{Frame, FrameSize4K};
+
 use crate::arch::registers::CR3;
-use crate::mem::{PhysicalAddress, VirtualAddress};
+use crate::mem::VirtualAddress;
 use crate::utils::BitField;
 
 impl VirtualAddress {
@@ -27,45 +33,20 @@ impl VirtualAddress {
     }
 }
 
+/// safety: the physical memory offset must be correct and the page tables need to be set up correctly.
+pub unsafe fn init(physical_mem_offset: VirtualAddress) -> Mapper<'static> {
+    // safety: the caller guarantees that the physical memory offset is correct.
+    let mapper = unsafe { Mapper::new(physical_mem_offset) };
+    mapper
+}
+
+/// safety: the physical memory offset must be correct
 pub unsafe fn active_level_4_table(physical_mem_offset: VirtualAddress) -> &'static mut PageTable {
-    use x86_64::registers::control::Cr3;
-    let (l4_table, _) = Cr3::read();
+    let (l4_table, _) = CR3::read();
     let phys = l4_table.start_address();
     let virt = physical_mem_offset + phys.as_u64();
 
     let ptr: *mut PageTable = virt.as_mut_ptr();
 
     &mut *ptr
-}
-
-pub unsafe fn translate_addr(
-    addr: VirtualAddress,
-    physical_mem_offset: VirtualAddress,
-) -> Option<PhysicalAddress> {
-    translate_addr_inner(addr, physical_mem_offset)
-}
-
-pub fn translate_addr_inner(
-    addr: VirtualAddress,
-    physical_mem_offset: VirtualAddress,
-) -> Option<PhysicalAddress> {
-    let (mut frame, _) = CR3::read();
-
-    let table_indices = [
-        addr.p4_index(),
-        addr.p3_index(),
-        addr.p2_index(),
-        addr.p1_index(),
-    ];
-
-    for table_index in table_indices {
-        let virt = physical_mem_offset + frame.start_address().as_u64();
-        let ptr: *const PageTable = virt.as_ptr();
-        let table = unsafe { &*ptr };
-
-        let entry = &table[table_index];
-        frame = entry.frame()?;
-    }
-
-    Some(frame.start_address() + u64::from(addr.page_offset()))
 }

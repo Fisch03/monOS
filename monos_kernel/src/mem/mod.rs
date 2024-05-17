@@ -12,26 +12,31 @@ impl VirtualAddress {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub const fn zero() -> Self {
         VirtualAddress(0)
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn from_ptr<T: ?Sized>(ptr: *const T) -> Self {
         VirtualAddress(ptr as *const () as u64)
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub const fn as_ptr<T>(self) -> *const T {
         self.0 as *const T
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub const fn as_mut_ptr<T>(self) -> *mut T {
         self.0 as *mut T
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn as_u64(&self) -> u64 {
         self.0
     }
@@ -76,10 +81,14 @@ impl PhysicalAddress {
         PhysicalAddress(address)
     }
 
-    // Align the address to a 4KiB boundary
     #[inline]
-    fn align_4k(&self) -> PhysicalAddress {
-        PhysicalAddress::new(self.0 & !(4096 - 1))
+    fn align(&self, align: u64) -> PhysicalAddress {
+        PhysicalAddress::new(self.0 & !(align - 1))
+    }
+
+    #[inline]
+    fn is_aligned(&self, align: u64) -> bool {
+        self.0 & (align - 1) == 0
     }
 
     #[inline]
@@ -106,30 +115,6 @@ impl fmt::Debug for PhysicalAddress {
         f.debug_tuple("PhysicalAddress")
             .field(&format_args!("{:#x}", self.0))
             .finish()
-    }
-}
-///
-/// 4KiB aligned frame
-#[repr(C)]
-pub struct Frame {
-    start: PhysicalAddress,
-}
-impl Frame {
-    #[inline]
-    pub const unsafe fn new(start: PhysicalAddress) -> Self {
-        Frame { start }
-    }
-
-    #[inline]
-    pub fn around(addr: PhysicalAddress) -> Frame {
-        Frame {
-            start: addr.align_4k(),
-        }
-    }
-
-    #[inline]
-    pub fn start_address(&self) -> PhysicalAddress {
-        self.start
     }
 }
 

@@ -44,6 +44,8 @@ impl Framebuffer {
         framebuffer
     }
 
+    #[inline]
+    #[allow(dead_code)]
     pub fn dimensions(&self) -> &Dimension {
         &self.dimensions
     }
@@ -99,18 +101,6 @@ impl Framebuffer {
             }
 
             self.cursor.x += char.width;
-        }
-    }
-
-    pub fn horizontal_line(&mut self, position: &Position, length: usize, color: &Color) {
-        for x in 0..length {
-            self.draw_pixel(
-                &Position {
-                    x: position.x + x,
-                    y: position.y,
-                },
-                color,
-            );
         }
     }
 

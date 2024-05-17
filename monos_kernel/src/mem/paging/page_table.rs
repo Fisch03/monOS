@@ -1,7 +1,10 @@
-use crate::mem::{Frame, PhysicalAddress};
+use super::frame::{Frame, FrameSize4K};
+use crate::mem::PhysicalAddress;
 use crate::utils::BitField;
+use core::fmt;
 use core::ops::{self, Range};
 
+#[derive(Debug)]
 pub struct PageTableIndex(u16);
 impl PageTableIndex {
     #[inline]
@@ -17,7 +20,6 @@ impl PageTableIndex {
     }
 }
 
-#[derive(Clone)]
 #[repr(C, align(4096))]
 pub struct PageTable {
     entries: [PageTableEntry; 512],
@@ -25,13 +27,7 @@ pub struct PageTable {
 
 impl PageTable {
     #[inline]
-    pub const fn new() -> Self {
-        PageTable {
-            entries: [PageTableEntry::new(); 512],
-        }
-    }
-
-    #[inline]
+    #[allow(dead_code)]
     pub fn iter(&self) -> impl Iterator<Item = &PageTableEntry> {
         self.entries.iter()
     }
@@ -66,6 +62,19 @@ impl ops::IndexMut<PageTableIndex> for PageTable {
     fn index_mut(&mut self, index: PageTableIndex) -> &mut Self::Output {
         &mut self.entries[index.as_u64() as usize]
     }
+}
+
+impl fmt::Debug for PageTable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list()
+            .entries(self.entries.iter().filter(|entry| entry.is_present()))
+            .finish()
+    }
+}
+
+pub enum PageTableFrameError {
+    NotPresent,
+    HugePage,
 }
 
 ///   Page Table Entry
@@ -104,7 +113,7 @@ impl ops::IndexMut<PageTableIndex> for PageTable {
 /// ├──┼───────────────┤        
 /// │63│  No Execute   │        
 /// └──┴───────────────┘        
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 #[repr(transparent)]
 pub struct PageTableEntry(u64);
 
@@ -121,7 +130,8 @@ impl PageTableEntry {
     const ADDRESS: Range<usize> = 12..52;
 
     #[inline]
-    const fn new() -> Self {
+    #[allow(dead_code)]
+    const fn new_empty() -> Self {
         PageTableEntry(0)
     }
 
@@ -137,15 +147,43 @@ impl PageTableEntry {
 
     #[inline]
     pub fn addr(&self) -> PhysicalAddress {
-        PhysicalAddress::new(self.0.get_bits(Self::ADDRESS))
+        PhysicalAddress::new(self.0.get_bits(Self::ADDRESS) << 12)
     }
 
     #[inline]
-    pub fn frame(&self) -> Option<Frame> {
-        if !self.is_present() || self.is_huge() {
-            return None;
+    pub fn frame(&self) -> Result<Frame<FrameSize4K>, PageTableFrameError> {
+        if !self.is_present() {
+            Err(PageTableFrameError::NotPresent)
+        } else if self.is_huge() {
+            Err(PageTableFrameError::HugePage)
         } else {
-            return Some(Frame::around(self.addr()));
+            Ok(Frame::around(self.addr()))
         }
+    }
+}
+
+impl fmt::Debug for PageTableEntry {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("PageTableEntry")
+            .field("present", &self.is_present())
+            .field("writable", &self.0.get_bit(PageTableEntry::WRITABLE))
+            .field(
+                "user_accessible",
+                &self.0.get_bit(PageTableEntry::USER_ACCESSIBLE),
+            )
+            .field(
+                "write_through",
+                &self.0.get_bit(PageTableEntry::WRITE_THROUGH),
+            )
+            .field(
+                "cache_disable",
+                &self.0.get_bit(PageTableEntry::CACHE_DISABLE),
+            )
+            .field("accessed", &self.0.get_bit(PageTableEntry::ACCESSED))
+            .field("dirty", &self.0.get_bit(PageTableEntry::DIRTY))
+            .field("huge_page", &self.0.get_bit(PageTableEntry::HUGE_PAGE))
+            .field("global", &self.0.get_bit(PageTableEntry::GLOBAL))
+            .field("address", &self.addr())
+            .finish()
     }
 }
