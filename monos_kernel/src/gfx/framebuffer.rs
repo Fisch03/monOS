@@ -1,13 +1,15 @@
 use super::fonts::cozette;
 use super::types::*;
+use crate::mem::{self, VirtualAddress};
 
 use bootloader_api::info::{FrameBuffer as RawFrameBuffer, FrameBufferInfo, PixelFormat};
+use core::slice;
 use spin::{Mutex, MutexGuard, Once};
 
 static FRAMEBUFFER: Once<Mutex<Framebuffer>> = Once::new();
 
-pub fn init(raw_fb: &'static mut RawFrameBuffer) {
-    FRAMEBUFFER.call_once(|| Mutex::new(Framebuffer::new(raw_fb)));
+pub fn init(fb: RawFrameBuffer) {
+    FRAMEBUFFER.call_once(|| Mutex::new(Framebuffer::new(fb)));
 }
 
 pub fn framebuffer() -> MutexGuard<'static, Framebuffer> {
@@ -27,8 +29,32 @@ pub struct Framebuffer {
 }
 
 impl Framebuffer {
-    fn new(raw_fb: &'static mut RawFrameBuffer) -> Self {
-        let info = raw_fb.info();
+    fn new(fb: RawFrameBuffer) -> Self {
+        let info = fb.info();
+
+        let mut mapper = mem::MAPPER
+            .get()
+            .expect("memory hasn't been initialized yet")
+            .lock();
+
+        let buffer = fb.into_buffer();
+        let buffer_virt = VirtualAddress::from_ptr(buffer);
+        let buffer_phys = mapper.translate_addr(buffer_virt).unwrap();
+
+        let page: mem::Page<mem::PageSize4K> = mem::Page::around(buffer_virt);
+        let frame = mem::Frame::around(buffer_phys);
+
+        use mem::PageTableFlags;
+        let flags = PageTableFlags::PRESENT
+            | PageTableFlags::WRITABLE
+            | PageTableFlags::WRITE_THROUGH
+            | PageTableFlags::CACHE_DISABLE;
+
+        use mem::MapTo;
+        unsafe { mapper.map_to(&page, &frame, flags) }.expect("failed to map frame buffer");
+
+        let ptr = page.start_address().as_mut_ptr::<u8>();
+        let buffer = unsafe { slice::from_raw_parts_mut(ptr, info.byte_len) };
 
         let mut framebuffer = Self {
             text_color: Color::new(255, 255, 255),
@@ -36,7 +62,7 @@ impl Framebuffer {
 
             dimensions: Dimension::new(info.width / 2, info.height / 2),
             info,
-            buffer: raw_fb.buffer_mut(),
+            buffer,
         };
 
         framebuffer.clear(&Color::new(0, 0, 0));

@@ -1,6 +1,30 @@
-pub mod paging;
+mod paging;
+pub use paging::*;
 
+use bootloader_api::info::MemoryRegions;
 use core::{arch::asm, fmt, ops};
+use spin::{Mutex, Once};
+
+pub static MAPPER: Once<Mutex<Mapper>> = Once::new();
+pub static FRAME_ALLOCATOR: Once<Mutex<FrameAllocator>> = Once::new();
+
+pub fn init(physical_mem_offset: VirtualAddress, mem_map: &'static MemoryRegions) {
+    // set up PAT to use write-combining write-through + cache-disabled pages (used for frame buffer)
+    PAT::set(
+        PAT::INDEX_WRITE_THROUGH | PAT::INDEX_CACHE_DISABLED,
+        PAT::WRITE_COMBINING,
+    );
+
+    MAPPER.call_once(|| {
+        let mapper = unsafe { Mapper::new(physical_mem_offset) };
+        Mutex::new(mapper)
+    });
+
+    FRAME_ALLOCATOR.call_once(|| {
+        let frame_allocator = FrameAllocator::new(mem_map);
+        Mutex::new(frame_allocator)
+    });
+}
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -33,6 +57,16 @@ impl VirtualAddress {
     #[allow(dead_code)]
     pub const fn as_mut_ptr<T>(self) -> *mut T {
         self.0 as *mut T
+    }
+
+    #[inline]
+    fn align(&self, align: u64) -> Self {
+        Self::new(self.0 & !(align - 1))
+    }
+
+    #[inline]
+    fn is_aligned(&self, align: u64) -> bool {
+        self.0 & (align - 1) == 0
     }
 
     #[inline]
@@ -82,8 +116,8 @@ impl PhysicalAddress {
     }
 
     #[inline]
-    fn align(&self, align: u64) -> PhysicalAddress {
-        PhysicalAddress::new(self.0 & !(align - 1))
+    fn align(&self, align: u64) -> Self {
+        Self::new(self.0 & !(align - 1))
     }
 
     #[inline]

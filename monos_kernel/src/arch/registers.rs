@@ -1,8 +1,5 @@
 use crate::gdt::SegmentSelector;
-use crate::mem::{
-    paging::{Frame, FrameSize4K},
-    PhysicalAddress,
-};
+use crate::mem::{Frame, PageSize4K, PhysicalAddress};
 
 use core::arch::asm;
 
@@ -46,7 +43,7 @@ pub unsafe fn set_ss(selector: SegmentSelector) {
 pub struct CR3;
 impl CR3 {
     #[inline]
-    pub fn read() -> (Frame<FrameSize4K>, u16) {
+    pub fn read() -> (Frame<PageSize4K>, u16) {
         let value: u64;
 
         unsafe {

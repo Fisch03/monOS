@@ -3,7 +3,6 @@
 
 use bootloader_api::{config, BootInfo, BootloaderConfig};
 use core::arch::asm;
-use core::panic::PanicInfo;
 
 use monos_kernel::*;
 
@@ -19,20 +18,16 @@ bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
 
-    if let Some(raw_fb) = boot_info.framebuffer.as_mut() {
-        gfx::init(raw_fb);
+    println!("hello world!! :D\nthis is a new line");
+    println!();
 
-        println!("hello world!! :D\nthis is a new line");
-        println!();
+    interrupts::breakpoint();
 
-        interrupts::breakpoint();
+    println!();
 
-        println!();
-
-        // unsafe {
-        //     *(0xdeadbeef as *mut u8) = 42;
-        // };
-    }
+    // unsafe {
+    //     *(0xdeadbeef as *mut u8) = 42;
+    // };
 
     loop {
         unsafe {
@@ -41,6 +36,9 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     }
 }
 
+#[cfg(not(test))]
+use core::panic::PanicInfo;
+#[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     //always print to serial first. the screen might not be

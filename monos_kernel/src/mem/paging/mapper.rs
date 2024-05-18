@@ -1,9 +1,12 @@
 use super::{
     active_level_4_table,
-    frame::{Frame, FrameSize, MappedFrame},
-    page_table::{PageTable, PageTableFrameError},
+    frame::{Frame, MappedFrame},
+    page::Page,
+    page_table::{PageTable, PageTableEntry, PageTableFlags, PageTableFrameError},
+    FrameAllocator, PageSize, PageSize1G, PageSize2M, PageSize4K,
 };
-use crate::mem::{PhysicalAddress, VirtualAddress};
+use crate::mem::{self, PhysicalAddress, VirtualAddress};
+use bootloader_api::info::{MemoryRegion, MemoryRegions};
 
 #[derive(Debug)]
 pub struct AddressMapping {
@@ -22,20 +25,35 @@ pub enum TranslateError {
     InvalidAddress,
 }
 
+pub trait MapTo<S: PageSize> {
+    unsafe fn map_to(
+        &mut self,
+        page: &Page<S>,
+        frame: &Frame<S>,
+        flags: PageTableFlags,
+    ) -> Result<(), MapToError>;
+}
+
+#[derive(Debug)]
+pub enum MapToError {
+    ParentHugePage,
+    AlreadyMapped,
+    OutOfMemory,
+}
+
 #[derive(Debug)]
 pub struct Mapper<'pt> {
     l4: &'pt mut PageTable,
-    offset: VirtualAddress,
+    manager: PageManager,
 }
 
 impl Mapper<'_> {
     /// safety: the physical memory offset must be valid and the page tables need to be set up correctly.
+    #[inline]
     pub unsafe fn new(physical_mem_offset: VirtualAddress) -> Self {
         let l4 = unsafe { active_level_4_table(physical_mem_offset) };
-        Self {
-            l4,
-            offset: physical_mem_offset,
-        }
+        let manager = unsafe { PageManager::new(physical_mem_offset) };
+        Self { l4, manager }
     }
 
     /// convenience function for translating a virtual address to a physical address.
@@ -50,16 +68,15 @@ impl Mapper<'_> {
         let l4 = &self.l4;
 
         let l4_entry = &l4[addr.p4_index()];
-        let l3_frame = match l4_entry.frame() {
-            Ok(frame) => frame,
+        let l3 = match self.manager.entry_to_table(l4_entry) {
+            Ok(table) => table,
             Err(PageTableFrameError::NotPresent) => return Err(TranslateError::NotMapped),
             Err(PageTableFrameError::HugePage) => panic!("l4 entry is marked as huge page"),
         };
 
-        let l3 = self.frame_to_table(&l3_frame);
         let l3_entry = &l3[addr.p3_index()];
-        let l2_frame = match l3_entry.frame() {
-            Ok(frame) => frame,
+        let l2 = match self.manager.entry_to_table(l3_entry) {
+            Ok(table) => table,
             Err(PageTableFrameError::NotPresent) => return Err(TranslateError::NotMapped),
             Err(PageTableFrameError::HugePage) => {
                 let frame = Frame::around(l3_entry.addr());
@@ -71,10 +88,9 @@ impl Mapper<'_> {
             }
         };
 
-        let l2 = self.frame_to_table(&l2_frame);
         let l2_entry = &l2[addr.p2_index()];
-        let l1_frame = match l2_entry.frame() {
-            Ok(frame) => frame,
+        let l1 = match self.manager.entry_to_table(l2_entry) {
+            Ok(table) => table,
             Err(PageTableFrameError::NotPresent) => return Err(TranslateError::NotMapped),
             Err(PageTableFrameError::HugePage) => {
                 let frame = Frame::around(l2_entry.addr());
@@ -86,7 +102,6 @@ impl Mapper<'_> {
             }
         };
 
-        let l1 = self.frame_to_table(&l1_frame);
         let l1_entry = &l1[addr.p1_index()];
         if !l1_entry.is_present() {
             return Err(TranslateError::NotMapped);
@@ -102,13 +117,145 @@ impl Mapper<'_> {
             Err(TranslateError::InvalidAddress)
         }
     }
+}
 
-    fn frame_to_table<'a, S>(&self, frame: &'a Frame<S>) -> &'a mut PageTable
-    where
-        S: FrameSize,
-    {
+/// safety: the flags must be valid. the new mapping must not cause any undefined behavior (overlapping physical addresses, etc).
+impl MapTo<PageSize4K> for Mapper<'_> {
+    unsafe fn map_to(
+        &mut self,
+        page: &Page<PageSize4K>,
+        frame: &Frame<PageSize4K>,
+        flags: PageTableFlags,
+    ) -> Result<(), MapToError> {
+        let parent_flags = flags.mask_parent();
+
+        let l3 = self
+            .manager
+            .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
+        let l2 = self
+            .manager
+            .get_or_create_table(&mut l3[page.p3_index()], parent_flags)?;
+        let l1 = self
+            .manager
+            .get_or_create_table(&mut l2[page.p2_index()], parent_flags)?;
+
+        let entry = &mut l1[page.p1_index()];
+        if !entry.is_present() {
+            return Err(MapToError::AlreadyMapped);
+        }
+
+        entry.set_frame(frame);
+        entry.set_flags(&flags);
+
+        page.flush();
+
+        Ok(())
+    }
+}
+
+impl MapTo<PageSize2M> for Mapper<'_> {
+    unsafe fn map_to(
+        &mut self,
+        page: &Page<PageSize2M>,
+        frame: &Frame<PageSize2M>,
+        flags: PageTableFlags,
+    ) -> Result<(), MapToError> {
+        let parent_flags = flags.mask_parent();
+
+        let l3 = self
+            .manager
+            .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
+        let l2 = self
+            .manager
+            .get_or_create_table(&mut l3[page.p3_index()], parent_flags)?;
+
+        let entry = &mut l2[page.p2_index()];
+        if !entry.is_present() {
+            return Err(MapToError::AlreadyMapped);
+        }
+
+        entry.set_frame(frame);
+        entry.set_flags(&(flags | PageTableFlags::HUGE_PAGE));
+
+        page.flush();
+
+        Ok(())
+    }
+}
+
+impl MapTo<PageSize1G> for Mapper<'_> {
+    unsafe fn map_to(
+        &mut self,
+        page: &Page<PageSize1G>,
+        frame: &Frame<PageSize1G>,
+        flags: PageTableFlags,
+    ) -> Result<(), MapToError> {
+        let parent_flags = flags.mask_parent();
+
+        let l3 = self
+            .manager
+            .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
+
+        let entry = &mut l3[page.p3_index()];
+        if !entry.is_present() {
+            return Err(MapToError::AlreadyMapped);
+        }
+
+        entry.set_frame(frame);
+        entry.set_flags(&(flags | PageTableFlags::HUGE_PAGE));
+
+        page.flush();
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PageManager {
+    offset: VirtualAddress,
+}
+
+impl PageManager {
+    /// safety: the offset must be valid.
+    #[inline]
+    pub unsafe fn new(offset: VirtualAddress) -> Self {
+        Self { offset }
+    }
+
+    fn entry_to_table<'a>(
+        &self,
+        entry: &'a PageTableEntry,
+    ) -> Result<&'a mut PageTable, PageTableFrameError> {
+        let frame = entry.frame()?;
         let virt = self.offset + frame.start_address().as_u64();
         let ptr: *mut PageTable = virt.as_mut_ptr();
-        unsafe { &mut *ptr }
+        Ok(unsafe { &mut *ptr })
+    }
+
+    /// safety: the flags must be valid.
+    unsafe fn get_or_create_table<'a>(
+        &self,
+        entry: &'a mut PageTableEntry,
+        flags: PageTableFlags,
+    ) -> Result<&'a mut PageTable, MapToError> {
+        if entry.is_present() {
+            let entry_flags = entry.flags();
+            if entry_flags != flags {
+                // safety: the caller guarantees that the flags are valid.
+                unsafe { entry.set_flags(&flags) };
+            }
+        } else {
+            todo!("allocate a new table");
+        }
+
+        let table = match self.entry_to_table(entry) {
+            Ok(table) => table,
+            Err(PageTableFrameError::HugePage) => return Err(MapToError::ParentHugePage),
+            Err(PageTableFrameError::NotPresent) => unreachable!("entry was just set to present"),
+        };
+
+        //TODO: zero out the table if it's newly allocated
+
+        Ok(table)
     }
 }

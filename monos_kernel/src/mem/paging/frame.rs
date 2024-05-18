@@ -1,43 +1,22 @@
+use super::{PageSize, PageSize1G, PageSize2M, PageSize4K};
 use crate::mem::PhysicalAddress;
 use core::marker::PhantomData;
 
-pub trait FrameSize: Copy {
-    const SIZE: u64;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct FrameSize4K;
-impl FrameSize for FrameSize4K {
-    const SIZE: u64 = 4096;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct FrameSize2M;
-impl FrameSize for FrameSize2M {
-    const SIZE: u64 = 4096 * 512;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct FrameSize1G;
-impl FrameSize for FrameSize1G {
-    const SIZE: u64 = 4096 * 512 * 512;
-}
-
 #[derive(Debug, Clone)]
 #[repr(C)]
-pub struct Frame<Size: FrameSize> {
+pub struct Frame<Size: PageSize = PageSize4K> {
     start: PhysicalAddress,
     size: PhantomData<Size>,
 }
 
 #[derive(Debug)]
 pub enum MappedFrame {
-    Size4K(Frame<FrameSize4K>),
-    Size2M(Frame<FrameSize2M>),
-    Size1G(Frame<FrameSize1G>),
+    Size4K(Frame<PageSize4K>),
+    Size2M(Frame<PageSize2M>),
+    Size1G(Frame<PageSize1G>),
 }
 
-impl<S: FrameSize> Frame<S> {
+impl<S: PageSize> Frame<S> {
     #[inline]
     pub fn new(start: PhysicalAddress) -> Option<Self> {
         if !start.is_aligned(S::SIZE) {

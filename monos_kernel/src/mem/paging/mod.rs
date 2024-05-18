@@ -1,15 +1,47 @@
-mod page_table;
-use page_table::{PageTable, PageTableIndex};
-
-mod mapper;
-use mapper::Mapper;
+mod page;
+pub use page::Page;
 
 mod frame;
-pub use frame::{Frame, FrameSize4K};
+pub use frame::Frame;
+
+mod page_table;
+pub use page_table::PageTableFlags;
+use page_table::{PageTable, PageTableIndex};
+
+mod frame_allocator;
+pub use frame_allocator::FrameAllocator;
+
+mod mapper;
+pub use mapper::{MapTo, Mapper};
+
+mod pat;
+pub use pat::PAT;
 
 use crate::arch::registers::CR3;
 use crate::mem::VirtualAddress;
 use crate::utils::BitField;
+
+pub trait PageSize: Copy {
+    const SIZE: u64;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PageSize4K;
+impl PageSize for PageSize4K {
+    const SIZE: u64 = 4096;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PageSize2M;
+impl PageSize for PageSize2M {
+    const SIZE: u64 = 4096 * 512;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PageSize1G;
+impl PageSize for PageSize1G {
+    const SIZE: u64 = 4096 * 512 * 512;
+}
 
 impl VirtualAddress {
     fn page_offset(&self) -> u64 {
@@ -31,13 +63,6 @@ impl VirtualAddress {
     fn p4_index(&self) -> PageTableIndex {
         PageTableIndex::new(self.0.get_bits(39..48) as u16)
     }
-}
-
-/// safety: the physical memory offset must be correct and the page tables need to be set up correctly.
-pub unsafe fn init(physical_mem_offset: VirtualAddress) -> Mapper<'static> {
-    // safety: the caller guarantees that the physical memory offset is correct.
-    let mapper = unsafe { Mapper::new(physical_mem_offset) };
-    mapper
 }
 
 /// safety: the physical memory offset must be correct
