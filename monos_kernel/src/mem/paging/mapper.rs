@@ -1,12 +1,11 @@
 use super::{
-    active_level_4_table,
+    active_level_4_table, alloc_frame,
     frame::{Frame, MappedFrame},
     page::Page,
     page_table::{PageTable, PageTableEntry, PageTableFlags, PageTableFrameError},
-    FrameAllocator, PageSize, PageSize1G, PageSize2M, PageSize4K,
+    PageSize, PageSize1G, PageSize2M, PageSize4K,
 };
-use crate::mem::{self, PhysicalAddress, VirtualAddress};
-use bootloader_api::info::{MemoryRegion, MemoryRegions};
+use crate::mem::{PhysicalAddress, VirtualAddress};
 
 #[derive(Debug)]
 pub struct AddressMapping {
@@ -32,6 +31,8 @@ pub trait MapTo<S: PageSize> {
         frame: &Frame<S>,
         flags: PageTableFlags,
     ) -> Result<(), MapToError>;
+
+    fn unmap(&mut self, page: Page<S>) -> Result<(), UnmapError>;
 }
 
 #[derive(Debug)]
@@ -39,6 +40,20 @@ pub enum MapToError {
     ParentHugePage,
     AlreadyMapped,
     OutOfMemory,
+}
+
+#[derive(Debug)]
+pub enum UnmapError {
+    ParentHugePage,
+    NotMapped,
+}
+impl From<PageTableFrameError> for UnmapError {
+    fn from(err: PageTableFrameError) -> Self {
+        match err {
+            PageTableFrameError::NotPresent => Self::NotMapped,
+            PageTableFrameError::HugePage => Self::ParentHugePage,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -132,21 +147,37 @@ impl MapTo<PageSize4K> for Mapper<'_> {
         let l3 = self
             .manager
             .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
+
         let l2 = self
             .manager
             .get_or_create_table(&mut l3[page.p3_index()], parent_flags)?;
+
         let l1 = self
             .manager
             .get_or_create_table(&mut l2[page.p2_index()], parent_flags)?;
 
         let entry = &mut l1[page.p1_index()];
-        if !entry.is_present() {
+        if entry.is_present() {
             return Err(MapToError::AlreadyMapped);
         }
 
         entry.set_frame(frame);
         entry.set_flags(&flags);
 
+        page.flush();
+
+        Ok(())
+    }
+
+    fn unmap(&mut self, page: Page<PageSize4K>) -> Result<(), UnmapError> {
+        let l3 = self.manager.entry_to_table(&mut self.l4[page.p4_index()])?;
+        let l2 = self.manager.entry_to_table(&mut l3[page.p3_index()])?;
+        let l1 = self.manager.entry_to_table(&mut l2[page.p2_index()])?;
+
+        let entry = &mut l1[page.p1_index()];
+        entry.frame()?;
+
+        entry.clear();
         page.flush();
 
         Ok(())
@@ -170,13 +201,26 @@ impl MapTo<PageSize2M> for Mapper<'_> {
             .get_or_create_table(&mut l3[page.p3_index()], parent_flags)?;
 
         let entry = &mut l2[page.p2_index()];
-        if !entry.is_present() {
+        if entry.is_present() {
             return Err(MapToError::AlreadyMapped);
         }
 
         entry.set_frame(frame);
         entry.set_flags(&(flags | PageTableFlags::HUGE_PAGE));
 
+        page.flush();
+
+        Ok(())
+    }
+
+    fn unmap(&mut self, page: Page<PageSize2M>) -> Result<(), UnmapError> {
+        let l3 = self.manager.entry_to_table(&mut self.l4[page.p4_index()])?;
+        let l2 = self.manager.entry_to_table(&mut l3[page.p3_index()])?;
+
+        let entry = &mut l2[page.p2_index()];
+        entry.frame()?;
+
+        entry.clear();
         page.flush();
 
         Ok(())
@@ -197,13 +241,25 @@ impl MapTo<PageSize1G> for Mapper<'_> {
             .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
 
         let entry = &mut l3[page.p3_index()];
-        if !entry.is_present() {
+        if entry.is_present() {
             return Err(MapToError::AlreadyMapped);
         }
 
         entry.set_frame(frame);
         entry.set_flags(&(flags | PageTableFlags::HUGE_PAGE));
 
+        page.flush();
+
+        Ok(())
+    }
+
+    fn unmap(&mut self, page: Page<PageSize1G>) -> Result<(), UnmapError> {
+        let l3 = self.manager.entry_to_table(&mut self.l4[page.p4_index()])?;
+
+        let entry = &mut l3[page.p3_index()];
+        entry.frame()?;
+
+        entry.clear();
         page.flush();
 
         Ok(())
@@ -238,14 +294,20 @@ impl PageManager {
         entry: &'a mut PageTableEntry,
         flags: PageTableFlags,
     ) -> Result<&'a mut PageTable, MapToError> {
-        if entry.is_present() {
+        let new_frame = !entry.is_present();
+        if new_frame {
+            if let Some(frame) = alloc_frame() {
+                entry.set_frame(&frame);
+                entry.set_flags(&flags);
+            } else {
+                return Err(MapToError::OutOfMemory);
+            }
+        } else {
             let entry_flags = entry.flags();
             if entry_flags != flags {
                 // safety: the caller guarantees that the flags are valid.
                 unsafe { entry.set_flags(&flags) };
             }
-        } else {
-            todo!("allocate a new table");
         }
 
         let table = match self.entry_to_table(entry) {
@@ -254,7 +316,9 @@ impl PageManager {
             Err(PageTableFrameError::NotPresent) => unreachable!("entry was just set to present"),
         };
 
-        //TODO: zero out the table if it's newly allocated
+        if new_frame {
+            table.clear();
+        }
 
         Ok(table)
     }

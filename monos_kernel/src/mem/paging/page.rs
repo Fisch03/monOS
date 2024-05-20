@@ -4,7 +4,7 @@ use crate::mem::VirtualAddress;
 use core::arch::asm;
 use core::marker::PhantomData;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 pub struct Page<Size: PageSize = PageSize4K> {
     start: VirtualAddress,
@@ -45,6 +45,15 @@ impl<S: PageSize> Page<S> {
     pub fn around(addr: VirtualAddress) -> Self {
         Page {
             start: addr.align(S::SIZE),
+            size: PhantomData,
+        }
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn next(&self) -> Self {
+        Page {
+            start: self.start + S::SIZE,
             size: PhantomData,
         }
     }

@@ -23,7 +23,7 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
 
     // safety: the physical memory offset is valid since it was provided by the bootloader.
     // the bootloader config guarantees that the entire physical memory is mapped.
-    unsafe { mem::init(phys_mem_offset, &boot_info.memory_regions) };
+    unsafe { mem::init(phys_mem_offset, &boot_info) };
 
     let fb = boot_info.framebuffer.take().unwrap();
     gfx::init(fb);

@@ -32,16 +32,11 @@ impl Framebuffer {
     fn new(fb: RawFrameBuffer) -> Self {
         let info = fb.info();
 
-        let mut mapper = mem::MAPPER
-            .get()
-            .expect("memory hasn't been initialized yet")
-            .lock();
-
         let buffer = fb.into_buffer();
         let buffer_virt = VirtualAddress::from_ptr(buffer);
-        let buffer_phys = mapper.translate_addr(buffer_virt).unwrap();
+        let buffer_phys = mem::translate_addr(buffer_virt).unwrap();
 
-        let page: mem::Page<mem::PageSize4K> = mem::Page::around(buffer_virt);
+        let page = mem::Page::around(buffer_virt);
         let frame = mem::Frame::around(buffer_phys);
 
         use mem::PageTableFlags;
@@ -50,8 +45,13 @@ impl Framebuffer {
             | PageTableFlags::WRITE_THROUGH
             | PageTableFlags::CACHE_DISABLE;
 
-        use mem::MapTo;
-        unsafe { mapper.map_to(&page, &frame, flags) }.expect("failed to map frame buffer");
+        // unmap the existing mapping from the bootloader
+        match mem::unmap(page) {
+            Ok(_) => {}
+            Err(mem::UnmapError::NotMapped) => {}
+            Err(_) => panic!("failed to unmap frame buffer"),
+        }
+        unsafe { mem::map_to(&page, &frame, flags) }.expect("failed to map frame buffer");
 
         let ptr = page.start_address().as_mut_ptr::<u8>();
         let buffer = unsafe { slice::from_raw_parts_mut(ptr, info.byte_len) };

@@ -32,6 +32,14 @@ impl PageTable {
     pub fn iter(&self) -> impl Iterator<Item = &PageTableEntry> {
         self.entries.iter()
     }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn clear(&mut self) {
+        for entry in self.entries.iter_mut() {
+            *entry = PageTableEntry::new_empty();
+        }
+    }
 }
 
 impl ops::Index<usize> for PageTable {
@@ -146,16 +154,24 @@ impl PageTableEntry {
         self.0.get_bit(HUGE_PAGE)
     }
 
+    #[inline]
+    pub fn clear(&mut self) {
+        self.0 = 0;
+    }
+
+    #[inline]
     pub fn flags(&self) -> PageTableFlags {
         PageTableFlags(self.0.get_bits(0..12))
     }
 
+    #[inline]
     pub unsafe fn set_frame<S: PageSize>(&mut self, frame: &Frame<S>) {
         self.0
             .set_bits(ADDRESS, frame.start_address().as_u64() >> 12);
     }
 
     // safety: the flags must be valid.
+    #[inline]
     pub unsafe fn set_flags(&mut self, flags: &PageTableFlags) {
         self.0.set_bits(0..12, flags.as_u64());
     }
@@ -219,6 +235,22 @@ impl PageTableFlags {
     pub fn mask_parent(&self) -> Self {
         Self(self.0)
             & (PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE)
+    }
+}
+
+impl fmt::Debug for PageTableFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PageTableFlags")
+            .field("present", &self.0.get_bit(PRESENT))
+            .field("writable", &self.0.get_bit(WRITABLE))
+            .field("user_accessible", &self.0.get_bit(USER_ACCESSIBLE))
+            .field("write_through", &self.0.get_bit(WRITE_THROUGH))
+            .field("cache_disable", &self.0.get_bit(CACHE_DISABLE))
+            .field("accessed", &self.0.get_bit(ACCESSED))
+            .field("dirty", &self.0.get_bit(DIRTY))
+            .field("huge_page", &self.0.get_bit(HUGE_PAGE))
+            .field("global", &self.0.get_bit(GLOBAL))
+            .finish()
     }
 }
 

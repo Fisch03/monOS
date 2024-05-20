@@ -63,6 +63,14 @@ impl<S: PageSize> Frame<S> {
     }
 }
 
+impl Frame<PageSize4K> {
+    #[inline]
+    #[allow(dead_code)]
+    pub fn number(&self) -> u64 {
+        self.start.as_u64() / PageSize4K::SIZE
+    }
+}
+
 impl MappedFrame {
     #[inline]
     #[allow(dead_code)]
