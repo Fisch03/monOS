@@ -16,7 +16,7 @@ use mem::VirtualAddress;
 
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
     gdt::init();
-    interrupts::init();
+    interrupts::init_idt();
 
     let phys_mem_offset = boot_info.physical_memory_offset.as_ref().unwrap();
     let phys_mem_offset = VirtualAddress::new(*phys_mem_offset);
@@ -27,4 +27,6 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
 
     let fb = boot_info.framebuffer.take().unwrap();
     gfx::init(fb);
+
+    interrupts::init_apic();
 }

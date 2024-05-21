@@ -4,8 +4,11 @@ pub use handlers::InterruptIndex;
 mod apic;
 mod idt;
 
-pub fn init() {
+pub fn init_idt() {
     idt::init();
+}
+
+pub fn init_apic() {
     apic::init();
 }
 

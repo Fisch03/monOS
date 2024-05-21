@@ -48,6 +48,13 @@ impl Pics {
         }
     }
 
+    fn write_both_data(&mut self, data: u8) {
+        unsafe {
+            self.pic1.data.write(data);
+            self.pic2.data.write(data);
+        }
+    }
+
     fn write_mask(&mut self, mask: u8) {
         unsafe {
             self.pic1.data.write(mask);
@@ -71,7 +78,7 @@ pub fn disable_pic() {
     pics.configure_chaining();
     wait();
 
-    pics.write_both(MODE_8086);
+    pics.write_both_data(MODE_8086);
     wait();
 
     // mask all interrupts

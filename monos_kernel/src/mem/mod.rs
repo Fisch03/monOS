@@ -12,7 +12,6 @@ use core::arch::asm;
 pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
     paging::init(physical_mem_offset, boot_info);
     alloc::init_heap();
-    crate::dbg!("memory initialized");
 }
 
 #[derive(Debug, Clone)]

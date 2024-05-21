@@ -44,12 +44,12 @@ impl LocalAPIC {
         crate::dbg!(local_apic.id());
         crate::dbg!(local_apic.version());
 
-        // unsafe {
-        //     local_apic.write(
-        //         SPURIOUS_INTERRUPT_VECTOR,
-        //         InterruptIndex::SpuriousInterrupt.as_u32() | SPURIOS_INTERRUPT_ENABLE,
-        //     );
-        // }
+        unsafe {
+            local_apic.write(
+                SPURIOUS_INTERRUPT_VECTOR,
+                InterruptIndex::SpuriousInterrupt.as_u32() | SPURIOS_INTERRUPT_ENABLE,
+            );
+        }
 
         local_apic
     }

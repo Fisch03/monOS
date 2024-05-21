@@ -4,9 +4,10 @@ mod local_apic;
 use local_apic::LocalAPIC;
 
 use crate::arch::registers::MSR;
-use crate::mem::VirtualAddress;
+use crate::mem;
+use crate::mem::{PhysicalAddress, VirtualAddress};
 use crate::utils::BitField;
-use core::{fmt, ops::Range};
+use core::{arch::asm, fmt, ops::Range};
 
 use spin::Once;
 
@@ -42,7 +43,6 @@ impl APICBase {
     const BOOTSTRAP_CPU: usize = 8;
     const X2APIC_MODE: usize = 10;
     const APIC_ENABLE: usize = 11;
-    const APIC_BASE_ADDRESS: Range<usize> = 12..52;
 
     pub fn read() -> Self {
         let reg = MSR::new(Self::IA32_APIC_BASE_MSR);
@@ -79,13 +79,8 @@ impl APICBase {
         self
     }
 
-    pub fn address(&self) -> u64 {
-        self.0.get_bits(Self::APIC_BASE_ADDRESS)
-    }
-
-    pub fn set_address(&mut self, address: VirtualAddress) -> &mut Self {
-        self.0.set_bits(Self::APIC_BASE_ADDRESS, address.as_u64());
-        self
+    pub fn address(&self) -> PhysicalAddress {
+        PhysicalAddress::new(self.0 & 0xFFFF_0000)
     }
 }
 
@@ -95,7 +90,7 @@ impl fmt::Debug for APICBase {
             .field("bootstrap_cpu", &self.is_bootstrap_cpu())
             .field("x2apic_mode", &self.x2apic_mode())
             .field("apic_enabled", &self.apic_enabled())
-            .field("address", &format_args!("{:#x}", self.address()))
+            .field("address", &self.address())
             .finish()
     }
 }
@@ -112,8 +107,20 @@ pub fn init() {
     apic_base.set_apic_enabled(true);
     apic_base.set_x2apic_mode(false);
 
-    // TODO: map a page for the APIC
-    // LOCAL_APIC.call_once(|| LocalAPIC::new(virtual_address));
+    let frame = mem::Frame::around(apic_base.address());
+    let page = mem::Page::around(VirtualAddress::new(0xfee00000));
+
+    use mem::PageTableFlags;
+    let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::CACHE_DISABLE;
+
+    unsafe { mem::map_to(&page, &frame, flags) }.expect("failed to map apic memory");
+
+    LOCAL_APIC.call_once(|| LocalAPIC::new(page.start_address()));
 
     apic_base.write();
+
+    // enable interrupts
+    unsafe {
+        asm!("sti", options(preserves_flags, nostack));
+    }
 }
