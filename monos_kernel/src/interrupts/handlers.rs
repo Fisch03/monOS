@@ -2,10 +2,12 @@ use super::idt::{IDTEntry, InterruptDescriptorTable};
 use super::InterruptStackFrame;
 use crate::eprintln;
 use crate::gdt::DOUBLE_FAULT_IST_INDEX;
+use crate::interrupts::apic::LOCAL_APIC;
 
 #[derive(Debug, Clone)]
 #[repr(u8)]
 pub enum InterruptIndex {
+    APICTimer = 0x20,
     SpuriousInterrupt = 0xFF,
 }
 impl InterruptIndex {
@@ -54,6 +56,7 @@ pub fn attach_handlers(idt: &mut InterruptDescriptorTable) {
     idt.vmm_communication_exception = IDTEntry::new(vmm_communication_exception_handler);
     idt.security_exception = IDTEntry::new(security_exception_handler);
 
+    idt[InterruptIndex::APICTimer.as_usize()] = IDTEntry::new(timer_interrupt_handler);
     idt[InterruptIndex::SpuriousInterrupt.as_usize()] = IDTEntry::new(spurious_interrupt_handler);
 }
 
@@ -127,6 +130,12 @@ irq_handler!(hypervisor_injection_exception_handler);
 irq_handler_err!(vmm_communication_exception_handler);
 irq_handler_err!(security_exception_handler);
 
+extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    crate::print!(".");
+    LOCAL_APIC.get().unwrap().eoi();
+}
+
 extern "x86-interrupt" fn spurious_interrupt_handler(_stack_frame: InterruptStackFrame) {
     eprintln!("spurious interrupt!");
+    LOCAL_APIC.get().unwrap().eoi();
 }

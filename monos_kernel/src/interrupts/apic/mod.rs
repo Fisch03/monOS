@@ -1,15 +1,15 @@
 mod pic;
 
 mod local_apic;
-use local_apic::LocalAPIC;
+use local_apic::{LocalAPIC, LocalAPICField};
 
 use crate::arch::registers::MSR;
 use crate::mem;
 use crate::mem::{PhysicalAddress, VirtualAddress};
 use crate::utils::BitField;
-use core::{arch::asm, fmt, ops::Range};
+use core::{arch::asm, fmt};
 
-use spin::Once;
+use spin::{Mutex, Once};
 
 /// APIC Base Address Register
 /// ┌──┬──────────────┐
@@ -95,7 +95,7 @@ impl fmt::Debug for APICBase {
     }
 }
 
-static LOCAL_APIC: Once<LocalAPIC> = Once::new();
+pub static LOCAL_APIC: Once<LocalAPIC> = Once::new();
 
 pub fn init() {
     //make sure the PIC doesn't get in the way
@@ -115,9 +115,14 @@ pub fn init() {
 
     unsafe { mem::map_to(&page, &frame, flags) }.expect("failed to map apic memory");
 
-    LOCAL_APIC.call_once(|| LocalAPIC::new(page.start_address()));
+    LOCAL_APIC.call_once(|| {
+        let mut local_apic = LocalAPIC::new(page.start_address());
 
-    apic_base.write();
+        local_apic.write(LocalAPICField::TimerDivideConfig, 0b11);
+        local_apic.write(LocalAPICField::TimerInitialCount, 5_000_000);
+
+        local_apic
+    });
 
     // enable interrupts
     unsafe {

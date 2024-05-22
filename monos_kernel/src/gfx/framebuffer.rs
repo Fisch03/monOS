@@ -127,6 +127,10 @@ impl Framebuffer {
             }
 
             self.cursor.x += char.width;
+            if self.cursor.x >= self.dimensions.width {
+                self.cursor.x = 0;
+                self.cursor.y += 13; // just assume the font is 13px tall for now
+            }
         }
     }
 
