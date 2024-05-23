@@ -52,7 +52,7 @@ impl<S: PageSize> Page<S> {
     #[inline]
     #[allow(dead_code)]
     pub fn next(&self) -> Self {
-        Page {
+        Self {
             start: self.start + S::SIZE,
             size: PhantomData,
         }

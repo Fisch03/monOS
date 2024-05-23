@@ -14,6 +14,8 @@ use frame_allocator::FrameAllocator;
 mod mapper;
 use mapper::{MapTo, Mapper};
 pub use mapper::{MapToError, TranslateError, UnmapError};
+mod mapping;
+pub use mapping::Mapping;
 
 mod pat;
 pub use pat::PAT;

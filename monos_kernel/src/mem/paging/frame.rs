@@ -2,7 +2,7 @@ use super::{PageSize, PageSize1G, PageSize2M, PageSize4K};
 use crate::mem::PhysicalAddress;
 use core::marker::PhantomData;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Frame<Size: PageSize = PageSize4K> {
     start: PhysicalAddress,
@@ -44,6 +44,14 @@ impl<S: PageSize> Frame<S> {
         }
     }
 
+    #[inline]
+    #[allow(dead_code)]
+    pub fn next(&self) -> Self {
+        Self {
+            start: self.start + S::SIZE,
+            size: PhantomData,
+        }
+    }
     #[inline]
     #[allow(dead_code)]
     pub fn start_address(&self) -> PhysicalAddress {

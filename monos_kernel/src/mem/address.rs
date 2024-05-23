@@ -80,6 +80,19 @@ impl ops::SubAssign<u64> for VirtualAddress {
     }
 }
 
+impl ops::Sub<VirtualAddress> for VirtualAddress {
+    type Output = u64;
+    fn sub(self, rhs: VirtualAddress) -> u64 {
+        self.0 - rhs.0
+    }
+}
+
+impl ops::SubAssign<VirtualAddress> for VirtualAddress {
+    fn sub_assign(&mut self, rhs: VirtualAddress) {
+        self.0 -= rhs.0;
+    }
+}
+
 impl fmt::Debug for VirtualAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("VirtualAddress")
@@ -102,6 +115,15 @@ impl PhysicalAddress {
 
         // safety: we just truncated the address to 52 bits
         unsafe { Self::new_unchecked(address) }
+    }
+
+    #[inline]
+    pub const fn try_new(address: u64) -> Option<Self> {
+        let new_address = address % (1 << 52);
+        if new_address != address {
+            return None;
+        }
+        Some(unsafe { Self::new_unchecked(address) })
     }
 
     #[inline]
