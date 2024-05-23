@@ -3,14 +3,19 @@ use core::ptr::{read_volatile, write_volatile};
 
 use crate::interrupts::InterruptIndex;
 
+#[allow(dead_code)]
 const SPURIOS_INTERRUPT_ENABLE: u32 = 1 << 8;
+#[allow(dead_code)]
 const SPURIOS_INTERRUPT_FCC: u32 = 1 << 9;
 
+#[allow(dead_code)]
 const TIMER_ONE_SHOT: u32 = 0b00 << 17;
 const TIMER_PERIODIC: u32 = 0b01 << 17;
+#[allow(dead_code)]
 const TIMER_TSC_DEADLINE: u32 = 0b10 << 17;
 
 #[repr(u32)]
+#[allow(dead_code)]
 pub enum LocalAPICField {
     Id = 0x20,
     Version = 0x30,

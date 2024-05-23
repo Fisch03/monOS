@@ -23,6 +23,15 @@ monOS is bootable from both BIOS and UEFI. that being said, most of my own testi
 ### memory
 frames are allocated using a basic bitmap allocator. heap memory is allocated using a linked list allocator.
 
+#### kernel virtual address space
+i plan to automatically assign new virtual adresses at some point but for now this will have to suffice
+
+| adress         | size | mapped to   |
+| -------------- | ---- | ----------- |
+| 0xfee00000     | 4KiB | local apic  |
+| 0xfee10000     | 4KiB | rdsp table  |
+| 0x444444440000 | 1MiB | kernel heap |
+
 # the big todo list
 - [x] it boots!
 - [x] working framebuffer

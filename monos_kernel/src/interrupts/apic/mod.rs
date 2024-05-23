@@ -9,7 +9,7 @@ use crate::mem::{PhysicalAddress, VirtualAddress};
 use crate::utils::BitField;
 use core::{arch::asm, fmt};
 
-use spin::{Mutex, Once};
+use spin::Once;
 
 /// APIC Base Address Register
 /// ┌──┬──────────────┐
@@ -123,6 +123,8 @@ pub fn init() {
 
         local_apic
     });
+
+    apic_base.write();
 
     // enable interrupts
     unsafe {

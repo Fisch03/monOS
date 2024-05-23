@@ -123,6 +123,11 @@ impl PhysicalAddress {
     pub const fn as_u64(&self) -> u64 {
         self.0
     }
+
+    #[inline]
+    pub const fn offset_in_page(&self) -> u64 {
+        self.0 & 0xfff
+    }
 }
 
 impl ops::Add<u64> for PhysicalAddress {
