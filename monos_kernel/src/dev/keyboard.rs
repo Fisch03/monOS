@@ -4,7 +4,7 @@ use crate::interrupts::{
     InterruptStackFrame,
 };
 
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use pc_keyboard::{layouts, DecodedKey, HandleControl, KeyCode, Keyboard, ScancodeSet1};
 use spin::{Lazy, Mutex};
 use x86_64::instructions::port::Port;
 
@@ -60,7 +60,11 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
-                DecodedKey::Unicode(character) => crate::print!("{}", character),
+                DecodedKey::Unicode('\n') => crate::gfx::framebuffer().confirm_input(),
+                DecodedKey::Unicode('\u{8}') => crate::gfx::framebuffer().delete_input_char(),
+                DecodedKey::Unicode(character) => {
+                    crate::gfx::framebuffer().add_input_char(character)
+                }
                 _ => {}
             }
         }

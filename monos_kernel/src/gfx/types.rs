@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -19,6 +20,7 @@ impl core::ops::Mul<usize> for &Position {
     }
 }
 
+#[derive(Debug)]
 pub struct Dimension {
     pub width: usize,
     pub height: usize,

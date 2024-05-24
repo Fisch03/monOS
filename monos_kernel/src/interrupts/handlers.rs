@@ -135,7 +135,7 @@ irq_handler_err!(vmm_communication_exception_handler);
 irq_handler_err!(security_exception_handler);
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    // crate::print!(".");
+    crate::print!(".");
     LOCAL_APIC.get().unwrap().eoi();
 }
 

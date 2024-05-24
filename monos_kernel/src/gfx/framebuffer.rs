@@ -2,6 +2,7 @@ use super::fonts::cozette;
 use super::types::*;
 use crate::mem::{self, VirtualAddress};
 
+use alloc::vec::Vec;
 use bootloader_api::info::{FrameBuffer as RawFrameBuffer, FrameBufferInfo, PixelFormat};
 use core::slice;
 use spin::{Mutex, MutexGuard, Once};
@@ -19,12 +20,21 @@ pub fn framebuffer() -> MutexGuard<'static, Framebuffer> {
         .lock()
 }
 
+const CHAR_WIDTH: usize = 6;
+const CHAR_HEIGHT: usize = 13;
+
+// dimension is usually 640x360 (almost like god intended)
+const TEXT_BUFFER_WIDTH: usize = 640 / CHAR_WIDTH;
+const TEXT_BUFFER_HEIGHT: usize = 360 / CHAR_HEIGHT;
+
 pub struct Framebuffer {
     text_color: Color,
     cursor: Position,
 
     dimensions: Dimension,
     info: FrameBufferInfo,
+
+    input_buffer: Vec<char>,
     buffer: &'static mut [u8],
 }
 
@@ -62,10 +72,25 @@ impl Framebuffer {
 
             dimensions: Dimension::new(info.width / 2, info.height / 2),
             info,
+
+            input_buffer: Vec::new(),
             buffer,
         };
 
         framebuffer.clear(&Color::new(0, 0, 0));
+
+        framebuffer.draw_char(
+            &Color::new(108, 207, 240),
+            '>',
+            &Position::new(1, TEXT_BUFFER_HEIGHT - 1),
+            false,
+        );
+        framebuffer.draw_char(
+            &Color::new(108, 207, 240),
+            '_',
+            &Position::new(2, TEXT_BUFFER_HEIGHT - 1),
+            false,
+        );
 
         framebuffer
     }
@@ -84,6 +109,68 @@ impl Framebuffer {
         }
     }
 
+    pub fn add_input_char(&mut self, character: char) {
+        self.input_buffer.push(character);
+        self.draw_char(
+            &Color::new(108, 207, 240),
+            character,
+            &Position::new(self.input_buffer.len() + 1, TEXT_BUFFER_HEIGHT - 1),
+            true,
+        );
+        self.draw_char(
+            &Color::new(108, 207, 240),
+            '_',
+            &Position::new(self.input_buffer.len() + 2, TEXT_BUFFER_HEIGHT - 1),
+            false,
+        );
+    }
+
+    pub fn delete_input_char(&mut self) {
+        if let Some(_) = self.input_buffer.pop() {
+            self.draw_char(
+                &Color::new(108, 207, 240),
+                ' ',
+                &Position::new(self.input_buffer.len() + 3, TEXT_BUFFER_HEIGHT - 1),
+                true,
+            );
+
+            self.draw_char(
+                &Color::new(108, 207, 240),
+                '_',
+                &Position::new(self.input_buffer.len() + 2, TEXT_BUFFER_HEIGHT - 1),
+                true,
+            );
+        }
+    }
+
+    pub fn confirm_input(&mut self) {
+        self.draw_char(
+            &Color::new(108, 207, 240),
+            ' ',
+            &Position::new(self.input_buffer.len() + 2, TEXT_BUFFER_HEIGHT - 1),
+            true,
+        );
+
+        let cmd = self.input_buffer.iter().collect::<alloc::string::String>();
+        crate::dbg!(cmd);
+        self.input_buffer.clear();
+
+        self.scroll_with_input();
+
+        self.draw_char(
+            &Color::new(108, 207, 240),
+            '>',
+            &Position::new(1, TEXT_BUFFER_HEIGHT - 1),
+            false,
+        );
+        self.draw_char(
+            &Color::new(108, 207, 240),
+            '_',
+            &Position::new(2, TEXT_BUFFER_HEIGHT - 1),
+            false,
+        );
+    }
+
     pub fn set_color(&mut self, color: &Color) {
         self.text_color = color.clone();
     }
@@ -91,17 +178,48 @@ impl Framebuffer {
     pub fn write_string(&mut self, string: &str) {
         for character in string.chars() {
             if character == '\n' {
-                self.cursor.x = 0;
-                self.cursor.y += 13; // just assume the font is 13px tall for now
+                self.new_line();
             } else {
-                self.draw_char(&self.text_color.clone(), character);
+                self.draw_char(
+                    &self.text_color.clone(),
+                    character,
+                    &Position::new(self.cursor.x, self.cursor.y),
+                    false,
+                );
+                self.cursor.x += 1;
+                if self.cursor.x >= TEXT_BUFFER_WIDTH {
+                    self.new_line();
+                }
             }
         }
     }
 
-    pub fn draw_char(&mut self, color: &Color, character: char) {
+    pub fn draw_char(
+        &mut self,
+        color: &Color,
+        character: char,
+        position: &Position,
+        overdraw: bool,
+    ) {
         if let Some(char) = cozette::get_char(character) {
             let char = Character::from_raw(char);
+
+            let base_x = position.x * CHAR_WIDTH;
+            let base_y = position.y * CHAR_HEIGHT;
+
+            if overdraw {
+                for y in 0..CHAR_HEIGHT {
+                    for x in 0..CHAR_WIDTH {
+                        self.draw_pixel(
+                            &Position {
+                                x: base_x + x,
+                                y: base_y + y,
+                            },
+                            &Color::new(0, 0, 0),
+                        );
+                    }
+                }
+            }
 
             let mut bit_offset = 0;
             let mut byte_offset = 0;
@@ -111,13 +229,12 @@ impl Framebuffer {
                     if byte & (1 << bit_offset) == 0 {
                         self.draw_pixel(
                             &Position {
-                                x: self.cursor.x + x,
-                                y: self.cursor.y + y,
+                                x: base_x + x,
+                                y: base_y + y,
                             },
                             color,
                         );
                     }
-
                     bit_offset += 1;
                     if bit_offset % 8 == 0 {
                         byte_offset += 1;
@@ -125,15 +242,38 @@ impl Framebuffer {
                     }
                 }
             }
-
-            self.cursor.x += char.width;
-            if self.cursor.x >= self.dimensions.width {
-                self.cursor.x = 0;
-                self.cursor.y += 13; // just assume the font is 13px tall for now
-            }
         }
     }
 
+    pub fn new_line(&mut self) {
+        self.cursor.x = 0;
+        self.cursor.y += 1;
+        if self.cursor.y >= TEXT_BUFFER_HEIGHT - 1 {
+            self.scroll();
+        }
+    }
+
+    pub fn scroll(&mut self) {
+        for x in 0..self.dimensions.width {
+            for y in 0..self.dimensions.height - CHAR_HEIGHT * 2 {
+                let pos = Position::new(x, y + CHAR_HEIGHT);
+                self.draw_pixel(&Position::new(x, y), &self.get_pixel(&pos));
+            }
+        }
+
+        self.cursor.y -= 1;
+    }
+
+    pub fn scroll_with_input(&mut self) {
+        for x in 0..self.dimensions.width {
+            for y in 0..self.dimensions.height - CHAR_HEIGHT * 1 {
+                let pos = Position::new(x, y + CHAR_HEIGHT);
+                self.draw_pixel(&Position::new(x, y), &self.get_pixel(&pos));
+            }
+        }
+
+        self.cursor.y -= 1;
+    }
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
         if position.x >= self.dimensions.width || position.y >= self.dimensions.height {
             return;
@@ -181,6 +321,31 @@ impl Framebuffer {
                 pixel_bytes[green_position as usize] = color.g;
                 pixel_bytes[blue_position as usize] = color.b;
             }
+            _ => {
+                panic!("Unsupported pixel format");
+            }
+        }
+    }
+
+    pub fn get_pixel(&self, position: &Position) -> Color {
+        let position = Position::new(position.x * 2, position.y * 2);
+        let y_offset = position.y * self.info.stride;
+        let pixel_offset = (y_offset + position.x) * self.info.bytes_per_pixel;
+        let pixel_bytes = &self.buffer[pixel_offset..];
+
+        match self.info.pixel_format {
+            PixelFormat::Rgb => Color::new(pixel_bytes[0], pixel_bytes[1], pixel_bytes[2]),
+            PixelFormat::Bgr => Color::new(pixel_bytes[2], pixel_bytes[1], pixel_bytes[0]),
+            PixelFormat::U8 => Color::new(pixel_bytes[0], pixel_bytes[0], pixel_bytes[0]),
+            PixelFormat::Unknown {
+                red_position,
+                green_position,
+                blue_position,
+            } => Color::new(
+                pixel_bytes[red_position as usize],
+                pixel_bytes[green_position as usize],
+                pixel_bytes[blue_position as usize],
+            ),
             _ => {
                 panic!("Unsupported pixel format");
             }

@@ -61,8 +61,8 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
   - [ ] local apic
     - [x] timer interrupts
       - [ ] precisely timed timer interrupts
-  - [ ] io apic
-    - [ ] ps2 keyboard input
+  - [x] io apic
+    - [x] ps2 keyboard input
 - [ ] gui
   - [ ] boot screen 
   - [ ] terminal
