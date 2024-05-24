@@ -1011,6 +1011,7 @@ version = "0.1.0"
 dependencies = [
  "bootloader_api",
  "linked_list_allocator",
+ "pc-keyboard",
  "spin",
  "uart_16550",
  "x86_64",
@@ -1111,6 +1112,12 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pc-keyboard"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed089a1fbffe3337a1a345501c981f1eb1e47e69de5a40e852433e12953c3174"
 
 [[package]]
 name = "pin-project"

@@ -55,9 +55,6 @@ impl LocalAPIC {
     pub fn new(base_address: VirtualAddress) -> Self {
         let mut local_apic = Self { base_address };
 
-        crate::dbg!(local_apic.id());
-        crate::dbg!(local_apic.version());
-
         local_apic.write(
             LocalAPICField::SpuriousInterruptVector,
             InterruptIndex::SpuriousInterrupt.as_u32() | SPURIOS_INTERRUPT_ENABLE,
@@ -71,6 +68,8 @@ impl LocalAPIC {
         local_apic
     }
 
+    #[inline]
+    #[allow(dead_code)]
     pub fn read(&self, field: LocalAPICField) -> u32 {
         let addr = self.base_address.as_u64() + field as u64;
 
@@ -78,6 +77,8 @@ impl LocalAPIC {
         unsafe { read_volatile(addr as *const u32) }
     }
 
+    #[inline]
+    #[allow(dead_code)]
     pub fn write(&mut self, field: LocalAPICField, value: u32) {
         let addr = self.base_address.as_u64() + field as u64;
 
@@ -85,16 +86,21 @@ impl LocalAPIC {
         unsafe { write_volatile(addr as *mut u32, value) }
     }
 
+    #[inline]
+    #[allow(dead_code)]
     pub fn id(&self) -> u32 {
         self.read(LocalAPICField::Id)
     }
 
+    #[inline]
+    #[allow(dead_code)]
     pub fn version(&self) -> u32 {
         self.read(LocalAPICField::Version)
     }
 
     /// signal the end of an interrupt
     /// should be called at the end of each apic related interrupt handler
+    #[inline]
     pub fn eoi(&self) {
         // cheat a bit and allow self to be immutable here. not sure if will be an issue but i want to avoid
         // deadlocks in interrupt handlers

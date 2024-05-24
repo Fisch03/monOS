@@ -3,11 +3,14 @@ mod pic;
 mod local_apic;
 use local_apic::{LocalAPIC, LocalAPICField};
 
+pub mod io_apic;
+pub use io_apic::IOAPIC;
+
 use crate::arch::registers::MSR;
 use crate::mem;
 use crate::mem::{PhysicalAddress, VirtualAddress};
 use crate::utils::BitField;
-use core::{arch::asm, fmt};
+use core::fmt;
 
 use spin::Once;
 
@@ -125,9 +128,4 @@ pub fn init() {
     });
 
     apic_base.write();
-
-    // enable interrupts
-    unsafe {
-        asm!("sti", options(preserves_flags, nostack));
-    }
 }

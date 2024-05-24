@@ -1,22 +1,38 @@
 mod handlers;
 pub use handlers::InterruptIndex;
 
-mod apic;
+pub mod apic;
 mod idt;
 
+use crate::gdt::SegmentSelector;
+use crate::mem::VirtualAddress;
+use core::{arch::asm, fmt};
+
+// should be called as early as possible
 pub fn init_idt() {
     idt::init();
 }
 
+// this requires memory to be initialized
 pub fn init_apic() {
     apic::init();
 }
 
-use crate::gdt::SegmentSelector;
-use crate::mem::VirtualAddress;
-use core::arch::asm;
-use core::fmt;
+#[inline]
+pub fn enable() {
+    unsafe {
+        asm!("sti", options(preserves_flags, nostack));
+    }
+}
 
+#[inline]
+pub fn disable() {
+    unsafe {
+        asm!("cli", options(preserves_flags, nostack));
+    }
+}
+
+#[inline]
 pub fn breakpoint() {
     unsafe {
         asm!("int3", options(nomem, nostack));

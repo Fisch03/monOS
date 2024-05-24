@@ -1,4 +1,8 @@
 use crate::acpi::sdt::{SDTHeader, SDT};
+use crate::{
+    interrupts::apic,
+    mem::{Mapping, PhysicalAddress},
+};
 use core::fmt;
 
 /// Multiple APIC Description Table
@@ -103,9 +107,20 @@ impl MADT {
 pub struct ProcessorLocalAPIC {
     entry_type: u8,
     length: u8,
+
     processor_uid: u8,
     apic_id: u8,
     flags: u32,
+}
+impl ProcessorLocalAPIC {
+    #[inline]
+    pub fn processor_uid(&self) -> u8 {
+        self.processor_uid
+    }
+    #[inline]
+    pub fn apic_id(&self) -> u8 {
+        self.apic_id
+    }
 }
 impl MADTEntry for ProcessorLocalAPIC {
     const ENTRY_TYPE: MADTEntryType = MADTEntryType::ProcessorLocalAPIC;
@@ -116,11 +131,44 @@ impl MADTEntry for ProcessorLocalAPIC {
 pub struct IOAPIC {
     entry_type: u8,
     length: u8,
+
     ioapic_id: u8,
     reserved: u8,
     ioapic_address: u32,
     global_system_interrupt_base: u32,
 }
+impl IOAPIC {
+    #[inline]
+    pub fn get_ioapic(&self) -> Mapping<apic::IOAPIC> {
+        // safety: since the address comes directly from the ACPI table, it is guaranteed to be valid.
+        unsafe { apic::IOAPIC::new(PhysicalAddress::new(self.ioapic_address as u64)) }
+    }
+}
 impl MADTEntry for IOAPIC {
     const ENTRY_TYPE: MADTEntryType = MADTEntryType::IOAPIC;
+}
+
+#[derive(Debug)]
+#[repr(C, packed)]
+pub struct InterruptSourceOverride {
+    entry_type: u8,
+    length: u8,
+
+    bus: u8,
+    source: u8,
+    global_system_interrupt: u32,
+    flags: u16,
+}
+impl InterruptSourceOverride {
+    #[inline]
+    pub fn source(&self) -> u8 {
+        self.source
+    }
+    #[inline]
+    pub fn global_system_interrupt(&self) -> u32 {
+        self.global_system_interrupt
+    }
+}
+impl MADTEntry for InterruptSourceOverride {
+    const ENTRY_TYPE: MADTEntryType = MADTEntryType::InterruptSourceOverride;
 }

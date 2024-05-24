@@ -145,6 +145,13 @@ impl<T> ops::Deref for Mapping<T> {
     }
 }
 
+impl<T> ops::DerefMut for Mapping<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // safety:: the caller of the constructor guaranteed the address is valid
+        unsafe { &mut *(self.start_addr.as_mut_ptr() as *mut T) }
+    }
+}
+
 impl<T> Drop for Mapping<T> {
     fn drop(&mut self) {
         let mut page = self.start_page;

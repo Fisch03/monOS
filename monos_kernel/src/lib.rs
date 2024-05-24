@@ -5,6 +5,7 @@ extern crate alloc;
 
 mod acpi;
 mod arch;
+mod dev;
 mod gdt;
 pub mod gfx;
 pub mod interrupts;
@@ -17,6 +18,7 @@ use mem::VirtualAddress;
 
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
     gdt::init();
+
     interrupts::init_idt();
 
     let phys_mem_offset = boot_info.physical_memory_offset.as_ref().unwrap();
@@ -26,10 +28,12 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
     // the bootloader config guarantees that the entire physical memory is mapped.
     unsafe { mem::init(phys_mem_offset, &boot_info) };
 
+    interrupts::init_apic();
     acpi::init(boot_info);
 
     let fb = boot_info.framebuffer.take().unwrap();
     gfx::init(fb);
 
-    interrupts::init_apic();
+    dev::init();
+    interrupts::enable();
 }
