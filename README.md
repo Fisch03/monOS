@@ -92,3 +92,4 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
 please please please contact me if you want your work removed.
 - [woofycakes](https://x.com/woofycakes) for the mono emotes
 - [NOiiRE ❖](https://noiire.carrd.co/) for the [mono cursor](https://x.com/noiireism/status/1736755359308792252)
+- [slavfox](https://github.com/slavfox) for making [Cozette](https://github.com/slavfox/Cozette) (the system font)
