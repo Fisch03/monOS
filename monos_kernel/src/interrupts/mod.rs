@@ -6,6 +6,7 @@ mod idt;
 
 use crate::gdt::SegmentSelector;
 use crate::mem::VirtualAddress;
+use crate::utils::BitField;
 use core::{arch::asm, fmt};
 
 // should be called as early as possible
@@ -30,6 +31,30 @@ pub fn disable() {
     unsafe {
         asm!("cli", options(preserves_flags, nostack));
     }
+}
+
+#[inline]
+pub fn without_interrupts<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let flags: u64;
+    unsafe {
+        asm!("pushfq; pop {}", out(reg) flags, options(nomem, preserves_flags));
+    }
+    let interrupts_enabled = flags.get_bit(9);
+
+    if interrupts_enabled {
+        disable();
+    }
+
+    let result = f();
+
+    if interrupts_enabled {
+        enable();
+    }
+
+    result
 }
 
 #[inline]

@@ -2,7 +2,7 @@ use super::fonts::cozette;
 use super::types::*;
 use crate::mem::{self, VirtualAddress};
 
-use alloc::vec::Vec;
+use alloc::collections::VecDeque;
 use bootloader_api::info::{FrameBuffer as RawFrameBuffer, FrameBufferInfo, PixelFormat};
 use core::slice;
 use spin::{Mutex, MutexGuard, Once};
@@ -28,26 +28,35 @@ const TEXT_BUFFER_WIDTH: usize = 640 / CHAR_WIDTH;
 const TEXT_BUFFER_HEIGHT: usize = 360 / CHAR_HEIGHT;
 
 pub struct Framebuffer {
-    text_color: Color,
-    cursor: Position,
-
     dimensions: Dimension,
     info: FrameBufferInfo,
 
-    input_buffer: Vec<char>,
-    buffer: &'static mut [u8],
+    front_buffer: &'static mut [u8],
+    back_buffer: &'static mut [u8],
+
+    text_buffer: VecDeque<char>,
 }
 
 impl Framebuffer {
     fn new(fb: RawFrameBuffer) -> Self {
         let info = fb.info();
 
-        let buffer = fb.into_buffer();
-        let buffer_virt = VirtualAddress::from_ptr(buffer);
-        let buffer_phys = mem::translate_addr(buffer_virt).unwrap();
+        let front_buffer = fb.into_buffer();
+        let front_buffer_virt = VirtualAddress::from_ptr(front_buffer);
+        let front_buffer_phys = mem::translate_addr(front_buffer_virt).unwrap();
 
-        let page = mem::Page::around(buffer_virt);
-        let frame = mem::Frame::around(buffer_phys);
+        let mut front_buffer_page = mem::Page::around(front_buffer_virt);
+        let mut front_buffer_frame = mem::Frame::around(front_buffer_phys);
+        let front_buffer_end_page = mem::Page::around(front_buffer_virt + info.byte_len as u64);
+
+        // let front_buffer = front_buffer_page.start_address().as_mut_ptr::<u8>();
+        // let front_buffer = unsafe { slice::from_raw_parts_mut(front_buffer, info.byte_len) };
+
+        let back_buffer_virt = VirtualAddress::new(0x123456780000);
+        let mut back_buffer_page = mem::Page::around(back_buffer_virt);
+
+        let back_buffer = back_buffer_page.start_address().as_mut_ptr::<u8>();
+        let back_buffer = unsafe { slice::from_raw_parts_mut(back_buffer, info.byte_len) };
 
         use mem::PageTableFlags;
         let flags = PageTableFlags::PRESENT
@@ -55,152 +64,100 @@ impl Framebuffer {
             | PageTableFlags::WRITE_THROUGH
             | PageTableFlags::CACHE_DISABLE;
 
-        // unmap the existing mapping from the bootloader
-        match mem::unmap(page) {
-            Ok(_) => {}
-            Err(mem::UnmapError::NotMapped) => {}
-            Err(_) => panic!("failed to unmap frame buffer"),
+        loop {
+            // (try) to unmap the existing mapping from the bootloader
+            match mem::unmap(front_buffer_page) {
+                Ok(_) => {}
+                Err(mem::UnmapError::NotMapped) => {}
+                Err(_) => panic!("failed to unmap frame buffer"),
+            }
+            unsafe { mem::map_to(&front_buffer_page, &front_buffer_frame, flags) }
+                .expect("failed to map frame buffer");
+
+            let back_buffer_frame =
+                mem::alloc_frame().expect("failed to allocate back buffer frame");
+            unsafe { mem::map_to(&back_buffer_page, &back_buffer_frame, flags) }
+                .expect("failed to map back buffer");
+
+            if front_buffer_page == front_buffer_end_page {
+                break;
+            }
+
+            front_buffer_frame = front_buffer_frame.next();
+            front_buffer_page = front_buffer_page.next();
+            back_buffer_page = back_buffer_page.next();
         }
-        unsafe { mem::map_to(&page, &frame, flags) }.expect("failed to map frame buffer");
-
-        let ptr = page.start_address().as_mut_ptr::<u8>();
-        let buffer = unsafe { slice::from_raw_parts_mut(ptr, info.byte_len) };
-
         let mut framebuffer = Self {
-            text_color: Color::new(255, 255, 255),
-            cursor: Position::new(0, 0),
-
             dimensions: Dimension::new(info.width / 2, info.height / 2),
             info,
 
-            input_buffer: Vec::new(),
-            buffer,
+            front_buffer,
+            back_buffer,
+
+            text_buffer: VecDeque::with_capacity(TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT),
         };
 
-        framebuffer.clear(&Color::new(0, 0, 0));
-
-        framebuffer.draw_char(
-            &Color::new(108, 207, 240),
-            '>',
-            &Position::new(1, TEXT_BUFFER_HEIGHT - 1),
-            false,
-        );
-        framebuffer.draw_char(
-            &Color::new(108, 207, 240),
-            '_',
-            &Position::new(2, TEXT_BUFFER_HEIGHT - 1),
-            false,
-        );
+        framebuffer.update();
 
         framebuffer
     }
 
-    #[inline]
-    #[allow(dead_code)]
-    pub fn dimensions(&self) -> &Dimension {
-        &self.dimensions
+    fn clear(&mut self) {
+        // for some reason, the builtin fill function is *really* slow, so we'll do it manually
+        // self.back_buffer.fill(0);
+
+        unsafe { core::ptr::write_bytes(self.back_buffer.as_mut_ptr(), 0, self.back_buffer.len()) };
     }
 
-    pub fn clear(&mut self, color: &Color) {
-        for y in 0..self.dimensions.height {
-            for x in 0..self.dimensions.width {
-                self.draw_pixel(&Position::new(x, y), &color);
-            }
-        }
-    }
+    fn swap_buffers(&mut self) {
+        // this fares a lot better than fill, but its still slower than manually copying
+        // self.front_buffer.copy_from_slice(self.back_buffer);
 
-    pub fn add_input_char(&mut self, character: char) {
-        self.input_buffer.push(character);
-        self.draw_char(
-            &Color::new(108, 207, 240),
-            character,
-            &Position::new(self.input_buffer.len() + 1, TEXT_BUFFER_HEIGHT - 1),
-            true,
-        );
-        self.draw_char(
-            &Color::new(108, 207, 240),
-            '_',
-            &Position::new(self.input_buffer.len() + 2, TEXT_BUFFER_HEIGHT - 1),
-            false,
-        );
-    }
-
-    pub fn delete_input_char(&mut self) {
-        if let Some(_) = self.input_buffer.pop() {
-            self.draw_char(
-                &Color::new(108, 207, 240),
-                ' ',
-                &Position::new(self.input_buffer.len() + 3, TEXT_BUFFER_HEIGHT - 1),
-                true,
-            );
-
-            self.draw_char(
-                &Color::new(108, 207, 240),
-                '_',
-                &Position::new(self.input_buffer.len() + 2, TEXT_BUFFER_HEIGHT - 1),
-                true,
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                self.back_buffer.as_ptr(),
+                self.front_buffer.as_mut_ptr(),
+                self.back_buffer.len(),
             );
         }
     }
 
-    pub fn confirm_input(&mut self) {
-        self.draw_char(
-            &Color::new(108, 207, 240),
-            ' ',
-            &Position::new(self.input_buffer.len() + 2, TEXT_BUFFER_HEIGHT - 1),
-            true,
-        );
+    pub fn update(&mut self) {
+        self.clear();
 
-        let cmd = self.input_buffer.iter().collect::<alloc::string::String>();
-        crate::dbg!(cmd);
-        self.input_buffer.clear();
-
-        self.scroll_with_input();
-
-        self.draw_char(
-            &Color::new(108, 207, 240),
-            '>',
-            &Position::new(1, TEXT_BUFFER_HEIGHT - 1),
-            false,
-        );
-        self.draw_char(
-            &Color::new(108, 207, 240),
-            '_',
-            &Position::new(2, TEXT_BUFFER_HEIGHT - 1),
-            false,
-        );
-    }
-
-    pub fn set_color(&mut self, color: &Color) {
-        self.text_color = color.clone();
-    }
-
-    pub fn write_string(&mut self, string: &str) {
-        for character in string.chars() {
-            if character == '\n' {
-                self.new_line();
-            } else {
-                self.draw_char(
-                    &self.text_color.clone(),
-                    character,
-                    &Position::new(self.cursor.x, self.cursor.y),
-                    false,
-                );
-                self.cursor.x += 1;
-                if self.cursor.x >= TEXT_BUFFER_WIDTH {
-                    self.new_line();
+        let mut position = Position::new(0, 0);
+        for i in 0..self.text_buffer.len() {
+            let character = self.text_buffer.get(i);
+            match character {
+                Some('\n') => {
+                    position.x = 0;
+                    position.y += 1;
                 }
+                Some(character) => {
+                    self.draw_char(&Color::new(255, 255, 255), *character, &position, false);
+                    position.x += 1;
+                    if position.x >= TEXT_BUFFER_WIDTH {
+                        position.x = 0;
+                        position.y += 1;
+                    }
+                }
+                None => break,
+            }
+        }
+
+        self.swap_buffers();
+    }
+
+    pub fn write_string(&mut self, s: &str) {
+        for character in s.chars() {
+            self.text_buffer.push_back(character);
+            if self.text_buffer.len() > TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT {
+                self.text_buffer.pop_front();
             }
         }
     }
 
-    pub fn draw_char(
-        &mut self,
-        color: &Color,
-        character: char,
-        position: &Position,
-        overdraw: bool,
-    ) {
+    fn draw_char(&mut self, color: &Color, character: char, position: &Position, overdraw: bool) {
         if let Some(char) = cozette::get_char(character) {
             let char = Character::from_raw(char);
 
@@ -245,36 +202,7 @@ impl Framebuffer {
         }
     }
 
-    pub fn new_line(&mut self) {
-        self.cursor.x = 0;
-        self.cursor.y += 1;
-        if self.cursor.y >= TEXT_BUFFER_HEIGHT - 1 {
-            self.scroll();
-        }
-    }
-
-    pub fn scroll(&mut self) {
-        for x in 0..self.dimensions.width {
-            for y in 0..self.dimensions.height - CHAR_HEIGHT * 2 {
-                let pos = Position::new(x, y + CHAR_HEIGHT);
-                self.draw_pixel(&Position::new(x, y), &self.get_pixel(&pos));
-            }
-        }
-
-        self.cursor.y -= 1;
-    }
-
-    pub fn scroll_with_input(&mut self) {
-        for x in 0..self.dimensions.width {
-            for y in 0..self.dimensions.height - CHAR_HEIGHT * 1 {
-                let pos = Position::new(x, y + CHAR_HEIGHT);
-                self.draw_pixel(&Position::new(x, y), &self.get_pixel(&pos));
-            }
-        }
-
-        self.cursor.y -= 1;
-    }
-    pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
+    fn draw_pixel(&mut self, position: &Position, color: &Color) {
         if position.x >= self.dimensions.width || position.y >= self.dimensions.height {
             return;
         }
@@ -297,7 +225,7 @@ impl Framebuffer {
     }
 
     fn draw_pixel_raw(&mut self, byte_offset: usize, color: &Color) {
-        let pixel_bytes = &mut self.buffer[byte_offset..];
+        let pixel_bytes = &mut self.back_buffer[byte_offset..];
         match self.info.pixel_format {
             PixelFormat::Rgb => {
                 pixel_bytes[0] = color.r;
@@ -326,31 +254,6 @@ impl Framebuffer {
             }
         }
     }
-
-    pub fn get_pixel(&self, position: &Position) -> Color {
-        let position = Position::new(position.x * 2, position.y * 2);
-        let y_offset = position.y * self.info.stride;
-        let pixel_offset = (y_offset + position.x) * self.info.bytes_per_pixel;
-        let pixel_bytes = &self.buffer[pixel_offset..];
-
-        match self.info.pixel_format {
-            PixelFormat::Rgb => Color::new(pixel_bytes[0], pixel_bytes[1], pixel_bytes[2]),
-            PixelFormat::Bgr => Color::new(pixel_bytes[2], pixel_bytes[1], pixel_bytes[0]),
-            PixelFormat::U8 => Color::new(pixel_bytes[0], pixel_bytes[0], pixel_bytes[0]),
-            PixelFormat::Unknown {
-                red_position,
-                green_position,
-                blue_position,
-            } => Color::new(
-                pixel_bytes[red_position as usize],
-                pixel_bytes[green_position as usize],
-                pixel_bytes[blue_position as usize],
-            ),
-            _ => {
-                panic!("Unsupported pixel format");
-            }
-        }
-    }
 }
 
 use core::fmt;
@@ -365,7 +268,11 @@ impl fmt::Write for Framebuffer {
 macro_rules! print {
     ($($arg:tt)*) => {{
         use core::fmt::Write;
-        $crate::gfx::framebuffer().write_fmt(format_args!($($arg)*)).unwrap();
+        use crate::interrupts::without_interrupts;
+
+        without_interrupts(|| {
+            $crate::gfx::framebuffer().write_fmt(format_args!($($arg)*)).unwrap();
+        });
     }};
 }
 
@@ -378,9 +285,7 @@ macro_rules! println {
 #[macro_export]
 macro_rules! eprint {
     ($($arg:tt)*) => {{
-        $crate::gfx::framebuffer().set_color(&$crate::gfx::Color::new(230, 50, 50));
         $crate::print!($($arg)*);
-        $crate::gfx::framebuffer().set_color(&$crate::gfx::Color::new(255, 255, 255));
     }};
 }
 

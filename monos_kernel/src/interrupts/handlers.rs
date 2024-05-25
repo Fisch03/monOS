@@ -9,6 +9,7 @@ use crate::interrupts::apic::LOCAL_APIC;
 pub enum InterruptIndex {
     APICTimer = 0x20,
     Keyboard = 0x21,
+    Mouse = 0x22,
 
     SpuriousInterrupt = 0xFF,
 }
@@ -61,6 +62,7 @@ pub fn attach_handlers(idt: &mut InterruptDescriptorTable) {
     idt[InterruptIndex::APICTimer.as_usize()] = IDTEntry::new(timer_interrupt_handler);
     idt[InterruptIndex::Keyboard.as_usize()] =
         IDTEntry::new(crate::dev::keyboard::interrupt_handler);
+    idt[InterruptIndex::Mouse.as_usize()] = IDTEntry::new(crate::dev::mouse::interrupt_handler);
     idt[InterruptIndex::SpuriousInterrupt.as_usize()] = IDTEntry::new(spurious_interrupt_handler);
 }
 
@@ -135,7 +137,7 @@ irq_handler_err!(vmm_communication_exception_handler);
 irq_handler_err!(security_exception_handler);
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    crate::print!(".");
+    // crate::print!(".");
     LOCAL_APIC.get().unwrap().eoi();
 }
 

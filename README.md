@@ -23,20 +23,22 @@ monOS is bootable from both BIOS and UEFI. that being said, most of my own testi
 ### memory
 frames are allocated using a basic bitmap allocator. heap memory is allocated using a linked list allocator.
 
-#### kernel virtual address space
+#### kernel virtual address space (horribleness ahead)
 i ~~plan to~~ really really need to automatically assign new virtual adresses at some point but for now this will have to suffice
 
-| adress         | size  | mapped to   |
-| -------------- | ----- | ----------- |
-| 0xfee00000     | 4KiB  | local apic  |
-| 0xfee10000     | 4KiB+ | acpi tables |
-| 0xfee30000     | 4KiB  | io apic     |
-| 0x444444440000 | 1MiB  | kernel heap |
+| adress         | size  | mapped to               |
+| -------------- | ----- | ----------------------- |
+| 0xfee00000     | 4KiB  | local apic              |
+| 0xfee10000     | 4KiB+ | acpi tables             |
+| 0xfee30000     | 4KiB  | io apic                 |
+| 0x123456780000 | ????  | framebuffer back buffer |
+| 0x444444440000 | 1MiB  | kernel heap             |
 
 # the big todo list
 - [x] it boots!
 - [x] working framebuffer
   - [x] text drawing
+  - [x] double buffering
   - [ ] shapes
 - [ ] exception handling
   - [x] basic handlers 
@@ -63,7 +65,12 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
       - [ ] precisely timed timer interrupts
   - [x] io apic
     - [x] ps2 keyboard input
+    - [x] ps2 mouse input
 - [ ] gui
+  - [ ] decently usable ui framework
+    - [ ] mouse cursor
+    - [ ] windows with seperate framebuffers
+    - [ ] invalidation rectangles (or some other mechanic for only redrawing the screen if needed)
   - [ ] boot screen 
   - [ ] terminal
   - [ ] home menu

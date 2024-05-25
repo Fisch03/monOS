@@ -114,10 +114,12 @@ pub struct ProcessorLocalAPIC {
 }
 impl ProcessorLocalAPIC {
     #[inline]
+    #[allow(dead_code)]
     pub fn processor_uid(&self) -> u8 {
         self.processor_uid
     }
     #[inline]
+    #[allow(dead_code)]
     pub fn apic_id(&self) -> u8 {
         self.apic_id
     }
