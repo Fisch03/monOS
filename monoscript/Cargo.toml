@@ -1,0 +1,14 @@
+[package]
+name = "monoscript"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "mono"
+path = "src/main.rs"
+
+[dev-dependencies]
+monoscript_emu = {path = "../monoscript_emu" }
+
+[dependencies]
+hashbrown = "0.14.5"

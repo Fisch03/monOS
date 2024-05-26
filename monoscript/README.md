@@ -1,0 +1,1 @@
+MonoScript is a scripting "language" for making small monOS programs that tries to be as simple as humanly possible.

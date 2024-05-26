@@ -1,7 +1,34 @@
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_peek.png" />
 
 # the what
-monOS is a 64-bit monolithic hobby OS written in Rust themed after the vtuber [Mono Monet](https://www.youtube.com/@MonoMonet) of V4Mirai.
+monOS is a 64-bit monolithic hobby OS written in Rust, themed after the vtuber [Mono Monet](https://www.youtube.com/@MonoMonet) of V4Mirai.
+
+### monoscript
+while monOS may not be written in its own programming language, it comes with one! 
+monoscript is monOS's very own scripting language, designed to be as simple as possible. you can use it to quickly write tools and even small games for monOS.
+writing a "game" where you move a box around is as simple as:
+```js
+// define two variables for the box position
+x_pos = 0
+y_pos = 0
+
+// create a window...
+window {
+  // ...and draw a red square at the x and y positions, with width/height 30
+  box(x_pos, y_pos, 30, 30, RED)
+}
+
+// change the box position while W/A/S/D is pressed
+key(w) { y_pos -= 1 }
+key(s) { y_pos += 1 }
+key(a) { x_pos -= 1 }
+key(d) { x_pos += 1 }
+```
+you can find more info about monoscript [here](https://github.com/Fisch03/monOS/tree/master/monoscript). you can also view it's documentation from inside monOS (soon™).
+
+due to its nature, i wouldn't recommend writing anything complex with monoscript. 
+if you are planning to - there will be a rust template available (soon™) that you can use as a starting point. 
+do keep in mind that documentation of interacting with the os is really sparse atm because i am/was not expecting anyone to write applications for this. so you're really cool for that :3. feel free to open an issue or if its just a small thing message me on discord (`@sakanaa`) if you need help with anything.
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_hmm.png" />
 
@@ -77,8 +104,15 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
 - [ ] task management
   - [ ] async executor
   - [ ] process spawning
-  - [ ] elf file loading (maybe)
-- [ ] MonoScript (name pending) 
+- [ ] getting to userspace
+  - [ ] map kernel to upper half
+  - [ ] it works!
+  - [ ] elf file loading
+  - [ ] running doom
+- [ ] monoscript
+  - [ ] parsing
+  - [ ] running in the emulator
+  - [ ] running in the real thing
 - [ ] multiprocessor support (maybe)
 - [ ] USB support (maybe)
 - [ ] whatever else comes to mind :)
@@ -96,7 +130,7 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_smile.png" />
 
 # credits
-please please please contact me if you want your work removed.
-- [woofycakes](https://x.com/woofycakes) for the mono emotes
+please contact me if you want your work removed. i wasn't able to find decent licensing information for all of these and am using them under the assumption that using for non-profit fan content is fine.
+- [woofycakes](https://x.com/woofycakes) for the mono emotes in this file
 - [NOiiRE ❖](https://noiire.carrd.co/) for the [mono cursor](https://x.com/noiireism/status/1736755359308792252)
 - [slavfox](https://github.com/slavfox) for making [Cozette](https://github.com/slavfox/Cozette) (the system font)
