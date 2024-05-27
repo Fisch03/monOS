@@ -1,5 +1,8 @@
 use minifb::{Window, WindowOptions};
-use monoscript::{execute, parse, Interface, ScriptContext, WindowContent};
+use monoscript::{execute, parse, Interface, ScriptContext, ScriptHook};
+
+mod key;
+use key::char_to_key;
 
 const WIDTH: usize = 640;
 const HEIGHT: usize = 360;
@@ -7,8 +10,9 @@ const HEIGHT: usize = 360;
 #[derive(Debug)]
 struct EmuInterface<'a> {
     windows: Vec<EmuInterfaceWindow>,
-    contents: Vec<WindowContent<'a>>,
+    contents: Vec<ScriptHook<'a>>,
     current_window: usize,
+    key_hooks: Vec<(char, ScriptHook<'a>)>,
 }
 #[derive(Debug)]
 struct EmuInterfaceWindow {
@@ -21,6 +25,7 @@ impl<'a> EmuInterface<'a> {
         Self {
             windows: Vec::new(),
             contents: Vec::new(),
+            key_hooks: Vec::new(),
             current_window: 0,
         }
     }
@@ -36,7 +41,7 @@ impl<'a> EmuInterface<'a> {
             self.current_window = window_idx;
 
             let start = std::time::Instant::now();
-            c.render(context, self).expect("failed to render window");
+            c.execute(context, self).expect("failed to render window");
             println!("rendered in {:?}", start.elapsed());
 
             let w = &mut self.windows[window_idx];
@@ -49,6 +54,25 @@ impl<'a> EmuInterface<'a> {
 
         self.contents.extend(contents);
     }
+
+    fn update_key_hooks(&mut self, context: &mut ScriptContext<'a>) {
+        let key_hooks = self.key_hooks.drain(..).collect::<Vec<_>>();
+
+        for (key, hook) in key_hooks.iter() {
+            if self.is_key_down(*key) {
+                hook.execute(context, self)
+                    .expect("failed to execute key hook");
+            }
+        }
+
+        self.key_hooks.extend(key_hooks);
+    }
+
+    fn is_key_down(&self, key: char) -> bool {
+        self.windows
+            .iter()
+            .any(|w| w.window.is_key_down(char_to_key(key)))
+    }
 }
 
 impl<'a> Interface<'a> for EmuInterface<'a> {
@@ -56,7 +80,11 @@ impl<'a> Interface<'a> for EmuInterface<'a> {
         print!("{}", message);
     }
 
-    fn spawn_window(&mut self, content: WindowContent<'a>) {
+    fn on_key(&mut self, key: char, content: ScriptHook<'a>) {
+        self.key_hooks.push((key, content));
+    }
+
+    fn spawn_window(&mut self, content: ScriptHook<'a>) {
         if self.windows.len() >= 10 {
             eprintln!("too many windows!!!");
             return;
@@ -98,6 +126,7 @@ pub fn run_script(script: &str) -> Result<(), ()> {
     println!("executed in {:?}", start.elapsed());
 
     while interface.some_window_open() {
+        interface.update_key_hooks(&mut context);
         interface.update_windows(&mut context);
     }
 

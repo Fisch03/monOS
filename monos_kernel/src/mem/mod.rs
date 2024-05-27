@@ -4,14 +4,21 @@ pub use address::{PhysicalAddress, VirtualAddress};
 mod paging;
 pub use paging::*;
 
-mod alloc;
+mod alloc_heap;
+mod alloc_vmem;
+pub use alloc_vmem::alloc_vmem;
 
 use bootloader_api::info::BootInfo;
 use core::arch::asm;
 
-pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
-    paging::init(physical_mem_offset, boot_info);
-    alloc::init_heap();
+pub unsafe fn init(boot_info: &BootInfo) {
+    let phys_mem_offset = boot_info.physical_memory_offset.as_ref().unwrap();
+    let phys_mem_offset = VirtualAddress::new(*phys_mem_offset);
+
+    paging::init(phys_mem_offset, boot_info);
+
+    alloc_vmem::init(phys_mem_offset, &boot_info);
+    alloc_heap::init();
 }
 
 #[derive(Debug, Clone)]

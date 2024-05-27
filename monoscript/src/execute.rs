@@ -1,7 +1,7 @@
 use crate::ast::{
     AssignmentKind, BinaryOp, Block, Expression, HookType, Span, StatementKind, UnaryOp, Value,
 };
-use crate::{Interface, Script, WindowContent};
+use crate::{Interface, Script, ScriptHook};
 
 use alloc::{
     format,
@@ -15,19 +15,67 @@ trait AddSpanError<'a> {
     fn with_span(self, span: Span<'a>) -> Self::Output;
 }
 
-#[derive(Debug)]
 pub struct RuntimeError<'a> {
     span: Span<'a>,
     pub kind: RuntimeErrorKind<'a>,
 }
-#[derive(Debug)]
+impl<'a> RuntimeError<'a> {
+    fn current_line(&self) -> &str {
+        let remainder = self.span.fragment();
+        remainder.lines().next().unwrap_or("")
+    }
+}
+impl core::fmt::Debug for RuntimeError<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(
+            f,
+            "in line: {}, column: {}",
+            self.span.location_line(),
+            self.span.location_offset()
+        )?;
+        writeln!(f, "at \"{}\"", self.current_line())?;
+
+        match &self.kind {
+            RuntimeErrorKind::UndefinedVariable(ident) => {
+                writeln!(f, "tried to access undefined variable: \"{}\"", ident)?;
+            }
+            RuntimeErrorKind::MissingArgument(index, ident) => {
+                writeln!(
+                    f,
+                    "missing argument no. {} for function call: {}",
+                    index + 1,
+                    ident
+                )?;
+            }
+            RuntimeErrorKind::InvalidOperation(got, expected) => {
+                writeln!(
+                    f,
+                    "cannot perform operation on {} and {}",
+                    expected.print_type(),
+                    got.print_type()
+                )?;
+            }
+            RuntimeErrorKind::InvalidConversion(from, to) => {
+                writeln!(
+                    f,
+                    "invalid conversion from {} to {}",
+                    from.print_type(),
+                    to.print_type()
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+}
 pub enum RuntimeErrorKind<'a> {
     UndefinedVariable(&'a str),
-    MissingArgument(&'a str),
-    MismatchedTypes(Value<'a>, Value<'a>),
+    MissingArgument(usize, &'a str),
+    InvalidOperation(Value<'a>, Value<'a>),
     InvalidConversion(Value<'a>, Value<'a>),
 }
 
+#[derive(Debug)]
 pub struct ScriptContext<'a> {
     pub(crate) script: Script<'a>,
     pub(crate) scope: ScopeStack<'a>,
@@ -45,6 +93,7 @@ impl<'a, T> AddSpanError<'a> for Result<T, RuntimeErrorKind<'a>> {
     }
 }
 
+#[derive(Debug)]
 pub struct ScopeStack<'a> {
     root: Scope<'a>,
     stack: Vec<Scope<'a>>,
@@ -74,19 +123,41 @@ impl<'a> ScopeStack<'a> {
     }
 
     pub fn assign(&mut self, ident: &'a str, value: Value<'a>) {
-        self.current_scope_mut().variables.insert(ident, value);
+        use hashbrown::hash_map::Entry;
+
+        let mut found = false;
+        for scope in self
+            .stack
+            .iter_mut()
+            .rev()
+            .chain(core::iter::once(&mut self.root))
+        {
+            match scope.variables.entry(ident) {
+                Entry::Vacant(_) => false,
+                Entry::Occupied(mut entry) => {
+                    entry.insert(value.clone());
+                    found = true;
+                    break;
+                }
+            };
+        }
+
+        if !found {
+            self.current_scope_mut().variables.insert(ident, value);
+        }
     }
 
     pub fn get(&self, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
         self.stack
             .iter()
             .rev()
+            .chain(core::iter::once(&self.root))
             .find_map(|scope| scope.variables.get(ident))
-            .or_else(|| self.root.variables.get(ident))
             .ok_or(RuntimeErrorKind::UndefinedVariable(ident))
     }
 }
 
+#[derive(Debug)]
 pub struct Scope<'a> {
     variables: HashMap<&'a str, Value<'a>>,
 }
@@ -114,14 +185,14 @@ impl<'a> Expression<'a> {
                 match op {
                     UnaryOp::Neg => match value {
                         Value::Number(n) => Ok(Value::Number(-n)),
-                        _ => Err(RuntimeErrorKind::MismatchedTypes(
+                        _ => Err(RuntimeErrorKind::InvalidOperation(
                             value.clone(),
                             Value::Number(0.0),
                         )),
                     },
                     UnaryOp::Not => match value {
                         Value::Boolean(b) => Ok(Value::Boolean(!b)),
-                        _ => Err(RuntimeErrorKind::MismatchedTypes(
+                        _ => Err(RuntimeErrorKind::InvalidOperation(
                             value.clone(),
                             Value::Boolean(false),
                         )),
@@ -144,6 +215,16 @@ impl<'a> Expression<'a> {
 }
 
 impl<'a> Value<'a> {
+    pub fn print_type(&self) -> &'static str {
+        match self {
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Boolean(_) => "boolean",
+            Value::Function { .. } => "function",
+            Value::None => "none",
+        }
+    }
+
     // print the value as a string, for debugging purposes
     pub fn print_value(&self) -> String {
         match self {
@@ -223,7 +304,7 @@ impl<'a> Value<'a> {
                 Ok(Value::String(format!("{}{}", a, b)))
             }
 
-            _ => Err(RuntimeErrorKind::MismatchedTypes(
+            _ => Err(RuntimeErrorKind::InvalidOperation(
                 self.clone(),
                 other.clone(),
             )),
@@ -239,7 +320,7 @@ impl<'a> Value<'a> {
                 Ok(Value::Number(other.as_number()? - b))
             }
 
-            _ => Err(RuntimeErrorKind::MismatchedTypes(
+            _ => Err(RuntimeErrorKind::InvalidOperation(
                 self.clone(),
                 other.clone(),
             )),
@@ -255,7 +336,7 @@ impl<'a> Value<'a> {
                 Ok(Value::Number(other.as_number()? * b))
             }
 
-            _ => Err(RuntimeErrorKind::MismatchedTypes(
+            _ => Err(RuntimeErrorKind::InvalidOperation(
                 self.clone(),
                 other.clone(),
             )),
@@ -270,7 +351,7 @@ impl<'a> Value<'a> {
             (other, Value::Number(b)) if other.can_cast_to_number() => {
                 Ok(Value::Number(other.as_number()? / b))
             }
-            _ => Err(RuntimeErrorKind::MismatchedTypes(
+            _ => Err(RuntimeErrorKind::InvalidOperation(
                 self.clone(),
                 other.clone(),
             )),
@@ -292,27 +373,28 @@ impl<'a> Block<'a> {
                     kind,
                 } => {
                     let expr_value = expression.evaluate(&scope).with_span(statement.span)?;
-                    let new_value = match kind {
-                        AssignmentKind::Assign => expr_value,
-                        AssignmentKind::AddAssign => {
+                    match kind {
+                        AssignmentKind::Assign => scope.assign(ident, expr_value),
+                        _ => {
                             let current_value = scope.get(ident).with_span(statement.span)?;
-                            current_value.add(&expr_value).with_span(statement.span)?
-                        }
-                        AssignmentKind::SubAssign => {
-                            let current_value = scope.get(ident).with_span(statement.span)?;
-                            current_value.sub(&expr_value).with_span(statement.span)?
-                        }
-                        AssignmentKind::MulAssign => {
-                            let current_value = scope.get(ident).with_span(statement.span)?;
-                            current_value.mul(&expr_value).with_span(statement.span)?
-                        }
-                        AssignmentKind::DivAssign => {
-                            let current_value = scope.get(ident).with_span(statement.span)?;
-                            current_value.div(&expr_value).with_span(statement.span)?
+                            let new_value = match kind {
+                                AssignmentKind::AddAssign => {
+                                    current_value.add(&expr_value).with_span(statement.span)?
+                                }
+                                AssignmentKind::SubAssign => {
+                                    current_value.sub(&expr_value).with_span(statement.span)?
+                                }
+                                AssignmentKind::MulAssign => {
+                                    current_value.mul(&expr_value).with_span(statement.span)?
+                                }
+                                AssignmentKind::DivAssign => {
+                                    current_value.div(&expr_value).with_span(statement.span)?
+                                }
+                                AssignmentKind::Assign => unreachable!(),
+                            };
+                            scope.assign(ident, new_value);
                         }
                     };
-
-                    scope.assign(ident, new_value);
                 }
                 StatementKind::FunctionCall { ident, args } => {
                     let arg_values = args
@@ -343,11 +425,16 @@ impl<'a> Block<'a> {
                 }
                 StatementKind::Hook { kind, block } => match kind {
                     HookType::Window => {
-                        interface.spawn_window(WindowContent {
+                        interface.spawn_window(ScriptHook {
                             block: block.clone(),
                         });
                     }
-                    HookType::Key(_) => todo!(),
+                    HookType::Key(char) => interface.on_key(
+                        *char,
+                        ScriptHook {
+                            block: block.clone(),
+                        },
+                    ),
                 },
                 a => todo!("{:?}", a),
             };
@@ -358,12 +445,12 @@ impl<'a> Block<'a> {
 }
 
 trait ArgArray<'a> {
-    fn get_arg(&self, index: usize) -> Result<&Value<'a>, RuntimeErrorKind<'a>>;
+    fn get_arg(&self, index: usize, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>>;
 }
 impl<'a> ArgArray<'a> for Vec<Value<'a>> {
-    fn get_arg(&self, index: usize) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
+    fn get_arg(&self, index: usize, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
         self.get(index)
-            .ok_or(RuntimeErrorKind::MissingArgument("argument"))
+            .ok_or(RuntimeErrorKind::MissingArgument(index, ident))
     }
 }
 
@@ -390,20 +477,20 @@ fn inbuilt_function<'a, I: Interface<'a>>(
 
         "box" => {
             interface.draw_box(
-                args.get_arg(0)?.as_number()? as usize,
-                args.get_arg(1)?.as_number()? as usize,
-                args.get_arg(2)?.as_number()? as usize,
-                args.get_arg(3)?.as_number()? as usize,
+                args.get_arg(0, "box x position")?.as_number()? as usize,
+                args.get_arg(1, "box y position")?.as_number()? as usize,
+                args.get_arg(2, "box width")?.as_number()? as usize,
+                args.get_arg(3, "box height")?.as_number()? as usize,
             );
 
             Ok(Value::None)
         }
         "square" => {
             interface.draw_box(
-                args.get_arg(0)?.as_number()? as usize,
-                args.get_arg(1)?.as_number()? as usize,
-                args.get_arg(2)?.as_number()? as usize,
-                args.get_arg(2)?.as_number()? as usize,
+                args.get_arg(0, "square x position")?.as_number()? as usize,
+                args.get_arg(1, "square y position")?.as_number()? as usize,
+                args.get_arg(2, "square size")?.as_number()? as usize,
+                args.get_arg(2, "square size")?.as_number()? as usize,
             );
 
             Ok(Value::None)

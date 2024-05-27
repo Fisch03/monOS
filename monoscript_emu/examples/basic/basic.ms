@@ -1,23 +1,20 @@
-a = 42 + 5 + 1
-b = "good mononing"
-c = false
+// welcome to monoscript!
+// lines starting with '//' are comments
 
-print("hello" + " " + "world")
+// 'print' lets you output text to the console
+print("good mononing!")
 
-print(a)
-print(b)
-print(c)
+// variables are like boxes that can hold values.
+// to create a variable, write its name, followed by '=' and a value you want to put in it.
+// there are three types of values in monoscript...
+a = 42            // ...numbers...
+b = "oats curry!" // ...text ("strings")...
+c = false         // ...and true/false values ("booleans")
 
-print()
-
-print(a + 5)
-print(a + 5)
-print("test" + a)
-print("test" + b)
-print("test" + c)
-
-print()
-
+// you can use 'debug' to output both the type and the value of a variable to the console
 debug(a)
-debug(b)
-debug(c)
+
+// but of course, you can also just 'print' the value itself too!
+print(b)
+
+

@@ -43,6 +43,11 @@ impl VirtualAddress {
     }
 
     #[inline]
+    pub fn align_up(&self, align: u64) -> Self {
+        Self::new((self.0 + align - 1) & !(align - 1))
+    }
+
+    #[inline]
     pub fn is_aligned(&self, align: u64) -> bool {
         self.0 & (align - 1) == 0
     }

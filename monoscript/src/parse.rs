@@ -11,7 +11,6 @@ use nom::{
     sequence::{delimited, pair, terminated, tuple},
     IResult, Parser,
 };
-use nom_locate::position;
 
 fn identifier(input: Span) -> IResult<Span, Span> {
     recognize(pair(
@@ -49,7 +48,8 @@ impl<'a> Block<'a> {
     }
 
     pub fn parse(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, pos) = position(input)?;
+        let (rest, _) = many0(empty_line_end)(input)?;
+
         let (rest, statements) = ws(cut(separated_list0(
             many1(empty_line_end),
             Statement::parse,
@@ -61,7 +61,7 @@ impl<'a> Block<'a> {
         Ok((
             rest,
             Block {
-                span: pos,
+                span: input,
                 statements,
             },
         ))
@@ -79,15 +79,14 @@ impl<'a> Statement<'a> {
     }
 
     fn parse_assignment(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, pos) = position(input)?;
-        let (rest, ident) = ws(identifier).parse(rest)?;
+        let (rest, ident) = ws(identifier).parse(input)?;
         let (rest, kind) = ws(AssignmentKind::parse).parse(rest)?;
         let (rest, expr) = ws(cut(Expression::parse)).parse(rest)?;
 
         Ok((
             rest,
             Statement {
-                span: pos,
+                span: input,
                 kind: StatementKind::Assignment {
                     ident: ident.fragment(),
                     expression: expr,
@@ -98,29 +97,26 @@ impl<'a> Statement<'a> {
     }
 
     fn parse_hook(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, pos) = position(input)?;
-        let (rest, kind) = ws(HookType::parse).parse(rest)?;
+        let (rest, kind) = ws(HookType::parse).parse(input)?;
         let (rest, block) = Block::parse_scoped(rest)?;
-        dbg!(rest);
 
         Ok((
             rest,
             Statement {
-                span: pos,
+                span: input,
                 kind: StatementKind::Hook { kind, block },
             },
         ))
     }
 
     fn parse_function_call(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, pos) = position(input)?;
-        let (rest, ident) = identifier(rest)?;
+        let (rest, ident) = identifier(input)?;
         let (rest, args) = cut(Expression::parse_args).parse(rest)?;
 
         Ok((
             rest,
             Statement {
-                span: pos,
+                span: input,
                 kind: StatementKind::FunctionCall {
                     ident: ident.fragment(),
                     args,

@@ -1,4 +1,4 @@
-use nom_locate::{position, LocatedSpan};
+use nom_locate::LocatedSpan;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 

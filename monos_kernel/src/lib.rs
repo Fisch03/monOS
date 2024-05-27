@@ -14,19 +14,15 @@ pub mod serial;
 mod utils;
 
 use bootloader_api::BootInfo;
-use mem::VirtualAddress;
 
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
     gdt::init();
 
     interrupts::init_idt();
 
-    let phys_mem_offset = boot_info.physical_memory_offset.as_ref().unwrap();
-    let phys_mem_offset = VirtualAddress::new(*phys_mem_offset);
-
     // safety: the physical memory offset is valid since it was provided by the bootloader.
     // the bootloader config guarantees that the entire physical memory is mapped.
-    unsafe { mem::init(phys_mem_offset, &boot_info) };
+    unsafe { mem::init(&boot_info) };
 
     interrupts::init_apic();
     acpi::init(boot_info);

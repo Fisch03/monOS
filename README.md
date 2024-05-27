@@ -15,7 +15,7 @@ y_pos = 0
 // create a window...
 window {
   // ...and draw a red square at the x and y positions, with width/height 30
-  box(x_pos, y_pos, 30, 30, RED)
+  square(x_pos, y_pos, 30, RED)
 }
 
 // change the box position while W/A/S/D is pressed
@@ -120,7 +120,7 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
 - to all the developers of the [x86_64 crate](https://github.com/rust-osdev/x86_64) that served as a great reference point for my own implementations
 - to [moros](https://github.com/vinc/moros), [Hermit OS](https://github.com/hermit-os) and [Redox OS](https://www.redox-os.org/) for also serving as references
 - to the [OSDev Wiki](https://wiki.osdev.org)
-- to mono for being cool and providing me with entertainment while i wrote this thing
+- to mono for being cool and based and providing me with entertainment while i wrote this thing 
 - to my friends for putting up with me constantly bothering them with this project
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_smile.png" />

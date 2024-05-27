@@ -1,15 +1,15 @@
-use crate::mem::{alloc_frame, map_to, Page, PageTableFlags, VirtualAddress};
+use crate::mem::{alloc_frame, alloc_vmem, map_to, Page, PageTableFlags};
 
 use linked_list_allocator::LockedHeap;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-const HEAP_START: u64 = 0x_4444_4444_0000;
 const HEAP_SIZE: u64 = 1024 * 1024; // 1 MiB
 
-pub fn init_heap() {
-    let heap_start = VirtualAddress::new(HEAP_START);
+pub fn init() {
+    // SAFETY: we won't allocate more than `HEAP_SIZE` bytes, so this is safe.
+    let heap_start = unsafe { alloc_vmem(HEAP_SIZE) };
     let heap_end = heap_start + HEAP_SIZE;
     let mut start_page = Page::around(heap_start);
     let end_page = Page::around(heap_end);
