@@ -12,3 +12,5 @@ monoscript_emu = {path = "../monoscript_emu" }
 
 [dependencies]
 hashbrown = "0.14.5"
+nom = { version = "7.1.3", default-features = false, features = ["alloc"] }
+nom_locate = { version = "4.2.0", default-features = false }

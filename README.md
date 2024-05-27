@@ -26,10 +26,6 @@ key(d) { x_pos += 1 }
 ```
 you can find more info about monoscript [here](https://github.com/Fisch03/monOS/tree/master/monoscript). you can also view it's documentation from inside monOS (soon™).
 
-due to its nature, i wouldn't recommend writing anything complex with monoscript. 
-if you are planning to - there will be a rust template available (soon™) that you can use as a starting point. 
-do keep in mind that documentation of interacting with the os is really sparse atm because i am/was not expecting anyone to write applications for this. so you're really cool for that :3. feel free to open an issue or if its just a small thing message me on discord (`@sakanaa`) if you need help with anything.
-
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_hmm.png" />
 
 # the why

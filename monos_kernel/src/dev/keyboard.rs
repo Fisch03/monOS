@@ -52,6 +52,7 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
 
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
+            crate::dbg!(key);
             // match key {
             //     DecodedKey::Unicode('\n') => crate::gfx::framebuffer().confirm_input(),
             //     DecodedKey::Unicode('\u{8}') => crate::gfx::framebuffer().delete_input_char(),

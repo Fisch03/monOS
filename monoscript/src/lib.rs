@@ -1,36 +1,62 @@
-#![no_std]
+// #![no_std]
 
 extern crate alloc;
 use core::str;
 
 pub mod ast;
-use ast::{ParseError, ScriptAST};
+use ast::{Block, Span};
 
-pub mod interpret;
-use interface::PersistentCode;
-use interpret::{InterpretError, Script};
+pub mod parse;
 
 pub mod execute;
-use execute::{RuntimeError, ScriptContext};
+use execute::RuntimeError;
+pub use execute::ScriptContext;
 
 pub mod interface;
-pub use interface::Interface;
+pub use interface::{Interface, WindowContent};
 
-pub fn parse<'a>(code: &'a str) -> Result<ScriptAST<'a>, ParseError<'a>> {
-    let code = TokenIterator::new(code);
-    ScriptAST::parse(code)
+#[derive(Debug)]
+pub enum ParseError<'a> {
+    UnexpectedToken(Span<'a>),
 }
 
-pub fn interpret<'a>(ast: ScriptAST<'a>) -> Result<Script<'a>, InterpretError<'a>> {
-    Script::interpret(ast)
+use nom::IResult;
+#[derive(Debug)]
+pub struct Script<'a>(Block<'a>);
+impl<'a> TryFrom<IResult<Span<'a>, Block<'a>>> for Script<'a> {
+    type Error = ParseError<'a>;
+    fn try_from(result: IResult<Span<'a>, Block<'a>>) -> Result<Self, Self::Error> {
+        match result {
+            Ok((remainder, block)) => {
+                if remainder.fragment().is_empty() {
+                    Ok(Script(block))
+                } else {
+                    Err(ParseError::UnexpectedToken(remainder))
+                }
+            }
+            Err(err) => match err {
+                nom::Err::Error(err) | nom::Err::Failure(err) => {
+                    let span = err.input;
+                    Err(ParseError::UnexpectedToken(span))
+                }
+                _ => unreachable!(),
+            },
+        }
+    }
 }
 
-pub fn execute<'a, I: Interface>(
+pub fn parse<'a>(code: &'a str) -> Result<Script<'a>, ParseError<'a>> {
+    let code = ast::Block::parse(code.into());
+    Script::try_from(code)
+}
+
+pub fn execute<'a, I: Interface<'a>>(
     script: Script<'a>,
     interface: &mut I,
-) -> Result<Option<PersistentCode<'a>>, RuntimeError<'a>> {
-    let context = ScriptContext::new(script);
-    context.run(interface)
+) -> Result<ScriptContext<'a>, RuntimeError<'a>> {
+    let mut context = ScriptContext::new(script);
+    context.run(interface)?;
+    Ok(context)
 }
 
 #[derive(Debug)]

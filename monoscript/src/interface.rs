@@ -1,30 +1,27 @@
-use crate::execute::ScriptContext;
+use crate::ast::Block;
+use crate::execute::{RuntimeError, ScriptContext};
 
-pub trait Interface {
+pub trait Interface<'a> {
     fn print(&self, message: &str);
 
+    fn spawn_window(&mut self, content: WindowContent<'a>);
     fn draw_box(&mut self, x: usize, y: usize, w: usize, h: usize);
 }
 
-#[must_use]
-pub struct PersistentCode<'a> {
-    context: ScriptContext<'a>,
+#[derive(Debug)]
+pub struct WindowContent<'a> {
+    pub(crate) block: Block<'a>,
 }
 
-impl<'a> PersistentCode<'a> {
-    pub(crate) fn new(context: ScriptContext<'a>) -> Self {
-        Self { context }
-    }
-
-    #[inline]
-    pub fn wants_window(&self) -> bool {
-        self.context.script.window.is_some()
-    }
-
-    #[inline]
-    pub fn on_window<I: Interface>(&mut self, interface: &mut I) {
-        if let Some(window) = &self.context.script.window {
-            window.render(&mut self.context.scope, interface).unwrap();
-        }
+impl<'a> WindowContent<'a> {
+    pub fn render<I: Interface<'a>>(
+        &self,
+        context: &mut ScriptContext<'a>,
+        interface: &mut I,
+    ) -> Result<(), RuntimeError> {
+        context.scope.enter_scope();
+        self.block.run(&mut context.scope, interface)?;
+        context.scope.exit_scope();
+        Ok(())
     }
 }

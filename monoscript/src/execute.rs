@@ -1,8 +1,7 @@
-use crate::{
-    interface::PersistentCode,
-    interpret::{CodeBlock, Expression, Script, Statement, Value, Window},
-    Interface,
+use crate::ast::{
+    AssignmentKind, BinaryOp, Block, Expression, HookType, Span, StatementKind, UnaryOp, Value,
 };
+use crate::{Interface, Script, WindowContent};
 
 use alloc::{
     format,
@@ -11,17 +10,41 @@ use alloc::{
 };
 use hashbrown::HashMap;
 
+trait AddSpanError<'a> {
+    type Output;
+    fn with_span(self, span: Span<'a>) -> Self::Output;
+}
+
 #[derive(Debug)]
-pub enum RuntimeError<'a> {
+pub struct RuntimeError<'a> {
+    span: Span<'a>,
+    pub kind: RuntimeErrorKind<'a>,
+}
+#[derive(Debug)]
+pub enum RuntimeErrorKind<'a> {
     UndefinedVariable(&'a str),
     MissingArgument(&'a str),
     MismatchedTypes(Value<'a>, Value<'a>),
+    InvalidConversion(Value<'a>, Value<'a>),
 }
 
 pub struct ScriptContext<'a> {
     pub(crate) script: Script<'a>,
     pub(crate) scope: ScopeStack<'a>,
 }
+impl<'a> AddSpanError<'a> for RuntimeErrorKind<'a> {
+    type Output = RuntimeError<'a>;
+    fn with_span(self, span: Span<'a>) -> Self::Output {
+        RuntimeError { span, kind: self }
+    }
+}
+impl<'a, T> AddSpanError<'a> for Result<T, RuntimeErrorKind<'a>> {
+    type Output = Result<T, RuntimeError<'a>>;
+    fn with_span(self, span: Span<'a>) -> Self::Output {
+        self.map_err(move |kind| RuntimeError { span, kind })
+    }
+}
+
 pub struct ScopeStack<'a> {
     root: Scope<'a>,
     stack: Vec<Scope<'a>>,
@@ -54,13 +77,13 @@ impl<'a> ScopeStack<'a> {
         self.current_scope_mut().variables.insert(ident, value);
     }
 
-    pub fn get(&self, ident: &'a str) -> Result<&Value<'a>, RuntimeError<'a>> {
+    pub fn get(&self, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
         self.stack
             .iter()
             .rev()
             .find_map(|scope| scope.variables.get(ident))
             .or_else(|| self.root.variables.get(ident))
-            .ok_or(RuntimeError::UndefinedVariable(ident))
+            .ok_or(RuntimeErrorKind::UndefinedVariable(ident))
     }
 }
 
@@ -76,35 +99,56 @@ impl<'a> ScriptContext<'a> {
         }
     }
 
-    pub fn run<I: Interface>(
-        mut self,
-        interface: &mut I,
-    ) -> Result<Option<PersistentCode<'a>>, RuntimeError<'a>> {
-        self.script.code.run(&mut self.scope, interface)?;
-
-        if self.script.window.is_some() {
-            Ok(Some(PersistentCode::new(self)))
-        } else {
-            Ok(None)
-        }
+    pub fn run<I: Interface<'a>>(&mut self, interface: &mut I) -> Result<(), RuntimeError<'a>> {
+        self.script.0.run(&mut self.scope, interface)
     }
 }
 
 impl<'a> Expression<'a> {
-    pub fn evaluate(&self, scope: &ScopeStack<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
+    pub fn evaluate(&self, scope: &ScopeStack<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
         match self {
             Expression::Literal(value) => Ok(value.clone()),
-            Expression::Ident(ident) => Ok(scope.get(ident).cloned()?),
+            Expression::Identifier(ident) => Ok(scope.get(ident).cloned()?),
+            Expression::Unary { op, expr } => {
+                let value = expr.evaluate(scope)?;
+                match op {
+                    UnaryOp::Neg => match value {
+                        Value::Number(n) => Ok(Value::Number(-n)),
+                        _ => Err(RuntimeErrorKind::MismatchedTypes(
+                            value.clone(),
+                            Value::Number(0.0),
+                        )),
+                    },
+                    UnaryOp::Not => match value {
+                        Value::Boolean(b) => Ok(Value::Boolean(!b)),
+                        _ => Err(RuntimeErrorKind::MismatchedTypes(
+                            value.clone(),
+                            Value::Boolean(false),
+                        )),
+                    },
+                }
+            }
+            Expression::Binary { op, lhs, rhs } => {
+                let lhs = lhs.evaluate(scope)?;
+                let rhs = rhs.evaluate(scope)?;
+                match op {
+                    BinaryOp::Add => lhs.add(&rhs),
+                    BinaryOp::Sub => lhs.sub(&rhs),
+                    BinaryOp::Mul => lhs.mul(&rhs),
+                    BinaryOp::Div => lhs.div(&rhs),
+                    _ => todo!("BinaryOp::{:?} not implemented", op),
+                }
+            }
         }
     }
 }
 
-impl Value<'_> {
+impl<'a> Value<'a> {
+    // print the value as a string, for debugging purposes
     pub fn print_value(&self) -> String {
         match self {
             Value::String(s) => s.clone(),
             Value::Number(n) => n.to_string(),
-            Value::None => "None".to_string(),
             Value::Function { .. } => "Function".into(),
             Value::Boolean(b) => {
                 if *b {
@@ -113,65 +157,199 @@ impl Value<'_> {
                     "false".into()
                 }
             }
+            Value::None => "None".into(),
         }
     }
 
-    pub fn as_number(&self) -> Option<usize> {
+    // cast the value into a number, if possible
+    pub fn can_cast_to_number(&self) -> bool {
         match self {
-            Value::Number(n) => Some(*n),
-            _ => None,
+            Value::Number(_) => true,
+            Value::String(s) => s.parse::<f64>().is_ok(),
+            Value::Boolean(_) => true,
+            _ => false,
+        }
+    }
+    pub fn as_number(&self) -> Result<f64, RuntimeErrorKind<'a>> {
+        match self {
+            Value::Number(n) => Ok(*n),
+            Value::String(s) => s
+                .parse()
+                .map_err(|_| RuntimeErrorKind::InvalidConversion(self.clone(), Value::Number(0.0))),
+            Value::Boolean(b) => Ok(if *b { 1.0 } else { 0.0 }),
+            _ => Err(RuntimeErrorKind::InvalidConversion(
+                self.clone(),
+                Value::Number(0.0),
+            )),
+        }
+    }
+
+    // cast the value into a string, if possible
+    pub fn can_cast_to_string(&self) -> bool {
+        match self {
+            Value::String(_) => true,
+            Value::Number(_) => true,
+            Value::Boolean(_) => true,
+            _ => false,
+        }
+    }
+    pub fn as_string(&self) -> Result<String, RuntimeErrorKind<'a>> {
+        match self {
+            Value::String(s) => Ok(s.to_string()),
+            Value::Number(n) => Ok(n.to_string()),
+            Value::Boolean(b) => Ok(if *b { "true".into() } else { "false".into() }),
+            _ => Result::Err(RuntimeErrorKind::InvalidConversion(
+                self.clone(),
+                Value::String("".into()),
+            )),
+        }
+    }
+
+    pub fn add(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        match (self, other) {
+            (Value::Number(a), other) if other.can_cast_to_number() => {
+                Ok(Value::Number(a + other.as_number()?))
+            }
+            (other, Value::Number(b)) if other.can_cast_to_number() => {
+                Ok(Value::Number(other.as_number()? + b))
+            }
+
+            (Value::String(a), other) if other.can_cast_to_string() => {
+                let b = other.as_string()?;
+                Ok(Value::String(format!("{}{}", a, b)))
+            }
+            (other, Value::String(b)) if other.can_cast_to_string() => {
+                let a = other.as_string()?;
+                Ok(Value::String(format!("{}{}", a, b)))
+            }
+
+            _ => Err(RuntimeErrorKind::MismatchedTypes(
+                self.clone(),
+                other.clone(),
+            )),
+        }
+    }
+
+    pub fn sub(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        match (self, other) {
+            (Value::Number(a), other) if other.can_cast_to_number() => {
+                Ok(Value::Number(a - other.as_number()?))
+            }
+            (other, Value::Number(b)) if other.can_cast_to_number() => {
+                Ok(Value::Number(other.as_number()? - b))
+            }
+
+            _ => Err(RuntimeErrorKind::MismatchedTypes(
+                self.clone(),
+                other.clone(),
+            )),
+        }
+    }
+
+    pub fn mul(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        match (self, other) {
+            (Value::Number(a), other) if other.can_cast_to_number() => {
+                Ok(Value::Number(a * other.as_number()?))
+            }
+            (other, Value::Number(b)) if other.can_cast_to_number() => {
+                Ok(Value::Number(other.as_number()? * b))
+            }
+
+            _ => Err(RuntimeErrorKind::MismatchedTypes(
+                self.clone(),
+                other.clone(),
+            )),
+        }
+    }
+
+    pub fn div(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        match (self, other) {
+            (Value::Number(a), other) if other.can_cast_to_number() => {
+                Ok(Value::Number(a / other.as_number()?))
+            }
+            (other, Value::Number(b)) if other.can_cast_to_number() => {
+                Ok(Value::Number(other.as_number()? / b))
+            }
+            _ => Err(RuntimeErrorKind::MismatchedTypes(
+                self.clone(),
+                other.clone(),
+            )),
         }
     }
 }
 
-impl<'a> Window<'a> {
-    pub fn render<I: Interface>(
-        &self,
-        scope: &mut ScopeStack<'a>,
-        interface: &mut I,
-    ) -> Result<(), RuntimeError> {
-        scope.enter_scope();
-        self.render.run(scope, interface)?;
-        scope.exit_scope();
-        Ok(())
-    }
-}
-
-impl<'a> CodeBlock<'a> {
-    fn run<I: Interface>(
+impl<'a> Block<'a> {
+    pub fn run<I: Interface<'a>>(
         &self,
         scope: &mut ScopeStack<'a>,
         interface: &mut I,
     ) -> Result<(), RuntimeError<'a>> {
-        for statement in self.iter() {
-            match statement {
-                Statement::Assignment(ident, expression) => {
-                    let value = expression.evaluate(&scope)?;
-                    scope.assign(ident, value);
+        for statement in self.statements.iter() {
+            match &statement.kind {
+                StatementKind::Assignment {
+                    ident,
+                    expression,
+                    kind,
+                } => {
+                    let expr_value = expression.evaluate(&scope).with_span(statement.span)?;
+                    let new_value = match kind {
+                        AssignmentKind::Assign => expr_value,
+                        AssignmentKind::AddAssign => {
+                            let current_value = scope.get(ident).with_span(statement.span)?;
+                            current_value.add(&expr_value).with_span(statement.span)?
+                        }
+                        AssignmentKind::SubAssign => {
+                            let current_value = scope.get(ident).with_span(statement.span)?;
+                            current_value.sub(&expr_value).with_span(statement.span)?
+                        }
+                        AssignmentKind::MulAssign => {
+                            let current_value = scope.get(ident).with_span(statement.span)?;
+                            current_value.mul(&expr_value).with_span(statement.span)?
+                        }
+                        AssignmentKind::DivAssign => {
+                            let current_value = scope.get(ident).with_span(statement.span)?;
+                            current_value.div(&expr_value).with_span(statement.span)?
+                        }
+                    };
+
+                    scope.assign(ident, new_value);
                 }
-                Statement::FunctionCall(ident, args) => {
+                StatementKind::FunctionCall { ident, args } => {
                     let arg_values = args
                         .iter()
                         .map(|arg| arg.evaluate(&scope))
-                        .collect::<Result<Vec<_>, _>>()?;
+                        .collect::<Result<Vec<_>, _>>()
+                        .with_span(statement.span)?;
 
                     let function = scope.get(ident).cloned();
                     match function {
-                        Ok(Value::Function { args, body }) => {
+                        Ok(Value::Function { args, block }) => {
                             scope.enter_scope();
                             for (arg, value) in args.iter().zip(arg_values) {
                                 scope.assign(arg, value);
                             }
-                            body.run(scope, interface)?; // TODO: function return value
+                            block.run(scope, interface)?; // TODO: function return value
                             scope.exit_scope();
                         }
-                        Ok(_) => return Err(RuntimeError::UndefinedVariable(ident)),
+                        Ok(_) => {
+                            return Err(RuntimeErrorKind::UndefinedVariable(ident)
+                                .with_span(statement.span))
+                        }
                         Err(_) => {
-                            inbuilt_function(ident, arg_values, interface)?;
+                            inbuilt_function(ident, arg_values, interface)
+                                .with_span(statement.span)?;
                         }
                     }
                 }
-                _ => todo!(),
+                StatementKind::Hook { kind, block } => match kind {
+                    HookType::Window => {
+                        interface.spawn_window(WindowContent {
+                            block: block.clone(),
+                        });
+                    }
+                    HookType::Key(_) => todo!(),
+                },
+                a => todo!("{:?}", a),
             };
         }
 
@@ -179,11 +357,21 @@ impl<'a> CodeBlock<'a> {
     }
 }
 
-fn inbuilt_function<'a, I: Interface>(
+trait ArgArray<'a> {
+    fn get_arg(&self, index: usize) -> Result<&Value<'a>, RuntimeErrorKind<'a>>;
+}
+impl<'a> ArgArray<'a> for Vec<Value<'a>> {
+    fn get_arg(&self, index: usize) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
+        self.get(index)
+            .ok_or(RuntimeErrorKind::MissingArgument("argument"))
+    }
+}
+
+fn inbuilt_function<'a, I: Interface<'a>>(
     ident: &'a str,
     args: Vec<Value<'a>>,
     interface: &mut I,
-) -> Result<Value<'a>, RuntimeError<'a>> {
+) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
     match ident {
         "print" => {
             for arg in args {
@@ -201,56 +389,25 @@ fn inbuilt_function<'a, I: Interface>(
         }
 
         "box" => {
-            let x = args
-                .get(0)
-                .ok_or(RuntimeError::MissingArgument("box x coordinate"))?;
-            let y = args
-                .get(1)
-                .ok_or(RuntimeError::MissingArgument("box y coordinate"))?;
-            let w = args
-                .get(2)
-                .ok_or(RuntimeError::MissingArgument("box width"))?;
-            let h = args
-                .get(3)
-                .ok_or(RuntimeError::MissingArgument("box height"))?;
-
             interface.draw_box(
-                x.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(x.clone(), Value::Number(0)))?,
-                y.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(y.clone(), Value::Number(0)))?,
-                w.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(w.clone(), Value::Number(0)))?,
-                h.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(h.clone(), Value::Number(0)))?,
+                args.get_arg(0)?.as_number()? as usize,
+                args.get_arg(1)?.as_number()? as usize,
+                args.get_arg(2)?.as_number()? as usize,
+                args.get_arg(3)?.as_number()? as usize,
             );
 
             Ok(Value::None)
         }
         "square" => {
-            let x = args
-                .get(0)
-                .ok_or(RuntimeError::MissingArgument("square x coordinate"))?;
-            let y = args
-                .get(1)
-                .ok_or(RuntimeError::MissingArgument("square y coordinate"))?;
-            let s = args
-                .get(2)
-                .ok_or(RuntimeError::MissingArgument("square size"))?;
-
             interface.draw_box(
-                x.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(x.clone(), Value::Number(0)))?,
-                y.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(y.clone(), Value::Number(0)))?,
-                s.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(s.clone(), Value::Number(0)))?,
-                s.as_number()
-                    .ok_or(RuntimeError::MismatchedTypes(s.clone(), Value::Number(0)))?,
+                args.get_arg(0)?.as_number()? as usize,
+                args.get_arg(1)?.as_number()? as usize,
+                args.get_arg(2)?.as_number()? as usize,
+                args.get_arg(2)?.as_number()? as usize,
             );
 
             Ok(Value::None)
         }
-        _ => Err(RuntimeError::UndefinedVariable(ident)),
+        _ => Err(RuntimeErrorKind::UndefinedVariable(ident)),
     }
 }
