@@ -62,11 +62,10 @@ pub struct Mapper<'pt> {
     manager: PageManager,
 }
 
-impl Mapper<'_> {
+impl<'pt> Mapper<'pt> {
     /// safety: the physical memory offset must be valid and the page tables need to be set up correctly.
     #[inline]
-    pub unsafe fn new(physical_mem_offset: VirtualAddress) -> Self {
-        let l4 = unsafe { active_level_4_table(physical_mem_offset) };
+    pub unsafe fn new(physical_mem_offset: VirtualAddress, l4: &'pt mut PageTable) -> Self {
         let manager = unsafe { PageManager::new(physical_mem_offset) };
         Self { l4, manager }
     }

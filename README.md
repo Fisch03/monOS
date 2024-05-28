@@ -37,25 +37,37 @@ for the same reason, monOS has quite a lot of references to TempleOS.
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_nerd.png" />
 
 # the boring stuff (aka implementation details)
-because i like torturing myself (and for educational reasons) the kernel uses no external dependencies apart from the [bootloader](https://github.com/rust-osdev/bootloader).
-during development i handled this by first getting a basic implementation running using the [x86_64 crate](https://github.com/rust-osdev/x86_64) and then gradually substituting it with my own implementations.
+because i like torturing myself (and for educational reasons) the end goal for this kernel is to use no external dependencies apart from the [bootloader](https://github.com/rust-osdev/bootloader).
+i handle this by first getting a basic implementation running using existing crates and then gradually substituting it with my own implementations.
 this made things a lot less painful than writing everything from scratch directly.
 
 monOS is bootable from both BIOS and UEFI. that being said, most of my own testing was done on UEFI. therefore i recomend always using the UEFI image if you can!
 
+### devices
+only PS2 mouse/keyboard support for now. i want to implement USB at some point but it seems like a huge pain. most vms and even hardware emulates PS2 from USB devices anyways.
+monOS does use the newer APIC instead of the old fashioned 8259 PIC since its support seems to be (basically?) nonexistent under UEFI.
+
 ### memory
-frames are allocated using a basic bitmap allocator. heap memory is allocated using a linked list allocator.
+the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 16MiB.
+i would have raised this further if it wasn't for the fact that the page allocator currently is slow as heck (mostly because it doesn't allow allocating bigger blocks at once).
+allocating the kernel heap already makes up most of boot time as-is, so i'd rather not raise it until that's solved. it's not like monOS uses even remotely close to the full 16MiB anyways.
 
-#### kernel virtual address space (horribleness ahead)
-i ~~plan to~~ really really need to automatically assign new virtual adresses at some point but for now this will have to suffice
+#### allocation
+monOS currently uses the following algorithms for allocating memory:
 
-| adress         | size  | mapped to               |
-| -------------- | ----- | ----------------------- |
-| 0xfee00000     | 4KiB  | local apic              |
-| 0xfee10000     | 4KiB+ | acpi tables             |
-| 0xfee30000     | 4KiB  | io apic                 |
-| 0x123456780000 | ????  | framebuffer back buffer |
-| 0x444444440000 | 1MiB  | kernel heap             |
+| type of memory    | allocation algorithm  |
+| ----------------- | --------------------- |
+| pages             | bitmap allocator      | 
+| heap memory       | linked list allocator |
+| virtual addresses | bump allocator        |
+
+these were basically all just chosen because they were the easiest to implement. memory performance really isn't a big concern for this OS. 
+as for virtual addresses, i would like to switch over to something more robust at some point. since monOS is strictly 64-bit with the kernel mapped into the higher half,
+there is around 256TiB of virtual memory available for allocation. i just dont see that being reached over the time a single boot with the current scope of the project.
+
+the heap allocator is using the [linked_list_allocator](https://github.com/rust-osdev/linked-list-allocator) crate right now, because i couldn't be bothered to write my own.
+implementing my own is something i still want to do at some point though.
+
 
 # the big todo list
 - [x] it boots!
@@ -78,7 +90,7 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
   - [ ] heap allocation
     - [x] basic implementation
     - [ ] implement own allocator
-  - [ ] virtual address allocation
+  - [x] virtual address allocation
 - [ ] ACPI
   - [x] basic table parsing
   - [ ] (?)
@@ -101,14 +113,24 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
   - [ ] async executor
   - [ ] process spawning
 - [ ] getting to userspace
-  - [ ] map kernel to upper half
+  - [x] map kernel to upper half
   - [ ] it works!
   - [ ] elf file loading
   - [ ] running doom
+    - [ ] figure out linking
+    - [ ] scuffed libc port
+    - [ ] it works!
 - [ ] monoscript
-  - [ ] parsing
-  - [ ] running in the emulator
+  - [x] basic parsing
+  - [ ] missing statements
+    - [ ] if/else
+    - [ ] while
+    - [ ] sound hook
+  - [x] running in the emulator
   - [ ] running in the real thing
+  - [ ] docs
+  - [ ] improve execution performance
+- [ ] filesystem support (maybe)
 - [ ] multiprocessor support (maybe)
 - [ ] USB support (maybe)
 - [ ] whatever else comes to mind :)
@@ -116,12 +138,15 @@ i ~~plan to~~ really really need to automatically assign new virtual adresses at
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_cheers.png" />
 
 # big thanks
+- to mono for being cool and based and providing me with lots of entertainment while i wrote this thing :3
+- to my friends for putting up with me constantly bothering them with this project
+
 - to Philipp Oppermann's [amazing blog series](https://os.phil-opp.com/) for getting me on the right track
+- to this [blog post](https://nfil.dev/kernel/rust/coding/rust-kernel-to-userspace-and-back/) for getting me on the right track with getting into userspace
 - to all the developers of the [x86_64 crate](https://github.com/rust-osdev/x86_64) that served as a great reference point for my own implementations
 - to [moros](https://github.com/vinc/moros), [Hermit OS](https://github.com/hermit-os) and [Redox OS](https://www.redox-os.org/) for also serving as references
 - to the [OSDev Wiki](https://wiki.osdev.org)
-- to mono for being cool and based and providing me with entertainment while i wrote this thing 
-- to my friends for putting up with me constantly bothering them with this project
+
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_smile.png" />
 

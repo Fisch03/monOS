@@ -5,8 +5,7 @@ mod frame;
 pub use frame::Frame;
 
 mod page_table;
-pub use page_table::PageTableFlags;
-use page_table::{PageTable, PageTableIndex};
+pub use page_table::{PageTable, PageTableFlags, PageTableIndex};
 
 mod frame_allocator;
 use frame_allocator::FrameAllocator;
@@ -25,7 +24,7 @@ use crate::mem::VirtualAddress;
 use crate::utils::BitField;
 use spin::{Mutex, Once};
 
-use super::PhysicalAddress;
+use super::{physical_mem_offset, PhysicalAddress};
 use bootloader_api::info::BootInfo;
 
 static MAPPER: Once<Mutex<Mapper>> = Once::new();
@@ -38,7 +37,7 @@ pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
         PAT::WRITE_COMBINING,
     );
     MAPPER.call_once(|| {
-        let mapper = unsafe { Mapper::new(physical_mem_offset) };
+        let mapper = unsafe { Mapper::new(physical_mem_offset, active_level_4_table()) };
         Mutex::new(mapper)
     });
     FRAME_ALLOCATOR.call_once(|| {
@@ -130,13 +129,12 @@ impl VirtualAddress {
     }
 }
 
-/// safety: the physical memory offset must be correct
-pub unsafe fn active_level_4_table(physical_mem_offset: VirtualAddress) -> &'static mut PageTable {
+pub fn active_level_4_table() -> &'static mut PageTable {
     let (l4_table, _) = CR3::read();
     let phys = l4_table.start_address();
-    let virt = physical_mem_offset + phys.as_u64();
+    let virt = physical_mem_offset() + phys.as_u64();
 
     let ptr: *mut PageTable = virt.as_mut_ptr();
 
-    &mut *ptr
+    unsafe { &mut *ptr }
 }

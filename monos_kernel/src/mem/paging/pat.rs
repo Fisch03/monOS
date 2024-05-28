@@ -22,7 +22,7 @@ impl PAT {
         assert!(index < 8, "PAT index out of bounds");
         assert!(value < 8, "PAT value out of bounds");
 
-        let ia32_pat = MSR::new(IA32_PAT_MSR);
+        let mut ia32_pat = MSR::new(IA32_PAT_MSR);
 
         let mut current_pat = unsafe { ia32_pat.read() };
         let range = index * 8..(index * 8) + 4;

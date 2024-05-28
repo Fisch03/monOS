@@ -1,6 +1,8 @@
 use super::{
     map_to, unmap, Frame, MapToError, Page, PageTableFlags, PhysicalAddress, VirtualAddress,
 };
+use crate::mem::alloc_vmem;
+
 use core::{fmt, marker::PhantomData, mem::size_of, ops};
 
 pub struct Mapping<T> {
@@ -21,8 +23,9 @@ impl<T> Mapping<T> {
     ///
     /// unsafe: the physical address needs to point to the given structure and there needs to be
     /// enough room in the virtual address space
-    pub unsafe fn new(phys: PhysicalAddress, virt: VirtualAddress) -> Result<Self, MapToError> {
-        //TODO: automatically allocate a virtual address
+    pub unsafe fn new(phys: PhysicalAddress, size: usize) -> Result<Self, MapToError> {
+        let virt = alloc_vmem(size as u64).align_up(4096);
+
         let start_frame = Frame::around(phys);
         let start_page = Page::around(virt);
 

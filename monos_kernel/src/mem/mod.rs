@@ -11,9 +11,16 @@ pub use alloc_vmem::alloc_vmem;
 use bootloader_api::info::BootInfo;
 use core::arch::asm;
 
+use spin::Once;
+static PHYSICAL_MEM_OFFSET: Once<u64> = Once::new();
+pub fn physical_mem_offset() -> VirtualAddress {
+    VirtualAddress::new(*PHYSICAL_MEM_OFFSET.get().unwrap())
+}
+
 pub unsafe fn init(boot_info: &BootInfo) {
     let phys_mem_offset = boot_info.physical_memory_offset.as_ref().unwrap();
     let phys_mem_offset = VirtualAddress::new(*phys_mem_offset);
+    PHYSICAL_MEM_OFFSET.call_once(|| phys_mem_offset.as_u64());
 
     paging::init(phys_mem_offset, boot_info);
 

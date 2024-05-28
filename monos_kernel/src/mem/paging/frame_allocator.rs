@@ -6,7 +6,7 @@ use crate::mem::PhysicalAddress;
 use super::{Frame, PageSize4K};
 
 pub struct FrameAllocator {
-    map: BitArray<4096>, // enough for 128 MiB of memory
+    map: BitArray<32768>, // enough for 1 GiB of memory
     start: PhysicalAddress,
 }
 

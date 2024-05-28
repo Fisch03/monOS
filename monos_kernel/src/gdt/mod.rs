@@ -31,8 +31,19 @@ static GDT: Lazy<(GlobalDescriptorTable, Segments)> = Lazy::new(|| {
     let code = gdt.add_descriptor(SegmentDescriptor::kernel_code());
     let data = gdt.add_descriptor(SegmentDescriptor::kernel_data());
     let tss = gdt.add_descriptor(SegmentDescriptor::tss(&TSS));
+    let user_data = gdt.add_descriptor(SegmentDescriptor::user_data());
+    let user_code = gdt.add_descriptor(SegmentDescriptor::user_code());
 
-    (gdt, Segments { code, data, tss })
+    (
+        gdt,
+        Segments {
+            code,
+            data,
+            tss,
+            user_data,
+            user_code,
+        },
+    )
 });
 
 pub fn init() {
@@ -48,11 +59,23 @@ pub fn init() {
     }
 }
 
+#[inline]
+pub unsafe fn set_user_mode() -> (SegmentSelector, SegmentSelector) {
+    unsafe {
+        registers::set_ds(GDT.1.user_data);
+        registers::set_es(GDT.1.user_data);
+    }
+
+    (GDT.1.user_code, GDT.1.user_data)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Segments {
     code: SegmentSelector,
     data: SegmentSelector,
     tss: SegmentSelector,
+    user_data: SegmentSelector,
+    user_code: SegmentSelector,
 }
 
 ///   Segment Selector

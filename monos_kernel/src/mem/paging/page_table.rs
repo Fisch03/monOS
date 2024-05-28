@@ -35,6 +35,12 @@ impl PageTable {
 
     #[inline]
     #[allow(dead_code)]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut PageTableEntry> {
+        self.entries.iter_mut()
+    }
+
+    #[inline]
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         for entry in self.entries.iter_mut() {
             *entry = PageTableEntry::new_empty();

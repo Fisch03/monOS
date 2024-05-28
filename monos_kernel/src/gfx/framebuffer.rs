@@ -52,7 +52,7 @@ impl Framebuffer {
         // let front_buffer = front_buffer_page.start_address().as_mut_ptr::<u8>();
         // let front_buffer = unsafe { slice::from_raw_parts_mut(front_buffer, info.byte_len) };
 
-        let back_buffer_virt = VirtualAddress::new(0x123456780000);
+        let back_buffer_virt = unsafe { mem::alloc_vmem(info.byte_len as u64) };
         let mut back_buffer_page = mem::Page::around(back_buffer_virt);
 
         let back_buffer = back_buffer_page.start_address().as_mut_ptr::<u8>();

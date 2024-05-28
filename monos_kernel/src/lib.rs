@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
+#![feature(naked_functions)]
 extern crate alloc;
 
 mod acpi;
@@ -10,15 +11,17 @@ mod gdt;
 pub mod gfx;
 pub mod interrupts;
 mod mem;
+pub mod process;
 pub mod serial;
+pub mod syscall;
 mod utils;
 
 use bootloader_api::BootInfo;
 
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
     gdt::init();
-
     interrupts::init_idt();
+    syscall::init();
 
     // safety: the physical memory offset is valid since it was provided by the bootloader.
     // the bootloader config guarantees that the entire physical memory is mapped.

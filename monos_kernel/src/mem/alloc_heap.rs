@@ -5,7 +5,9 @@ use linked_list_allocator::LockedHeap;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-const HEAP_SIZE: u64 = 1024 * 1024; // 1 MiB
+const HEAP_SIZE: u64 = 4096 * 1024; // 4 MiB
+
+// const HEAP_SIZE: u64 = 4096 * 4096; // 16 MiB
 
 pub fn init() {
     // SAFETY: we won't allocate more than `HEAP_SIZE` bytes, so this is safe.

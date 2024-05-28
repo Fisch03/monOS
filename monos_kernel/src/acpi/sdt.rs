@@ -17,11 +17,9 @@ impl ACPIRoot {
             rsdp.xsdt_address()
         };
 
-        drop(rsdp); // this will unmap the RSDP, letting us use its virtual address
-
         let mut mapping: Mapping<SDTHeader> =
-            unsafe { Mapping::new(root_address_phys, VirtualAddress::new(0xfee10000)) }
-                .expect("failed to map root sdt");
+            // we don't know the size of the table yet, so we just map 10 pages to be safe
+            unsafe { Mapping::new(root_address_phys, 4096 * 10) }.expect("failed to map root sdt");
 
         let signature = if revision == 0 {
             RootSDT::SIGNATURE
@@ -58,8 +56,8 @@ impl ACPIRoot {
     pub fn get_table<T: SDT + fmt::Debug>(&self) -> Option<Mapping<T>> {
         self.tables_iter().find_map(|table_addr| {
             let table: Mapping<SDTHeader> =
-                unsafe { Mapping::new(table_addr, VirtualAddress::new(0xfee20000)) }
-                    .expect("failed to map table");
+                // go a bit overbard again to be safe
+                unsafe { Mapping::new(table_addr, 4096 * 10) }.expect("failed to map table");
 
             if !table.validate(T::SIGNATURE) {
                 return None;

@@ -136,7 +136,8 @@ impl SegmentDescriptor {
     const ACCESS_BYTE_DIRECTION_CONFORMING: usize = Self::ACCESS_BYTE_BASE + 2;
     const ACCESS_BYTE_EXECUTABLE: usize = Self::ACCESS_BYTE_BASE + 3;
     const ACCESS_BYTE_USER: usize = Self::ACCESS_BYTE_BASE + 4;
-    const ACCESS_BYTE_PRIVILEGE_LEVEL: usize = Self::ACCESS_BYTE_BASE + 5;
+    const ACCESS_BYTE_PRIVILEGE_LEVEL: Range<usize> =
+        Self::ACCESS_BYTE_BASE + 5..Self::ACCESS_BYTE_BASE + 7;
     const ACCESS_BYTE_PRESENT: usize = Self::ACCESS_BYTE_BASE + 7;
 
     const FLAGS_BASE: usize = 52;
@@ -181,6 +182,33 @@ impl SegmentDescriptor {
     }
 
     #[inline]
+    pub fn user_code() -> Self {
+        let mut bits = Self::base_bits();
+        bits.set_bit(Self::ACCESS_BYTE_EXECUTABLE, true);
+        bits.set_bit(Self::FLAGS_LONG_MODE, true);
+
+        bits.set_bits(
+            Self::ACCESS_BYTE_PRIVILEGE_LEVEL,
+            PrivilegeLevel::Ring3 as u64,
+        );
+
+        Self::User(bits)
+    }
+
+    #[inline]
+    pub fn user_data() -> Self {
+        let mut bits = Self::base_bits();
+        bits.set_bit(Self::FLAGS_SIZE, true);
+
+        bits.set_bits(
+            Self::ACCESS_BYTE_PRIVILEGE_LEVEL,
+            PrivilegeLevel::Ring3 as u64,
+        );
+
+        Self::User(bits)
+    }
+
+    #[inline]
     pub fn tss(tss: &'static TaskStateSegment) -> Self {
         let tss = tss as *const _ as u64;
 
@@ -209,8 +237,7 @@ impl SegmentDescriptor {
             Self::System(value, _) => value,
         };
 
-        let dpl = value
-            .get_bits(Self::ACCESS_BYTE_PRIVILEGE_LEVEL..Self::ACCESS_BYTE_PRIVILEGE_LEVEL + 2);
+        let dpl = value.get_bits(Self::ACCESS_BYTE_PRIVILEGE_LEVEL);
         PrivilegeLevel::from_u16(dpl as u16)
     }
 }

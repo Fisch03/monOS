@@ -1,5 +1,5 @@
 use crate::mem::{Mapping, PhysicalAddress, VirtualAddress};
-use core::{fmt, str};
+use core::{fmt, mem, str};
 
 #[repr(C, packed)]
 pub struct RSDP {
@@ -28,8 +28,7 @@ impl RSDP {
     pub fn new(rsdp_addr: PhysicalAddress) -> Result<Mapping<Self>, RSDPError> {
         // this should be fairly safe since we validate the checksum of the rsdp
         let mapping: Mapping<Self> =
-            unsafe { Mapping::new(rsdp_addr, VirtualAddress::new(0xfee10000)) }
-                .expect("failed to map rsdp");
+            unsafe { Mapping::new(rsdp_addr, mem::size_of::<RSDP>()) }.expect("failed to map rsdp");
 
         mapping.validate()?;
 

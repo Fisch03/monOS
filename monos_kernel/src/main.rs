@@ -14,9 +14,16 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     config.mappings.physical_memory = Some(config::Mapping::Dynamic);
     config.mappings.dynamic_range_start = Some(0xffff_8000_0000_0000);
 
+    // currently the frame allocator bitmap lives fully on the stack, so we need a bigger stack
+    config.kernel_stack_size = 1024 * 1024;
+
     config
 };
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
+
+pub unsafe fn userspace_prog_1() {
+    asm!("nop", options(nostack, preserves_flags));
+}
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
@@ -28,6 +35,8 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::breakpoint();
 
     println!();
+
+    process::spawn(userspace_prog_1);
 
     loop {
         gfx::framebuffer().update();

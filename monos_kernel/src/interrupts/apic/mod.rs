@@ -54,8 +54,8 @@ impl APICBase {
         Self(unsafe { reg.read() })
     }
 
-    pub fn write(&self) {
-        let reg = MSR::new(Self::IA32_APIC_BASE_MSR);
+    pub fn write(&mut self) {
+        let mut reg = MSR::new(Self::IA32_APIC_BASE_MSR);
         // safety: apic_base is a valid MSR
         unsafe { reg.write(self.0) }
     }
@@ -111,7 +111,7 @@ pub fn init() {
     apic_base.set_x2apic_mode(false);
 
     let frame = mem::Frame::around(apic_base.address());
-    let page = mem::Page::around(VirtualAddress::new(0xfee00000));
+    let page = mem::Page::around(unsafe { mem::alloc_vmem(4096).align_up(4096) });
 
     use mem::PageTableFlags;
     let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::CACHE_DISABLE;

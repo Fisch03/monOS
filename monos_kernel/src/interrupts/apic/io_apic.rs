@@ -1,4 +1,4 @@
-use crate::mem::{Mapping, PhysicalAddress, VirtualAddress};
+use crate::mem::{alloc_vmem, Mapping, PhysicalAddress, VirtualAddress};
 use crate::utils::BitField;
 use core::ops::Range;
 
@@ -11,7 +11,7 @@ pub struct IOAPIC {
 
 impl IOAPIC {
     pub unsafe fn new(address: PhysicalAddress) -> Mapping<Self> {
-        Mapping::new(address, VirtualAddress::new(0xfee30000)).expect("failed to map IOAPIC")
+        Mapping::new(address, 4096).expect("failed to map IOAPIC")
     }
 
     #[inline]
