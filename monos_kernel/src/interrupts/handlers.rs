@@ -1,7 +1,7 @@
 use super::idt::{IDTEntry, InterruptDescriptorTable};
 use super::InterruptStackFrame;
 use crate::eprintln;
-use crate::gdt::DOUBLE_FAULT_IST_INDEX;
+use crate::gdt::{DOUBLE_FAULT_IST_INDEX, TIMER_IST_INDEX};
 use crate::interrupts::apic::LOCAL_APIC;
 
 #[derive(Debug, Clone)]
@@ -60,6 +60,12 @@ pub fn attach_handlers(idt: &mut InterruptDescriptorTable) {
     idt.security_exception = IDTEntry::new(security_exception_handler);
 
     idt[InterruptIndex::APICTimer.as_usize()] = IDTEntry::new(timer_interrupt_handler);
+    unsafe {
+        idt[InterruptIndex::APICTimer.as_usize()]
+            .options
+            .set_stack_index(TIMER_IST_INDEX);
+    }
+
     idt[InterruptIndex::Keyboard.as_usize()] =
         IDTEntry::new(crate::dev::keyboard::interrupt_handler);
     idt[InterruptIndex::Mouse.as_usize()] = IDTEntry::new(crate::dev::mouse::interrupt_handler);
@@ -98,9 +104,9 @@ irq_handler!(device_not_available_handler);
 
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
-    _error_code: u64,
+    error_code: u64,
 ) -> ! {
-    panic!("double fault\n{:#?}", stack_frame);
+    panic!("double fault\n{:#?}\n{:#?}", error_code, stack_frame);
 }
 
 irq_handler_err!(invalid_tss_handler);
@@ -118,8 +124,9 @@ extern "x86-interrupt" fn general_protection_fault_handler(
 }
 
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) {
+    let error_code = x86_64::structures::idt::PageFaultErrorCode::from_bits_truncate(error_code);
     panic!(
-        "page fault\nerror code: {:#x}\n{:#?}",
+        "page fault\nerror code: {:#?}\n{:#?}",
         error_code, stack_frame
     );
 }

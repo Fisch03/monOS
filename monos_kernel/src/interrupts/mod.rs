@@ -94,6 +94,7 @@ impl InterruptStackFrame {
         }
     }
 
+    #[inline]
     pub unsafe fn iretq(&self) -> ! {
         unsafe {
             asm!(

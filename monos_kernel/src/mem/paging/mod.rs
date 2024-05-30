@@ -11,7 +11,7 @@ mod frame_allocator;
 use frame_allocator::FrameAllocator;
 
 mod mapper;
-use mapper::{MapTo, Mapper};
+pub use mapper::{MapTo, Mapper};
 pub use mapper::{MapToError, TranslateError, UnmapError};
 mod mapping;
 pub use mapping::Mapping;
@@ -69,7 +69,7 @@ pub unsafe fn map_to(
         .map_to(page, frame, flags)
 }
 
-pub fn unmap(page: Page<PageSize4K>) -> Result<(), UnmapError> {
+pub fn unmap(page: &Page<PageSize4K>) -> Result<(), UnmapError> {
     MAPPER
         .get()
         .expect("memory hasn't been initialized yet")

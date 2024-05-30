@@ -55,6 +55,14 @@ impl CR3 {
 
         (frame, (value & 0xFFF) as u16)
     }
+
+    #[inline]
+    pub unsafe fn write(frame: Frame<PageSize4K>, flags: u16) {
+        let value = frame.start_address().as_u64() | u64::from(flags);
+        unsafe {
+            asm!("mov cr3, {}", in(reg) value, options(nomem, nostack));
+        }
+    }
 }
 
 pub struct MSR(u32);

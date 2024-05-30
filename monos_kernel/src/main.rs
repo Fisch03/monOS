@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(naked_functions)]
 
 use bootloader_api::{config, BootInfo, BootloaderConfig};
 use core::arch::asm;
@@ -21,8 +22,22 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 };
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
-pub unsafe fn userspace_prog_1() {
-    asm!("nop", options(nostack, preserves_flags));
+#[naked]
+extern "C" fn userspace_prog_1() {
+    // unsafe { asm!("2:", "nop", "nop", "nop", "jmp 2b", options(noreturn)) };
+    unsafe {
+        asm!(
+            "2:",
+            "mov rax, 0x0",
+            "mov rdi, 1",
+            "mov rsi, 2",
+            "mov rdx, 3",
+            "mov r10, 4",
+            "syscall",
+            "jmp 2b",
+            options(noreturn)
+        );
+    }
 }
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
@@ -36,7 +51,10 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     println!();
 
+    gfx::framebuffer().update();
     process::spawn(userspace_prog_1);
+
+    println!("back in kernel_main");
 
     loop {
         gfx::framebuffer().update();
@@ -57,7 +75,7 @@ fn panic(info: &PanicInfo) -> ! {
     //initialized yet
     dbg!(info);
 
-    // eprintln!("oh noes! the kernel {}", info);
+    eprintln!("oh noes! the kernel {}", info);
 
     loop {
         unsafe {

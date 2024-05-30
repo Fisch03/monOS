@@ -160,7 +160,7 @@ impl<T> Drop for Mapping<T> {
         let mut page = self.start_page;
 
         loop {
-            unmap(page).expect("failed to unmap memory");
+            unmap(&page).expect("failed to unmap memory");
 
             if page == self.end_page {
                 break;

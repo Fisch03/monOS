@@ -1,4 +1,4 @@
-use crate::mem::{alloc_vmem, Mapping, PhysicalAddress, VirtualAddress};
+use crate::mem::{Mapping, PhysicalAddress};
 use crate::utils::BitField;
 use core::ops::Range;
 

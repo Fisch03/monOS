@@ -52,7 +52,7 @@ impl Framebuffer {
         // let front_buffer = front_buffer_page.start_address().as_mut_ptr::<u8>();
         // let front_buffer = unsafe { slice::from_raw_parts_mut(front_buffer, info.byte_len) };
 
-        let back_buffer_virt = unsafe { mem::alloc_vmem(info.byte_len as u64) };
+        let back_buffer_virt = mem::alloc_vmem(info.byte_len as u64);
         let mut back_buffer_page = mem::Page::around(back_buffer_virt);
 
         let back_buffer = back_buffer_page.start_address().as_mut_ptr::<u8>();
@@ -65,12 +65,6 @@ impl Framebuffer {
             | PageTableFlags::CACHE_DISABLE;
 
         loop {
-            // (try) to unmap the existing mapping from the bootloader
-            match mem::unmap(front_buffer_page) {
-                Ok(_) => {}
-                Err(mem::UnmapError::NotMapped) => {}
-                Err(_) => panic!("failed to unmap frame buffer"),
-            }
             unsafe { mem::map_to(&front_buffer_page, &front_buffer_frame, flags) }
                 .expect("failed to map frame buffer");
 
@@ -267,8 +261,8 @@ impl fmt::Write for Framebuffer {
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {{
-        use core::fmt::Write;
         use crate::interrupts::without_interrupts;
+        use core::fmt::Write;
 
         without_interrupts(|| {
             $crate::gfx::framebuffer().write_fmt(format_args!($($arg)*)).unwrap();

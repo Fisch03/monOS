@@ -1,5 +1,5 @@
 use super::RSDP;
-use crate::mem::{Mapping, PhysicalAddress, VirtualAddress};
+use crate::mem::{Mapping, PhysicalAddress};
 use core::{fmt, mem::size_of, slice, str};
 
 #[derive(Debug)]

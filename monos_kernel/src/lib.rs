@@ -2,10 +2,13 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(naked_functions)]
+#![feature(asm_const)]
+
 extern crate alloc;
 
 mod acpi;
 mod arch;
+mod core_local;
 mod dev;
 mod gdt;
 pub mod gfx;
@@ -19,6 +22,8 @@ mod utils;
 use bootloader_api::BootInfo;
 
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
+    core_local::CoreLocal::init();
+
     gdt::init();
     interrupts::init_idt();
     syscall::init();

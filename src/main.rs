@@ -10,12 +10,14 @@ fn main() {
     if uefi {
         cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
         cmd.arg("-serial").arg("stdio");
-        //cmd.arg("-s").arg("-S");
+        // cmd.arg("-s").arg("-S");
+        // cmd.arg("-monitor").arg("stdio");
         cmd.arg("-drive")
             .arg(format!("format=raw,file={uefi_path}"));
     } else {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={bios_path}"));
+        cmd.arg("-serial").arg("stdio");
     }
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();

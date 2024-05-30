@@ -388,6 +388,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
 
 [[package]]
+name = "call-once"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a57a50948117a233b27f9bf73ab74709ab90d245216c4707cc16eea067a50bb"
+
+[[package]]
 name = "cc"
 version = "1.0.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1232,6 +1238,7 @@ dependencies = [
  "linked_list_allocator",
  "pc-keyboard",
  "spin",
+ "take-static",
  "uart_16550",
  "x86_64",
 ]
@@ -1900,6 +1907,15 @@ dependencies = [
  "pkg-config",
  "toml",
  "version-compare 0.2.0",
+]
+
+[[package]]
+name = "take-static"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf67eb0a80961fdb5df5e14b75c5b9fc93bdbf88b00d0260b7eec55041c4fe01"
+dependencies = [
+ "call-once",
 ]
 
 [[package]]

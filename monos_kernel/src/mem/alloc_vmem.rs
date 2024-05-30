@@ -16,6 +16,7 @@ impl VirtualMemoryAllocator {
     pub fn allocate(&mut self, size: u64) -> VirtualAddress {
         let addr = self.next;
         self.next += size;
+        self.next = self.next.align_up(4096);
         addr
     }
 }
@@ -40,10 +41,8 @@ pub fn init(physical_memory_offset: VirtualAddress, boot_info: &BootInfo) {
     });
 }
 
-/// allocate a chunk of virtual memory
-///
-/// safety: the caller must ensure to stay within the bounds of the requested memory
-pub unsafe fn alloc_vmem(size: u64) -> VirtualAddress {
+/// allocate a chunk of virtual memory. this is always page aligned
+pub fn alloc_vmem(size: u64) -> VirtualAddress {
     VMEM_ALLOCATOR
         .get()
         .expect("memory hasn't been initialized yet")

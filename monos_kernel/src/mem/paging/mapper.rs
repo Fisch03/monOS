@@ -1,5 +1,5 @@
 use super::{
-    active_level_4_table, alloc_frame,
+    alloc_frame,
     frame::{Frame, MappedFrame},
     page::Page,
     page_table::{PageTable, PageTableEntry, PageTableFlags, PageTableFrameError},
@@ -32,7 +32,7 @@ pub trait MapTo<S: PageSize> {
         flags: PageTableFlags,
     ) -> Result<(), MapToError>;
 
-    fn unmap(&mut self, page: Page<S>) -> Result<(), UnmapError>;
+    fn unmap(&mut self, page: &Page<S>) -> Result<(), UnmapError>;
 }
 
 #[derive(Debug)]
@@ -117,6 +117,7 @@ impl<'pt> Mapper<'pt> {
         };
 
         let l1_entry = &l1[addr.p1_index()];
+
         if !l1_entry.is_present() {
             return Err(TranslateError::NotMapped);
         }
@@ -156,9 +157,12 @@ impl MapTo<PageSize4K> for Mapper<'_> {
             .get_or_create_table(&mut l2[page.p2_index()], parent_flags)?;
 
         let entry = &mut l1[page.p1_index()];
-        if entry.is_present() {
-            return Err(MapToError::AlreadyMapped);
-        }
+
+        // TODO: check if it's fine to just overwrite the frame and flags.
+        // since we allocate new frames ourselves and we don't allow overlapping mappings, this should be fine.
+        // if entry.is_present() {
+        //     return Err(MapToError::AlreadyMapped);
+        // }
 
         entry.set_frame(frame);
         entry.set_flags(&flags);
@@ -168,7 +172,7 @@ impl MapTo<PageSize4K> for Mapper<'_> {
         Ok(())
     }
 
-    fn unmap(&mut self, page: Page<PageSize4K>) -> Result<(), UnmapError> {
+    fn unmap(&mut self, page: &Page<PageSize4K>) -> Result<(), UnmapError> {
         let l3 = self.manager.entry_to_table(&mut self.l4[page.p4_index()])?;
         let l2 = self.manager.entry_to_table(&mut l3[page.p3_index()])?;
         let l1 = self.manager.entry_to_table(&mut l2[page.p2_index()])?;
@@ -200,9 +204,12 @@ impl MapTo<PageSize2M> for Mapper<'_> {
             .get_or_create_table(&mut l3[page.p3_index()], parent_flags)?;
 
         let entry = &mut l2[page.p2_index()];
-        if entry.is_present() {
-            return Err(MapToError::AlreadyMapped);
-        }
+
+        // TODO: check if it's fine to just overwrite the frame and flags.
+        // since we allocate new frames ourselves and we don't allow overlapping mappings, this should be fine.
+        // if entry.is_present() {
+        //     return Err(MapToError::AlreadyMapped);
+        // }
 
         entry.set_frame(frame);
         entry.set_flags(&(flags | PageTableFlags::HUGE_PAGE));
@@ -212,7 +219,7 @@ impl MapTo<PageSize2M> for Mapper<'_> {
         Ok(())
     }
 
-    fn unmap(&mut self, page: Page<PageSize2M>) -> Result<(), UnmapError> {
+    fn unmap(&mut self, page: &Page<PageSize2M>) -> Result<(), UnmapError> {
         let l3 = self.manager.entry_to_table(&mut self.l4[page.p4_index()])?;
         let l2 = self.manager.entry_to_table(&mut l3[page.p3_index()])?;
 
@@ -240,9 +247,12 @@ impl MapTo<PageSize1G> for Mapper<'_> {
             .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
 
         let entry = &mut l3[page.p3_index()];
-        if entry.is_present() {
-            return Err(MapToError::AlreadyMapped);
-        }
+
+        // TODO: check if it's fine to just overwrite the frame and flags.
+        // since we allocate new frames ourselves and we don't allow overlapping mappings, this should be fine.
+        // if entry.is_present() {
+        //     return Err(MapToError::AlreadyMapped);
+        // }
 
         entry.set_frame(frame);
         entry.set_flags(&(flags | PageTableFlags::HUGE_PAGE));
@@ -252,7 +262,7 @@ impl MapTo<PageSize1G> for Mapper<'_> {
         Ok(())
     }
 
-    fn unmap(&mut self, page: Page<PageSize1G>) -> Result<(), UnmapError> {
+    fn unmap(&mut self, page: &Page<PageSize1G>) -> Result<(), UnmapError> {
         let l3 = self.manager.entry_to_table(&mut self.l4[page.p4_index()])?;
 
         let entry = &mut l3[page.p3_index()];

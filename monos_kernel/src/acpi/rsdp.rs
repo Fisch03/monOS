@@ -1,4 +1,4 @@
-use crate::mem::{Mapping, PhysicalAddress, VirtualAddress};
+use crate::mem::{Mapping, PhysicalAddress};
 use core::{fmt, mem, str};
 
 #[repr(C, packed)]
