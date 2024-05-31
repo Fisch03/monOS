@@ -1,7 +1,7 @@
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_peek.png" />
 
 # the what
-monOS is a 64-bit monolithic hobby OS written in Rust, themed after the vtuber [Mono Monet](https://www.youtube.com/@MonoMonet) of V4Mirai.
+monOS is a 64-bit monolithic hobby OS written in Rust, inspired by the vtuber [Mono Monet](https://www.youtube.com/@MonoMonet) of V4Mirai.
 
 ### monoscript
 while monOS may not be written in its own programming language, it comes with one! 
@@ -41,7 +41,17 @@ because i like torturing myself (and for educational reasons) the end goal for t
 i handle this by first getting a basic implementation running using existing crates and then gradually substituting it with my own implementations.
 this made things a lot less painful than writing everything from scratch directly.
 
-monOS is bootable from both BIOS and UEFI. that being said, most of my own testing was done on UEFI. therefore i recomend always using the UEFI image if you can!
+~~monOS is bootable from both BIOS and UEFI. that being said, most of my own testing was done on UEFI. therefore i recomend always using the UEFI image if you can!~~
+BIOS boot is currently utterly broken and will not be supported going forward, sorry. maybe sometime later...
+
+### project structure
+- [`monos_kernel`](https://github.com/Fisch03/monOS/tree/master/monos_kernel) contains the kernel code (aka the main thing)
+- [`monos_std`](https://github.com/Fisch03/monOS/tree/master/monos_std) is the library that userspace programs link against.
+- the [`user` directory](https://github.com/Fisch03/monOS/tree/master/user) contains the included userspace programs that get shipped with the kernel. these currently include:
+  - TODO!
+- the [`os_disk` directory](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) will be used to construct the ramdisk (see below)
+- [`monoscript`](https://github.com/Fisch03/monOS/tree/master/monoscript) is a (platform independent) library containing the monoscript parser and runtime
+- [`monoscript_emu`](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) contains a minimal monoscript runner for windows/linux/macOS
 
 ### devices
 only PS2 mouse/keyboard support for now. i want to implement USB at some point but it seems like a huge pain. most vms and even hardware emulates PS2 from USB devices anyways.
@@ -68,6 +78,12 @@ there is around 256TiB of virtual memory available for allocation. i just dont s
 the heap allocator is using the [linked_list_allocator](https://github.com/rust-osdev/linked-list-allocator) crate right now, because i couldn't be bothered to write my own.
 implementing my own is something i still want to do at some point though.
 
+#### filesystem
+monOS (currently) has no way of accessing external disks, all data is kept within a ramdisk. this means that all data gets wiped when the os reboots. feel free to wreak havoc :P.
+the ramdisk itself is a FAT16 image with the following structure:
+- `/bin`: userspace programs
+- `/home`: user directory
+- `/data`: OS resources. you probably shouldn't touch these unless you want to break something >:D
 
 # the big todo list
 - [x] it boots!

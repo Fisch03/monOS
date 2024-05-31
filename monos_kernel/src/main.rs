@@ -51,10 +51,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     println!();
 
-    gfx::framebuffer().update();
-    process::spawn(userspace_prog_1);
-
-    println!("back in kernel_main");
+    // process::spawn(userspace_prog_1);
 
     loop {
         gfx::framebuffer().update();
@@ -75,7 +72,7 @@ fn panic(info: &PanicInfo) -> ! {
     //initialized yet
     dbg!(info);
 
-    eprintln!("oh noes! the kernel {}", info);
+    // eprintln!("oh noes! the kernel {}", info);
 
     loop {
         unsafe {

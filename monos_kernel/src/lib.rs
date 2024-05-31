@@ -10,6 +10,7 @@ mod acpi;
 mod arch;
 mod core_local;
 mod dev;
+mod fs;
 mod gdt;
 pub mod gfx;
 pub mod interrupts;
@@ -31,6 +32,8 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
     // safety: the physical memory offset is valid since it was provided by the bootloader.
     // the bootloader config guarantees that the entire physical memory is mapped.
     unsafe { mem::init(&boot_info) };
+
+    fs::init(boot_info);
 
     interrupts::init_apic();
     acpi::init(boot_info);

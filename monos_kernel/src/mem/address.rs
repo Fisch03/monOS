@@ -57,6 +57,12 @@ impl VirtualAddress {
     pub fn as_u64(&self) -> u64 {
         self.0
     }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn as_usize(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl ops::Add<u64> for VirtualAddress {
@@ -147,13 +153,19 @@ impl PhysicalAddress {
     }
 
     #[inline]
+    pub const fn offset_in_page(&self) -> u64 {
+        self.0 & 0xfff
+    }
+
+    #[inline]
     pub const fn as_u64(&self) -> u64 {
         self.0
     }
 
     #[inline]
-    pub const fn offset_in_page(&self) -> u64 {
-        self.0 & 0xfff
+    #[allow(dead_code)]
+    pub fn as_usize(&self) -> usize {
+        self.0 as usize
     }
 }
 
