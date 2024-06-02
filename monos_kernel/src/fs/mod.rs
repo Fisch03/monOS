@@ -1,4 +1,8 @@
+mod path;
+pub use path::*;
+
 pub mod fat16;
+use alloc::string::String;
 use fat16::Fat16Fs;
 
 mod ramdisk;
@@ -17,5 +21,83 @@ pub fn init(boot_info: &BootInfo) {
     let ramdisk_size = boot_info.ramdisk_len;
 
     let ram_disk = unsafe { RamDisk::new(ramdisk_start, ramdisk_size as usize) };
-    let fs = Fat16Fs::new(ram_disk).expect("failed to initialize FAT16 filesystem");
+    let mut fs = Fat16Fs::new(ram_disk).expect("failed to initialize FAT16 filesystem");
+
+    for entry in fs.iter_root_dir() {
+        crate::dbg!(entry.name());
+    }
+
+    let home = fs
+        .iter_root_dir()
+        .get_entry("home")
+        .expect("no home directory");
+
+    for entry in home.iter().expect("not a directory") {
+        crate::dbg!(entry.name());
+    }
+}
+
+#[derive(Debug)]
+pub enum GetFileError {
+    InvalidPath,
+    NotFound,
+    NotADirectory,
+}
+
+pub trait File: Read + Write + Seek {
+    fn name(&self) -> String;
+    fn size(&self) -> usize;
+}
+
+pub trait DirEntry: Sized {
+    type File: File;
+    type DirIter: Iterator<Item = Self> + DirIter<Item = Self>;
+
+    fn name(&self) -> &str;
+    fn is_dir(&self) -> bool;
+
+    fn as_file(&self) -> Option<Self::File>;
+
+    fn iter(&self) -> Option<Self::DirIter>;
+
+    fn get_entry<'p, P: Into<Path<'p>>>(&self, path: P) -> Result<Self, GetFileError> {
+        let mut iter = self.iter().ok_or(GetFileError::NotADirectory)?;
+        iter.get_entry(path)
+    }
+}
+
+pub trait DirIter: Iterator + Sized
+where
+    Self::Item: DirEntry,
+{
+    fn get_entry<'p, P: Into<Path<'p>>>(&mut self, path: P) -> Result<Self::Item, GetFileError> {
+        let path = path.into();
+        if let Some((current_dir, children)) = path.enter() {
+            for entry in self {
+                if entry.name() == current_dir.as_str() {
+                    return entry.get_entry(children);
+                }
+            }
+            Err(GetFileError::NotFound)
+        } else {
+            for entry in self {
+                if entry.name() == path.as_str() {
+                    return Ok(entry);
+                }
+            }
+            Err(GetFileError::NotFound)
+        }
+    }
+}
+
+pub trait Read {
+    fn read(&self, buf: &mut [u8]) -> usize;
+}
+
+pub trait Write {
+    fn write(&mut self, buf: &[u8]) -> usize;
+}
+
+pub trait Seek {
+    fn seek(&self, pos: usize);
 }

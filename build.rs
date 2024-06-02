@@ -1,5 +1,4 @@
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 extern crate bootloader;
@@ -77,7 +76,9 @@ fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
 
     fatfs::format_volume(
         &mut disk_image,
-        fatfs::FormatVolumeOptions::new().fat_type(fatfs::FatType::Fat16),
+        fatfs::FormatVolumeOptions::new()
+            .fat_type(fatfs::FatType::Fat16)
+            .fats(1),
     )
     .expect("format failed");
 
@@ -90,11 +91,16 @@ fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
 
     for entry in glob(&file_paths).unwrap() {
         let full_path = entry.unwrap().to_owned();
+        if full_path.ends_with(".gitkeep") {
+            continue;
+        }
         let relative_path = full_path.strip_prefix(&in_dir).unwrap().to_str().unwrap();
 
         if full_path.is_dir() {
             fs_root.create_dir(&relative_path).unwrap();
         } else {
+            #[cfg(target_os = "windows")]
+            let relative_path = relative_path.replace("\\", "/");
             let mut file = fs_root.create_file(&relative_path).unwrap();
             let mut source = fs::File::open(&full_path).unwrap();
             std::io::copy(&mut source, &mut file).unwrap();
