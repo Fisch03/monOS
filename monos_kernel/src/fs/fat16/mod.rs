@@ -7,6 +7,8 @@ use dir_entry::{Fat16DirEntry, Fat16DirIter};
 mod file;
 use file::Fat16File;
 
+mod allocation_table;
+
 const DIR_ENTRY_SIZE: u32 = 32;
 
 #[derive(Debug)]
@@ -55,6 +57,11 @@ impl Fat16Fs {
     #[inline]
     fn sector_offset(&self, sector: u32) -> u32 {
         sector * self.bytes_per_sector
+    }
+
+    #[inline]
+    fn cluster_size(&self) -> u32 {
+        self.bytes_per_sector * self.sectors_per_cluster as u32
     }
 
     #[inline]

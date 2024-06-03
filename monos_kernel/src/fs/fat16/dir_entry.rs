@@ -52,12 +52,12 @@ impl Fat16LongFileNameEntry {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Fat16DirEntry<'fs> {
-    name: String,
-    attributes: u8,
-    first_cluster: u16,
-    size: u32,
+    pub(crate) name: String,
+    pub(crate) attributes: u8,
+    pub(crate) first_cluster: u16,
+    pub(crate) size: u32,
     fs: &'fs Fat16Fs,
 }
 
@@ -68,6 +68,12 @@ pub enum DirEntryError {
 }
 
 impl<'fs> Fat16DirEntry<'fs> {
+    #[inline]
+    pub fn first_sector(&self) -> u32 {
+        self.fs.first_data_sector
+            + (self.first_cluster as u32 - 2) * self.fs.sectors_per_cluster as u32
+    }
+
     pub fn new(fs: &'fs Fat16Fs, sector: u32, offset: u32) -> Result<(Self, usize), DirEntryError> {
         let mut bytes_read = 32;
         let raw_entry = unsafe { Fat16RawEntry::new(fs, sector, offset) };
@@ -164,18 +170,19 @@ impl<'fs> DirEntry for Fat16DirEntry<'fs> {
             return None;
         }
 
-        let first_sector = self.fs.first_data_sector
-            + (self.first_cluster as u32 - 2) * self.fs.sectors_per_cluster as u32;
-
         Some(Fat16DirIter {
             fs: self.fs,
-            sector: first_sector,
+            sector: self.first_sector(),
             offset: 0,
         })
     }
 
     fn as_file(&self) -> Option<Self::File> {
-        unimplemented!()
+        if self.is_dir() {
+            return None;
+        }
+
+        Some(Fat16File::new(self.fs, self.clone()))
     }
 }
 

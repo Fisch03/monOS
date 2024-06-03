@@ -45,7 +45,7 @@ pub enum GetFileError {
 }
 
 pub trait File: Read + Write + Seek {
-    fn name(&self) -> String;
+    fn name(&self) -> &str;
     fn size(&self) -> usize;
 }
 
