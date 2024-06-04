@@ -1,5 +1,6 @@
 use super::{Fat16Fs, Read, Seek};
 
+#[derive(Debug)]
 pub enum AllocationType {
     Free,
     NotAllowed,

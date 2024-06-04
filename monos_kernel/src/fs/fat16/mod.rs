@@ -60,6 +60,11 @@ impl Fat16Fs {
     }
 
     #[inline]
+    fn cluster_offset(&self, cluster: u32) -> u32 {
+        self.sector_offset(self.first_data_sector + cluster * self.sectors_per_cluster as u32)
+    }
+
+    #[inline]
     fn cluster_size(&self) -> u32 {
         self.bytes_per_sector * self.sectors_per_cluster as u32
     }

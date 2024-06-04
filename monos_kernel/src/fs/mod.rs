@@ -27,14 +27,16 @@ pub fn init(boot_info: &BootInfo) {
         crate::dbg!(entry.name());
     }
 
-    let home = fs
+    let welcome = fs
         .iter_root_dir()
-        .get_entry("home")
+        .get_entry("home/welcome.md")
         .expect("no home directory");
+    crate::dbg!(welcome.name());
 
-    for entry in home.iter().expect("not a directory") {
-        crate::dbg!(entry.name());
-    }
+    let welcome = welcome.as_file().expect("not a file");
+    let mut buf = [0; 1024];
+    let read = welcome.read_all(&mut buf);
+    crate::dbg!(core::str::from_utf8(&buf[..read]).unwrap());
 }
 
 #[derive(Debug)]
@@ -92,10 +94,34 @@ where
 
 pub trait Read {
     fn read(&self, buf: &mut [u8]) -> usize;
+
+    fn read_all(&self, buf: &mut [u8]) -> usize {
+        let mut total_read = 0;
+        while total_read < buf.len() {
+            let read = self.read(&mut buf[total_read..]);
+            if read == 0 {
+                break;
+            }
+            total_read += read;
+        }
+        total_read
+    }
 }
 
 pub trait Write {
     fn write(&mut self, buf: &[u8]) -> usize;
+
+    fn write_all(&mut self, buf: &[u8]) -> usize {
+        let mut total_written = 0;
+        while total_written < buf.len() {
+            let written = self.write(&buf[total_written..]);
+            if written == 0 {
+                break;
+            }
+            total_written += written;
+        }
+        total_written
+    }
 }
 
 pub trait Seek {
