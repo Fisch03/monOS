@@ -39,7 +39,7 @@ for the same reason, monOS has quite a lot of references to TempleOS.
 # the boring stuff (aka implementation details)
 because i like torturing myself (and for educational reasons) the end goal for this kernel is to use no external dependencies apart from the [bootloader](https://github.com/rust-osdev/bootloader).
 i handle this by first getting a basic implementation running using existing crates and then gradually substituting it with my own implementations.
-this made things a lot less painful than writing everything from scratch directly.
+this makes things a lot less painful than writing everything from scratch directly.
 
 ~~monOS is bootable from both BIOS and UEFI. that being said, most of my own testing was done on UEFI. therefore i recomend always using the UEFI image if you can!~~
 BIOS boot is currently utterly broken and will not be supported going forward, sorry. maybe sometime later...
@@ -47,8 +47,8 @@ BIOS boot is currently utterly broken and will not be supported going forward, s
 ### project structure
 - [`monos_kernel`](https://github.com/Fisch03/monOS/tree/master/monos_kernel) contains the kernel code (aka the main thing)
 - [`monos_std`](https://github.com/Fisch03/monOS/tree/master/monos_std) is the library that userspace programs link against.
-- the [`user` directory](https://github.com/Fisch03/monOS/tree/master/user) contains the included userspace programs that get shipped with the kernel. these currently include:
-  - TODO!
+- the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) contains the included userspace programs that get shipped together with the kernel. these currently include:
+  - [`hello_world`](https://github.com/Fisch03/monOS/tree/master/userspace/hello_world) basic template application
 - the [`os_disk` directory](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) will be used to construct the ramdisk (see below)
 - [`monoscript`](https://github.com/Fisch03/monOS/tree/master/monoscript) is a (platform independent) library containing the monoscript parser and runtime
 - [`monoscript_emu`](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) contains a minimal monoscript runner for windows/linux/macOS
@@ -84,6 +84,7 @@ the ramdisk itself is a FAT16 image with the following structure:
 - `/bin`: userspace programs
 - `/home`: user directory
 - `/data`: OS resources. you probably shouldn't touch these unless you want to break something >:D
+the build script automatically builds all the crates in the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) and puts their elf binaries in `/bin` 
 
 # the big todo list
 - [x] it boots!
@@ -130,7 +131,7 @@ the ramdisk itself is a FAT16 image with the following structure:
   - [ ] process spawning
 - [ ] getting to userspace
   - [x] map kernel to upper half
-  - [ ] it works!
+  - [x] it works!
   - [ ] elf file loading
   - [ ] running doom
     - [ ] figure out linking
@@ -146,7 +147,10 @@ the ramdisk itself is a FAT16 image with the following structure:
   - [ ] running in the real thing
   - [ ] docs
   - [ ] improve execution performance
-- [ ] filesystem support (maybe)
+- [x] filesystem support
+  - [x] ramdisk reading
+  - [x] fat16 drivers
+  - [ ] block device drivers
 - [ ] multiprocessor support (maybe)
 - [ ] USB support (maybe)
 - [ ] whatever else comes to mind :)

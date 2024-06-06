@@ -27,16 +27,17 @@ pub fn init(boot_info: &BootInfo) {
         crate::dbg!(entry.name());
     }
 
-    let welcome = fs
+    let hello_world = fs
         .iter_root_dir()
-        .get_entry("home/welcome.md")
+        .get_entry("bin/hello_world")
         .expect("no home directory");
-    crate::dbg!(welcome.name());
 
-    let welcome = welcome.as_file().expect("not a file");
-    let mut buf = [0; 1024];
-    let read = welcome.read_all(&mut buf);
-    crate::dbg!(core::str::from_utf8(&buf[..read]).unwrap());
+    let hello_world = hello_world.as_file().expect("not a file");
+    let size = hello_world.size();
+    let mut buf = alloc::vec![0; size];
+    hello_world.read_all(&mut buf);
+
+    let obj = object::File::parse(buf.as_slice()).unwrap();
 }
 
 #[derive(Debug)]

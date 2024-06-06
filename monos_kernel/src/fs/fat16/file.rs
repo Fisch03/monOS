@@ -42,7 +42,7 @@ impl<'fs> Read for Fat16File<'fs> {
             use allocation_table::AllocationType;
 
             let entry = allocation_table::lookup_allocation(self.fs, current_cluster);
-            match entry {
+            match crate::dbg!(entry) {
                 AllocationType::Next(next_cluster) => next_cluster,
                 _ => return 0,
             }

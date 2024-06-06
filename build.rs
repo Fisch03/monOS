@@ -29,6 +29,10 @@ fn main() {
         PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("os_disk");
     println!("cargo:rerun-if-changed={}", os_disk_in_dir.display());
 
+    let userspace_prog_dir =
+        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("userspace");
+
+    build_userspace(&userspace_prog_dir, &out_dir, &os_disk_in_dir.join("bin"));
     let ramdisk_img_path = build_disk(&os_disk_in_dir, &out_dir);
 
     // create an UEFI disk image
@@ -49,6 +53,38 @@ fn main() {
     // pass the disk image paths as env variables to the `main.rs`
     println!("cargo:rustc-env=UEFI_PATH={}", uefi_path.display());
     // println!("cargo:rustc-env=BIOS_PATH={}", bios_path.display());
+}
+
+fn build_userspace(crates_dir: &Path, cargo_out_dir: &Path, out_dir: &Path) {
+    for user_crate in fs::read_dir(crates_dir).unwrap() {
+        let user_crate = user_crate.unwrap();
+        let crate_name = user_crate.file_name().into_string().unwrap();
+        let crate_path = user_crate.path();
+        let crate_out_dir = cargo_out_dir.join(&crate_name);
+        let _ = fs::remove_dir_all(&crate_out_dir);
+        fs::create_dir(&crate_out_dir).unwrap();
+        let mut cargo = std::process::Command::new("cargo");
+        cargo
+            .arg("build")
+            .arg("--release")
+            .arg("--target")
+            .arg("x86_64-unknown-none")
+            .arg("--target-dir")
+            .arg(&crate_out_dir)
+            .arg("--manifest-path")
+            .arg(crate_path.join("Cargo.toml"));
+        let status = cargo.status().unwrap();
+        assert!(status.success());
+
+        let bin_file = crate_out_dir
+            .join("x86_64-unknown-none")
+            .join("release")
+            .join(&crate_name);
+
+        assert!(bin_file.exists());
+
+        fs::copy(&bin_file, out_dir.join(&crate_name)).unwrap();
+    }
 }
 
 fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
