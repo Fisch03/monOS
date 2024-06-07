@@ -1,5 +1,5 @@
 use super::{allocation_table, Fat16DirEntry, Fat16Fs};
-use super::{DirEntry, File, Path, Read, Seek, Write};
+use super::{File, Read, Seek, Write};
 use core::sync::atomic::{AtomicU16, AtomicU32, Ordering};
 
 pub struct Fat16File<'fs> {
@@ -42,7 +42,7 @@ impl<'fs> Read for Fat16File<'fs> {
             use allocation_table::AllocationType;
 
             let entry = allocation_table::lookup_allocation(self.fs, current_cluster);
-            match crate::dbg!(entry) {
+            match entry {
                 AllocationType::Next(next_cluster) => next_cluster,
                 _ => return 0,
             }

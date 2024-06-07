@@ -5,6 +5,7 @@
 use bootloader_api::{config, BootInfo, BootloaderConfig};
 use core::arch::asm;
 
+use fs::*;
 use monos_kernel::*;
 
 extern crate alloc;
@@ -22,24 +23,6 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 };
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
-#[naked]
-extern "C" fn userspace_prog_1() {
-    // unsafe { asm!("2:", "nop", "nop", "nop", "jmp 2b", options(noreturn)) };
-    unsafe {
-        asm!(
-            "2:",
-            "mov rax, 0x0",
-            "mov rdi, 1",
-            "mov rsi, 2",
-            "mov rdx, 3",
-            "mov r10, 4",
-            "syscall",
-            "jmp 2b",
-            options(noreturn)
-        );
-    }
-}
-
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
     gfx::framebuffer().update();
@@ -51,7 +34,21 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     println!();
 
-    // process::spawn(userspace_prog_1);
+    let hello_world = {
+        let mut fs = fs().lock();
+        let hello_world = fs
+            .iter_root_dir()
+            .get_entry("bin/hello_world")
+            .unwrap()
+            .as_file()
+            .unwrap();
+
+        let mut data = alloc::vec![0u8; hello_world.size()];
+        hello_world.read_all(data.as_mut_slice());
+        data
+    };
+
+    process::spawn(&hello_world.as_slice());
 
     loop {
         gfx::framebuffer().update();

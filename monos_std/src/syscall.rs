@@ -2,8 +2,19 @@ use core::arch::asm;
 
 #[derive(Debug)]
 #[repr(u64)]
-enum Syscall {
+pub enum Syscall {
     Print = 0,
+}
+
+impl core::convert::TryFrom<u64> for Syscall {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Syscall::Print),
+            _ => Err(()),
+        }
+    }
 }
 
 pub fn print(s: &str) {

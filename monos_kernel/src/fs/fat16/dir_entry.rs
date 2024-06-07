@@ -1,5 +1,5 @@
 use super::{Fat16File, Fat16Fs};
-use crate::fs::{DirEntry, DirIter, GetFileError, Path};
+use crate::fs::{DirEntry, DirIter};
 use crate::utils::BitField;
 use alloc::string::String;
 use core::{mem, str::FromStr};

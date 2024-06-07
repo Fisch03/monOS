@@ -1,7 +1,6 @@
 use super::{Read, Seek, Write};
 use crate::mem::VirtualAddress;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use spin::RwLock;
 
 #[derive(Debug)]
 pub struct RamDisk {

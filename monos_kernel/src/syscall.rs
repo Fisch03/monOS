@@ -1,6 +1,7 @@
 use crate::arch::registers::MSR;
 use crate::core_local::CoreLocal;
 use core::{arch::asm, mem};
+use monos_std::syscall::Syscall;
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
 const IA32_STAR_MSR: u32 = 0xC0000081;
@@ -90,6 +91,22 @@ extern "C" fn handle_syscall() {
 
 extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64, arg4: u64) {
     crate::println!("syscall {} {} {} {} {}", syscall_id, arg1, arg2, arg3, arg4);
+
+    // if let Ok(syscall_id) = Syscall::try_from(syscall_id) {
+    //     match syscall_id {
+    //         Syscall::Print => {
+    //             let s = unsafe {
+    //                 core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+    //                     arg1 as *const u8,
+    //                     arg2 as usize,
+    //                 ))
+    //             };
+    //             crate::print!("{}", s);
+    //         }
+    //     }
+    // } else {
+    //     return;
+    // }
 
     crate::gfx::framebuffer().update();
 }

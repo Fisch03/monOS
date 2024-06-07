@@ -1,4 +1,4 @@
-use super::{ramdisk::RamDisk, DirEntry, File, Path, Read, Seek, Write};
+use super::{ramdisk::RamDisk, File, Read, Seek, Write};
 use core::mem;
 
 mod dir_entry;
@@ -17,8 +17,8 @@ pub struct Fat16Fs {
     first_root_sector: u32,
     first_fat_sector: u32,
     first_data_sector: u32,
-    root_dir_sectors: u32,
-    cluster_count: u32,
+    // root_dir_sectors: u32,
+    // cluster_count: u32,
     bytes_per_sector: u32,
     sectors_per_cluster: u8,
 }
@@ -29,7 +29,7 @@ pub enum Fat16Error {
 }
 
 impl Fat16Fs {
-    pub fn new(mut ramdisk: RamDisk) -> Result<Self, Fat16Error> {
+    pub fn new(ramdisk: RamDisk) -> Result<Self, Fat16Error> {
         let mut bios_parameter_block = [0u8; mem::size_of::<BiosParameterBlock>()];
         ramdisk.seek(mem::offset_of!(BootSector, bios_parameter_block));
         ramdisk.read(&mut bios_parameter_block);
@@ -47,8 +47,8 @@ impl Fat16Fs {
             first_data_sector: bios_parameter_block.first_data_sector(),
             first_fat_sector: bios_parameter_block.first_fat_sector(),
             first_root_sector: bios_parameter_block.first_root_sector(),
-            root_dir_sectors: bios_parameter_block.root_dir_sectors(),
-            cluster_count: bios_parameter_block.cluster_count(),
+            // root_dir_sectors: bios_parameter_block.root_dir_sectors(),
+            // cluster_count: bios_parameter_block.cluster_count(),
             bytes_per_sector: bios_parameter_block.bytes_per_sector(),
             sectors_per_cluster: bios_parameter_block.sectors_per_cluster,
         })
@@ -141,20 +141,20 @@ impl BiosParameterBlock {
         self.first_root_sector() + self.root_dir_sectors()
     }
 
-    #[inline]
-    fn total_sectors(&self) -> u32 {
-        let total_sectors_small = u16::from_le_bytes(self.total_sectors_small);
-        if total_sectors_small != 0 {
-            total_sectors_small as u32
-        } else {
-            u32::from_le_bytes(self.total_sectors_large)
-        }
-    }
+    // #[inline]
+    // fn total_sectors(&self) -> u32 {
+    //     let total_sectors_small = u16::from_le_bytes(self.total_sectors_small);
+    //     if total_sectors_small != 0 {
+    //         total_sectors_small as u32
+    //     } else {
+    //         u32::from_le_bytes(self.total_sectors_large)
+    //     }
+    // }
 
-    #[inline]
-    fn cluster_count(&self) -> u32 {
-        (self.total_sectors() - self.first_data_sector()) / self.sectors_per_cluster as u32
-    }
+    // #[inline]
+    // fn cluster_count(&self) -> u32 {
+    //     (self.total_sectors() - self.first_data_sector()) / self.sectors_per_cluster as u32
+    // }
 
     #[inline]
     fn bytes_per_sector(&self) -> u32 {

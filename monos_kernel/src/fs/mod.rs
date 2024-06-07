@@ -2,7 +2,6 @@ mod path;
 pub use path::*;
 
 pub mod fat16;
-use alloc::string::String;
 use fat16::Fat16Fs;
 
 mod ramdisk;
@@ -11,33 +10,30 @@ use ramdisk::RamDisk;
 use crate::mem::VirtualAddress;
 use bootloader_api::BootInfo;
 
+use spin::{Mutex, Once};
+
+static FILESYSTEM: Once<Mutex<Fat16Fs>> = Once::new();
+
 pub fn init(boot_info: &BootInfo) {
-    let ramdisk_start = VirtualAddress::new(
-        boot_info
-            .ramdisk_addr
-            .into_option()
-            .expect("no ramdisk found"),
-    );
-    let ramdisk_size = boot_info.ramdisk_len;
+    FILESYSTEM.call_once(|| {
+        let ramdisk_start = VirtualAddress::new(
+            boot_info
+                .ramdisk_addr
+                .into_option()
+                .expect("no ramdisk found"),
+        );
+        let ramdisk_size = boot_info.ramdisk_len;
 
-    let ram_disk = unsafe { RamDisk::new(ramdisk_start, ramdisk_size as usize) };
-    let mut fs = Fat16Fs::new(ram_disk).expect("failed to initialize FAT16 filesystem");
+        let ram_disk = unsafe { RamDisk::new(ramdisk_start, ramdisk_size as usize) };
+        let fs = Fat16Fs::new(ram_disk).expect("failed to initialize FAT16 filesystem");
 
-    for entry in fs.iter_root_dir() {
-        crate::dbg!(entry.name());
-    }
+        Mutex::new(fs)
+    });
+}
 
-    let hello_world = fs
-        .iter_root_dir()
-        .get_entry("bin/hello_world")
-        .expect("no home directory");
-
-    let hello_world = hello_world.as_file().expect("not a file");
-    let size = hello_world.size();
-    let mut buf = alloc::vec![0; size];
-    hello_world.read_all(&mut buf);
-
-    let obj = object::File::parse(buf.as_slice()).unwrap();
+#[inline]
+pub fn fs() -> &'static Mutex<Fat16Fs> {
+    FILESYSTEM.get().expect("filesystem not initialized")
 }
 
 #[derive(Debug)]

@@ -1310,6 +1310,7 @@ version = "0.1.0"
 dependencies = [
  "bootloader_api",
  "linked_list_allocator",
+ "monos_std",
  "object",
  "pc-keyboard",
  "spin",

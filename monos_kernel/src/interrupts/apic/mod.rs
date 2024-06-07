@@ -8,7 +8,7 @@ pub use io_apic::IOAPIC;
 
 use crate::arch::registers::MSR;
 use crate::mem;
-use crate::mem::{PhysicalAddress, VirtualAddress};
+use crate::mem::PhysicalAddress;
 use crate::utils::BitField;
 use core::fmt;
 

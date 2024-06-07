@@ -128,11 +128,19 @@ the build script automatically builds all the crates in the [`userspace` directo
   - [ ] home menu
 - [ ] task management
   - [ ] async executor
-  - [ ] process spawning
+  - [x] process spawning
+  - [ ] scheduler
 - [ ] getting to userspace
   - [x] map kernel to upper half
   - [x] it works!
-  - [ ] elf file loading
+  - [x] elf file loading
+    - [ ] using own implementation
+  - [ ] syscalls
+    - [x] it works!
+    - [ ] framebuffer access
+    - [ ] spawning/killing processes
+    - [ ] filesystem access
+  - [ ] ipc
   - [ ] running doom
     - [ ] figure out linking
     - [ ] scuffed libc port
@@ -147,6 +155,10 @@ the build script automatically builds all the crates in the [`userspace` directo
   - [ ] running in the real thing
   - [ ] docs
   - [ ] improve execution performance
+- [ ] monodoc
+  - [ ] parsing
+  - [ ] viewing
+  - [ ] editing
 - [x] filesystem support
   - [x] ramdisk reading
   - [x] fat16 drivers

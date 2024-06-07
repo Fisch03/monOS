@@ -10,7 +10,7 @@ mod acpi;
 mod arch;
 mod core_local;
 mod dev;
-mod fs;
+pub mod fs;
 mod gdt;
 pub mod gfx;
 pub mod interrupts;
