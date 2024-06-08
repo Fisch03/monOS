@@ -8,7 +8,6 @@ extern crate alloc;
 
 mod acpi;
 mod arch;
-mod core_local;
 mod dev;
 pub mod fs;
 mod gdt;
@@ -23,8 +22,6 @@ mod utils;
 use bootloader_api::BootInfo;
 
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
-    core_local::CoreLocal::init();
-
     gdt::init();
     interrupts::init_idt();
     syscall::init();

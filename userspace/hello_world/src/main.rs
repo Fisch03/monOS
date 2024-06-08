@@ -3,11 +3,13 @@
 
 use monos_std::syscall;
 
+const HELLO: &str = "Hello, world!\n";
+
 #[no_mangle]
 pub extern "sysv64" fn _start() -> ! {
-    syscall::print("Hello, world!\n");
-
-    loop {}
+    loop {
+        syscall::print(HELLO);
+    }
 }
 
 #[cfg(not(test))]

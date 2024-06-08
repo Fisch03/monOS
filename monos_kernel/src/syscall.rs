@@ -1,12 +1,16 @@
 use crate::arch::registers::MSR;
-use crate::core_local::CoreLocal;
-use core::{arch::asm, mem};
+use crate::gdt;
+use crate::mem::VirtualAddress;
+
+use core::arch::asm;
 use monos_std::syscall::Syscall;
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
 const IA32_STAR_MSR: u32 = 0xC0000081;
 const IA32_LSTAR_MSR: u32 = 0xC0000082;
 const IA32_FMASK_MSR: u32 = 0xC0000084;
+
+const LOWER_HALF_END: u64 = 0x0000_8000_0000_0000;
 
 pub fn init() {
     // disable interrupts during syscall
@@ -47,10 +51,17 @@ extern "C" fn handle_syscall() {
             "push r14",
             "push r15",
 
+            // save syscall args
+            "push r10",
+            "push rdx",
+            "push rsi",
+            "push rdi",
+            "push rax",
+            
             // get access to kernel stack
             "swapgs",
             "mov rcx, rsp", // back up current rsp
-            "mov rsp, gs:{kernel_stack_offset}",
+            "mov rsp, gs:{kernel_stack}",
             "push rcx",
 
             // convert syscall args to c abi
@@ -64,11 +75,19 @@ extern "C" fn handle_syscall() {
 
             // call the rust handler
             "call {dispatch_syscall}",
+
             
             // switch back to original GS
             "pop rcx",
             "mov rsp, rcx", // restore original rsp
             "swapgs",
+
+            // restore syscall args
+            "pop rax",
+            "pop rdi",
+            "pop rsi",
+            "pop rdx",
+            "pop r10",
 
             // restore callee-saved registers
             "pop r15", 
@@ -83,30 +102,39 @@ extern "C" fn handle_syscall() {
             "pop rcx",
             "sysretq", // back to userland
 
-            kernel_stack_offset = const mem::offset_of!(CoreLocal, kernel_stack),
+            kernel_stack = const(0x24 + gdt::TIMER_IST_INDEX * 8),
             dispatch_syscall= sym dispatch_syscall,
             options(noreturn));
     }
 }
 
 extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64, arg4: u64) {
-    crate::println!("syscall {} {} {} {} {}", syscall_id, arg1, arg2, arg3, arg4);
+    if let Ok(syscall_id) = Syscall::try_from(syscall_id) {
+        match syscall_id {
+            Syscall::Print => {
+                assert!(arg1 < LOWER_HALF_END);
+                assert!(arg1 + arg2 < LOWER_HALF_END);
 
-    // if let Ok(syscall_id) = Syscall::try_from(syscall_id) {
-    //     match syscall_id {
-    //         Syscall::Print => {
-    //             let s = unsafe {
-    //                 core::str::from_utf8_unchecked(core::slice::from_raw_parts(
-    //                     arg1 as *const u8,
-    //                     arg2 as usize,
-    //                 ))
-    //             };
-    //             crate::print!("{}", s);
-    //         }
-    //     }
-    // } else {
-    //     return;
-    // }
+                let s = unsafe {
+                    core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                        arg1 as *const u8,
+                        arg2 as usize,
+                    ))
+                };
+
+                crate::print!("{}", s);
+            }
+        }
+    } else {
+        crate::println!(
+            "unknown syscall {} {} {} {} {}",
+            syscall_id,
+            arg1,
+            arg2,
+            arg3,
+            arg4
+        );
+    }
 
     crate::gfx::framebuffer().update();
 }

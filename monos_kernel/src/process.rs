@@ -1,5 +1,4 @@
 use crate::arch::registers::CR3;
-use crate::core_local::CoreLocal;
 use crate::gdt::GDT;
 use crate::interrupts::without_interrupts;
 use crate::mem::{
@@ -47,17 +46,13 @@ pub fn spawn(elf: &[u8]) {
     //set_kernel_stack(&proc);
 
     // swap to user stack
-    unsafe { asm!("swapgs") }; // todo: only do this once per core (in scheduler init?)
     proc.run();
 }
 
-fn set_kernel_stack(proc: &Process) {
-    let tss = unsafe { &mut *CoreLocal::get().tss.get() };
-    tss.privilege_stack_table[0] = proc.stacks.kernel_stack_end;
-    CoreLocal::get()
-        .kernel_stack
-        .set(proc.stacks.kernel_stack_end.as_mut_ptr());
-}
+// fn set_kernel_stack(proc: &Process) {
+//     let tss = unsafe { &mut *CoreLocal::get().tss.get() };
+//     tss.privilege_stack_table[0] = proc.stacks.kernel_stack_end;
+// }
 
 static STACK_ADDR: AtomicU64 = AtomicU64::new(0x600_000); //TODO: no.
 
@@ -127,9 +122,6 @@ impl Process {
 
         for segment in obj.segments() {
             let start_addr = VirtualAddress::new(segment.address());
-            if start_addr == VirtualAddress::new(0) {
-                continue;
-            }
             let end_addr = start_addr + segment.size();
 
             //TODO: check address bounds
@@ -160,13 +152,20 @@ impl Process {
                 frame = alloc_frame().expect("failed to alloc frame for process");
             }
 
-            let dest = start_addr.as_mut_ptr::<u8>();
-            let src = segment.data().unwrap();
+            let mut dest = start_addr.as_mut_ptr::<u8>();
+            let mut src = segment.data().unwrap();
 
             let (current_pt_frame, flags) = CR3::read();
             without_interrupts(|| {
                 unsafe {
                     CR3::write(page_table_frame, flags);
+                }
+
+                // horribleness. i should really figure out how to compile userspace programs at an
+                // offset
+                if start_addr == VirtualAddress::new(0) {
+                    dest = unsafe { dest.add(1) };
+                    src = &src[1..];
                 }
 
                 unsafe {
@@ -178,35 +177,6 @@ impl Process {
                 }
             });
         }
-
-        // let mut code_addr = CODE_ADDR.fetch_add(0x1000, Ordering::SeqCst);
-        // let entry_point_phys = translate_addr(VirtualAddress::new(entry_point as u64))
-        //     .expect("failed to translate entry point");
-        // let code_frame: Frame<PageSize4K> = Frame::around(entry_point_phys);
-
-        // code_addr += entry_point_phys.offset_in_page();
-
-        // let code_page = Page::around(VirtualAddress::new(code_addr));
-        // unsafe {
-        //     process_mapper
-        //         .map_to(
-        //             &code_page,
-        //             &code_frame,
-        //             PageTableFlags::PRESENT
-        //                 | PageTableFlags::WRITABLE
-        //                 | PageTableFlags::USER_ACCESSIBLE,
-        //         )
-        //         .expect("failed to map code page");
-        //     // process_mapper.
-        //     // map_to(
-        //     //     &code_page.next(),
-        //     //     &code_frame.next(),
-        //     //     PageTableFlags::PRESENT
-        //     //         | PageTableFlags::WRITABLE
-        //     //         | PageTableFlags::USER_ACCESSIBLE,
-        //     // )
-        //     // .expect("failed to map code page no.2");
-        // }
 
         let id = NEXT_PID.fetch_add(1, Ordering::SeqCst);
         let process = Self {
@@ -224,83 +194,6 @@ impl Process {
 
         id
     }
-
-    //     fn new(entry_point: extern "C" fn()) -> usize {
-    //         let page_table_frame = alloc_frame().expect("failed to alloc frame for process page table");
-    //         let page_table_page = Page::around(unsafe { alloc_vmem(4096).align_up(4096) });
-    //         unsafe {
-    //             map_to(
-    //                 &page_table_page,
-    //                 &page_table_frame,
-    //                 PageTableFlags::PRESENT
-    //                     | PageTableFlags::WRITABLE
-    //                     | PageTableFlags::USER_ACCESSIBLE,
-    //             )
-    //             .expect("failed to map page table page");
-    //         };
-    //
-    //         let kernel_page_table = active_level_4_table();
-    //
-    //         //safety: this page table is invalid right now, but we overwrite it before it's used
-    //         let process_page_table = page_table_page.start_address().as_mut_ptr::<PageTable>();
-    //         let process_page_table = unsafe { &mut *process_page_table };
-    //
-    //         process_page_table
-    //             .iter_mut()
-    //             .zip(kernel_page_table.iter())
-    //             .for_each(|(process_entry, kernel_entry)| {
-    //                 *process_entry = kernel_entry.clone();
-    //             });
-    //
-    //         let mut process_mapper = unsafe { Mapper::new(physical_mem_offset(), process_page_table) };
-    //
-    //         let entry_point = VirtualAddress::new(entry_point as u64);
-    //         let entry_point_phys =
-    //             translate_addr(entry_point).expect("failed to translate entry point");
-    //         let entry_point_frame: Frame<PageSize4K> = Frame::around(entry_point_phys);
-    //
-    //         let code_virt = VirtualAddress::new(0x400_000); // TODO: determine this dynamically
-    //         let stack_virt = VirtualAddress::new(0x800_000); // TODO: determine this dynamically
-    //
-    //         let entry_point_page = Page::around(code_virt);
-    //         unsafe {
-    //             process_mapper
-    //                 .map_to(
-    //                     &entry_point_page,
-    //                     &entry_point_frame,
-    //                     PageTableFlags::PRESENT
-    //                         | PageTableFlags::WRITABLE  // TODO: is this needed?
-    //                         | PageTableFlags::USER_ACCESSIBLE,
-    //                 )
-    //                 .expect("failed to map entry point page no.1");
-    //             process_mapper
-    //                 .map_to(
-    //                     &entry_point_page.next(),
-    //                     &entry_point_frame.next(),
-    //                     PageTableFlags::PRESENT
-    //                         | PageTableFlags::WRITABLE
-    //                         | PageTableFlags::USER_ACCESSIBLE,
-    //                 )
-    //                 .expect("failed to map entry point page no.2");
-    //         };
-    //
-    //         let stack_page = Page::around(stack_virt);
-    //         let stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
-    //
-    //         unsafe {
-    //             process_mapper
-    //                 .map_to(
-    //                     &stack_page,
-    //                     &stack_frame,
-    //                     PageTableFlags::PRESENT
-    //                         | PageTableFlags::WRITABLE
-    //                         | PageTableFlags::USER_ACCESSIBLE,
-    //                 )
-    //                 .expect("failed to map stack page");
-    //         }
-    //
-    //     }
-    //
 
     fn run(&self) {
         let data = GDT.1.user_data.as_u16();

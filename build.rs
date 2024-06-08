@@ -70,9 +70,13 @@ fn build_userspace(crates_dir: &Path, cargo_out_dir: &Path, out_dir: &Path) {
             .arg("--target")
             .arg("x86_64-unknown-none")
             .arg("--target-dir")
-            .arg(&crate_out_dir)
+            .arg(dbg!(&crate_out_dir))
             .arg("--manifest-path")
             .arg(crate_path.join("Cargo.toml"));
+        // .env("RUSTFLAGS", "-C link-args=--image-base=0x1000"); // doesn't work :(
+
+        dbg!(&cargo);
+
         let status = cargo.status().unwrap();
         assert!(status.success());
 
