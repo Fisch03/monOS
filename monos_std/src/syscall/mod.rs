@@ -1,5 +1,8 @@
 use core::arch::asm;
 
+mod io;
+pub use io::*;
+
 #[derive(Debug)]
 #[repr(u64)]
 pub enum Syscall {
@@ -16,15 +19,6 @@ impl core::convert::TryFrom<u64> for Syscall {
             _ => Err(()),
         }
     }
-}
-
-#[inline(always)]
-pub fn print(s: &str) {
-    let ptr = s.as_ptr() as u64;
-    let len = s.len() as u64;
-
-    // SAFETY: the parameters come from a valid string slice
-    unsafe { syscall_2(Syscall::Print, ptr, len) };
 }
 
 #[inline(always)]

@@ -32,7 +32,7 @@ fn main() {
     let userspace_prog_dir =
         PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("userspace");
 
-    build_userspace(&userspace_prog_dir, &out_dir, &os_disk_in_dir.join("bin"));
+    build_userspace(&userspace_prog_dir, &os_disk_in_dir.join("bin"));
     let ramdisk_img_path = build_disk(&os_disk_in_dir, &out_dir);
 
     // create an UEFI disk image
@@ -55,40 +55,41 @@ fn main() {
     // println!("cargo:rustc-env=BIOS_PATH={}", bios_path.display());
 }
 
-fn build_userspace(crates_dir: &Path, cargo_out_dir: &Path, out_dir: &Path) {
+fn build_userspace(crates_dir: &Path, out_dir: &Path) {
+    let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let target_dir = 
+        std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
+            .unwrap_or_else(|| manifest_dir.join("target"));
+
+    println!("cargo:rerun-if-changed={}", manifest_dir.join("monos_std").display());
+
     for user_crate in fs::read_dir(crates_dir).unwrap() {
+        println!("cargo:rerun-if-changed={}", user_crate.as_ref().unwrap().path().display());
         let user_crate = user_crate.unwrap();
         let crate_name = user_crate.file_name().into_string().unwrap();
         let crate_path = user_crate.path();
-        let crate_out_dir = cargo_out_dir.join(&crate_name);
-        let _ = fs::remove_dir_all(&crate_out_dir);
-        fs::create_dir(&crate_out_dir).unwrap();
         let mut cargo = std::process::Command::new("cargo");
         cargo
             .arg("rustc")
             .arg("--release")
             .arg("--target")
-            .arg("x86_64-monos_user")
+            .arg(manifest_dir.join("x86_64-monos_user.json"))
             .arg("-Zbuild-std=core,alloc")
-            .arg("--target-dir")
-            .arg(dbg!(&crate_out_dir))
             .arg("--manifest-path")
             .arg(crate_path.join("Cargo.toml"))
             .arg("--")
             .arg("-Clink-arg=--image-base=0x10000")
             .env(
-                "RUST_TARGET_PATH",
-                PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()),
+                "CARGO_TARGET_DIR",
+                &target_dir
             );
-
-        // .env("RUSTFLAGS", "-C link-args=--image-base=0x1000"); // doesn't work :(
 
         dbg!(&cargo);
 
         let status = cargo.status().unwrap();
         assert!(status.success());
 
-        let bin_file = crate_out_dir
+        let bin_file = target_dir
             .join("x86_64-monos_user")
             .join("release")
             .join(&crate_name);

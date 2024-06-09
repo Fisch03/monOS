@@ -21,6 +21,8 @@ struct Process {
     page_table_frame: Frame,
     code_addr: u64,
     stacks: ProcessStacks,
+    heap_start: VirtualAddress,
+    heap_size: usize,
 }
 
 const USER_CODE_START: u64 = 0x10000;
@@ -56,10 +58,17 @@ pub fn spawn(elf: &[u8]) {
 //     tss.privilege_stack_table[0] = proc.stacks.kernel_stack_end;
 // }
 
-static STACK_ADDR: AtomicU64 = AtomicU64::new(0x600_000); //TODO: no.
-
 impl Process {
     fn new(elf: &[u8]) -> usize {
+        assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
+        let obj = object::File::parse(elf).expect("failed to parse ELF file");
+
+        let mut free_start = VirtualAddress::new(
+            obj.segments()
+                .fold(0, |free_start, segment| free_start.max(segment.address())),
+        );
+        free_start += 0x1000;
+
         let page_table_frame = alloc_frame().expect("failed to alloc frame for process page table");
         let page_table_page = Page::around(alloc_vmem(4096));
         unsafe {
@@ -103,7 +112,7 @@ impl Process {
                 .expect("failed to map stack page");
         }
 
-        let user_stack_addr = VirtualAddress::new(STACK_ADDR.fetch_add(0x1000, Ordering::SeqCst));
+        let user_stack_addr = free_start.clone();
         let user_stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
         let user_stack_page = Page::around(user_stack_addr);
         unsafe {
@@ -117,9 +126,32 @@ impl Process {
                 )
                 .expect("failed to map stack page");
         }
+        free_start += 0x2000;
 
-        assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
-        let obj = object::File::parse(elf).expect("failed to parse ELF file");
+        let user_heap_addr = free_start.clone();
+        let mut user_heap_size = 0;
+        let mut user_heap_page = Page::around(user_heap_addr);
+        for _ in 0..10 {
+            let user_heap_frame = alloc_frame().expect("failed to alloc frame for process heap");
+
+            unsafe {
+                process_mapper
+                    .map_to(
+                        &crate::dbg!(user_heap_page),
+                        &user_heap_frame,
+                        PageTableFlags::PRESENT
+                            | PageTableFlags::WRITABLE
+                            | PageTableFlags::USER_ACCESSIBLE,
+                    )
+                    .expect("failed to map heap page");
+            }
+            user_heap_page = user_heap_page.next();
+
+            free_start += 0x1000;
+            user_heap_size += 0x1000;
+        }
+
+
         let code_addr = obj.entry();
 
         for segment in obj.segments() {
@@ -185,6 +217,8 @@ impl Process {
                 user_stack_end: user_stack_addr + USER_STACK_SIZE,
                 kernel_stack_end: kernel_stack_addr + KERNEL_STACK_SIZE,
             },
+            heap_start: user_heap_addr,
+            heap_size: user_heap_size,
         };
 
         let mut processes = PROCESSES.write();
@@ -207,6 +241,8 @@ impl Process {
         //     CR3::write(frame, flags);
         // }
 
+        crate::dbg!(self.heap_size);
+        crate::dbg!(self.heap_start);
         unsafe {
             crate::interrupts::disable();
             asm!(
@@ -220,6 +256,8 @@ impl Process {
                 in("rsi") self.stacks.user_stack_end.as_u64(),
                 in("rdx") code,
                 in("rdi") self.code_addr,
+                in("r10") self.heap_start.as_u64(),
+                in("r11") self.heap_size
             );
         }
 
