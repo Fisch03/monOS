@@ -16,7 +16,7 @@ monoscript = { path = "monoscript", artifact = "bin:mono", target = "x86_64-unkn
 ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
-members = [ "font_gen", "monos_kernel", "monos_std", "monoscript", "userspace/*"]
+members = [ "font_gen", "monos_gfx", "monos_kernel", "monos_std", "monoscript", "userspace/*"]
 
 resolver = "2"
 

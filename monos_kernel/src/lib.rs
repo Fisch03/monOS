@@ -9,9 +9,9 @@ extern crate alloc;
 mod acpi;
 mod arch;
 mod dev;
+pub mod framebuffer;
 pub mod fs;
 mod gdt;
-pub mod gfx;
 pub mod interrupts;
 mod mem;
 pub mod process;
@@ -36,7 +36,7 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
     acpi::init(boot_info);
 
     let fb = boot_info.framebuffer.take().unwrap();
-    gfx::init(fb);
+    framebuffer::init(fb);
 
     dev::init();
     interrupts::enable();

@@ -1,9 +1,27 @@
 use crate::arch::registers::MSR;
 use crate::gdt;
-use crate::mem::VirtualAddress;
 
 use core::arch::asm;
-use monos_std::syscall::Syscall;
+
+mod gfx;
+
+#[derive(Debug)]
+#[repr(u64)]
+pub enum Syscall {
+    Print = 0,
+    OpenFramebuffer = 1,
+}
+
+impl core::convert::TryFrom<u64> for Syscall {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Syscall::Print),
+            _ => Err(()),
+        }
+    }
+}
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
 const IA32_STAR_MSR: u32 = 0xC0000081;
@@ -124,6 +142,7 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
 
                 crate::print!("{}", s);
             }
+            Syscall::OpenFramebuffer => gfx::sys_open_fb(arg1),
         }
     } else {
         crate::println!(
@@ -135,6 +154,4 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
             arg4
         );
     }
-
-    crate::gfx::framebuffer().update();
 }

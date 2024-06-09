@@ -35,3 +35,34 @@ macro_rules! dbg_compact {
         val
     }};
 }
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => {{
+        use crate::interrupts::without_interrupts;
+        use core::fmt::Write;
+
+        without_interrupts(|| {
+            $crate::serial::SERIAL1.lock().write_fmt(format_args!($($arg)*)).unwrap();
+        });
+    }};
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! eprint {
+    ($($arg:tt)*) => {{
+        $crate::print!($($arg)*);
+    }};
+}
+
+#[macro_export]
+macro_rules! eprintln {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::eprint!("{}\n", format_args!($($arg)*)));
+}

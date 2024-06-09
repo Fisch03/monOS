@@ -3,19 +3,9 @@
 
 use monos_std::syscall;
 
-const HELLO: &str = "Hello, world!\n";
-
 #[no_mangle]
-pub extern "sysv64" fn _start() -> ! {
+extern "C" fn main() {
     loop {
-        syscall::print(HELLO);
+        syscall::print("good mononing!\n");
     }
-}
-
-#[cfg(not(test))]
-use core::panic::PanicInfo;
-#[cfg(not(test))] // avoid stupid duplicate lang item error
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
 }

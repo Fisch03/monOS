@@ -1305,12 +1305,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "monos_gfx"
+version = "0.1.0"
+
+[[package]]
 name = "monos_kernel"
 version = "0.1.0"
 dependencies = [
  "bootloader_api",
  "linked_list_allocator",
- "monos_std",
+ "monos_gfx",
  "object",
  "pc-keyboard",
  "spin",
@@ -1322,6 +1326,10 @@ dependencies = [
 [[package]]
 name = "monos_std"
 version = "0.1.0"
+dependencies = [
+ "linked_list_allocator",
+ "monos_gfx",
+]
 
 [[package]]
 name = "monoscript"

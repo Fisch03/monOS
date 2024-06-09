@@ -25,7 +25,6 @@ bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
-    gfx::framebuffer().update();
 
     println!("hello world!! :D\nthis is a new line");
     println!();
@@ -51,7 +50,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     process::spawn(&hello_world.as_slice());
 
     loop {
-        gfx::framebuffer().update();
         unsafe {
             asm!("hlt", options(nomem, nostack, preserves_flags));
         }
@@ -65,11 +63,15 @@ use core::panic::PanicInfo;
 fn panic(info: &PanicInfo) -> ! {
     interrupts::disable();
 
-    //always print to serial first. the screen might not be
-    //initialized yet
     dbg!(info);
 
-    // eprintln!("oh noes! the kernel {}", info);
+    if let Some(mut fb_guard) = framebuffer::get() {
+        let fb = unsafe { fb_guard.now_or_never() };
+
+        use core::fmt::Write;
+        write!(fb, "oh noes! the kernel {}", info).unwrap();
+        fb.update();
+    }
 
     loop {
         unsafe {

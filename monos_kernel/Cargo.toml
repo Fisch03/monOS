@@ -12,4 +12,4 @@ spin = "0.9.8"
 take-static = "0.1.2"
 uart_16550 = "0.3.0"
 x86_64 = "0.15.1"
-monos_std = { path = "../monos_std" }
+monos_gfx = { path = "../monos_gfx" }

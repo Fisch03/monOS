@@ -4,6 +4,7 @@ use core::arch::asm;
 #[repr(u64)]
 pub enum Syscall {
     Print = 0,
+    OpenFramebuffer = 1,
 }
 
 impl core::convert::TryFrom<u64> for Syscall {
@@ -24,6 +25,20 @@ pub fn print(s: &str) {
 
     // SAFETY: the parameters come from a valid string slice
     unsafe { syscall_2(Syscall::Print, ptr, len) };
+}
+
+#[inline(always)]
+pub fn open_fb() -> Option<crate::gfx::OpenedFramebuffer> {
+    let mut fb = None;
+
+    unsafe {
+        syscall_1(
+            Syscall::OpenFramebuffer,
+            &mut fb as *mut Option<crate::gfx::OpenedFramebuffer> as u64,
+        )
+    };
+
+    fb
 }
 
 #[inline(always)]

@@ -84,6 +84,7 @@ the ramdisk itself is a FAT16 image with the following structure:
 - `/bin`: userspace programs
 - `/home`: user directory
 - `/data`: OS resources. you probably shouldn't touch these unless you want to break something >:D
+
 the build script automatically builds all the crates in the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) and puts their elf binaries in `/bin` 
 
 # the big todo list
@@ -140,6 +141,11 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] framebuffer access
     - [ ] spawning/killing processes
     - [ ] filesystem access
+  - [ ] userspace memory
+    - [ ] heap
+    - [ ] sensible memory structure
+    - [ ] ondemand paging
+    - [ ] free on process exit
   - [ ] ipc
   - [ ] running doom
     - [ ] figure out linking
