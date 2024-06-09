@@ -23,6 +23,8 @@ struct Process {
     stacks: ProcessStacks,
 }
 
+const USER_CODE_START: u64 = 0x10000;
+
 //TODO: raise these
 const USER_STACK_SIZE: u64 = 0x1000;
 const KERNEL_STACK_SIZE: u64 = 0x1000;
@@ -121,6 +123,9 @@ impl Process {
         let code_addr = obj.entry();
 
         for segment in obj.segments() {
+            if segment.address() < USER_CODE_START {
+                panic!("segment address too low");
+            }
             let start_addr = VirtualAddress::new(segment.address());
             let end_addr = start_addr + segment.size();
 
@@ -152,20 +157,13 @@ impl Process {
                 frame = alloc_frame().expect("failed to alloc frame for process");
             }
 
-            let mut dest = start_addr.as_mut_ptr::<u8>();
-            let mut src = segment.data().unwrap();
+            let dest = start_addr.as_mut_ptr::<u8>();
+            let src = segment.data().unwrap();
 
             let (current_pt_frame, flags) = CR3::read();
             without_interrupts(|| {
                 unsafe {
                     CR3::write(page_table_frame, flags);
-                }
-
-                // horribleness. i should really figure out how to compile userspace programs at an
-                // offset
-                if start_addr == VirtualAddress::new(0) {
-                    dest = unsafe { dest.add(1) };
-                    src = &src[1..];
                 }
 
                 unsafe {

@@ -65,14 +65,22 @@ fn build_userspace(crates_dir: &Path, cargo_out_dir: &Path, out_dir: &Path) {
         fs::create_dir(&crate_out_dir).unwrap();
         let mut cargo = std::process::Command::new("cargo");
         cargo
-            .arg("build")
+            .arg("rustc")
             .arg("--release")
             .arg("--target")
-            .arg("x86_64-unknown-none")
+            .arg("x86_64-monos_user")
+            .arg("-Zbuild-std=core,alloc")
             .arg("--target-dir")
             .arg(dbg!(&crate_out_dir))
             .arg("--manifest-path")
-            .arg(crate_path.join("Cargo.toml"));
+            .arg(crate_path.join("Cargo.toml"))
+            .arg("--")
+            .arg("-Clink-arg=--image-base=0x10000")
+            .env(
+                "RUST_TARGET_PATH",
+                PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()),
+            );
+
         // .env("RUSTFLAGS", "-C link-args=--image-base=0x1000"); // doesn't work :(
 
         dbg!(&cargo);
@@ -81,7 +89,7 @@ fn build_userspace(crates_dir: &Path, cargo_out_dir: &Path, out_dir: &Path) {
         assert!(status.success());
 
         let bin_file = crate_out_dir
-            .join("x86_64-unknown-none")
+            .join("x86_64-monos_user")
             .join("release")
             .join(&crate_name);
 
