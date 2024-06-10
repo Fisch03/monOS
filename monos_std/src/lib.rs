@@ -52,8 +52,10 @@ pub extern "sysv64" fn _start() -> ! {
 use core::panic::PanicInfo;
 #[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
     // TODO
-    syscall::print("panic!\n");
+
+    syscall::print("userspace program panicked!");
+    //println!("oh noes! the program {}", info);
     loop {}
 }

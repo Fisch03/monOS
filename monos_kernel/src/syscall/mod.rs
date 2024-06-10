@@ -18,6 +18,7 @@ impl core::convert::TryFrom<u64> for Syscall {
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Syscall::Print),
+            1 => Ok(Syscall::OpenFramebuffer),
             _ => Err(()),
         }
     }

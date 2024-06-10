@@ -57,14 +57,20 @@ fn main() {
 
 fn build_userspace(crates_dir: &Path, out_dir: &Path) {
     let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    let target_dir = 
-        std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
-            .unwrap_or_else(|| manifest_dir.join("target"));
+    let target_dir = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| manifest_dir.join("target"));
 
-    println!("cargo:rerun-if-changed={}", manifest_dir.join("monos_std").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        manifest_dir.join("monos_std").display()
+    );
 
     for user_crate in fs::read_dir(crates_dir).unwrap() {
-        println!("cargo:rerun-if-changed={}", user_crate.as_ref().unwrap().path().display());
+        println!(
+            "cargo:rerun-if-changed={}",
+            user_crate.as_ref().unwrap().path().display()
+        );
         let user_crate = user_crate.unwrap();
         let crate_name = user_crate.file_name().into_string().unwrap();
         let crate_path = user_crate.path();
@@ -74,15 +80,13 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
             .arg("--release")
             .arg("--target")
             .arg(manifest_dir.join("x86_64-monos_user.json"))
-            .arg("-Zbuild-std=core,alloc")
+            .arg("-Zbuild-std=core,alloc,compiler_builtins")
+            .arg("-Zbuild-std-features=compiler-builtins-mem")
             .arg("--manifest-path")
             .arg(crate_path.join("Cargo.toml"))
             .arg("--")
             .arg("-Clink-arg=--image-base=0x10000")
-            .env(
-                "CARGO_TARGET_DIR",
-                &target_dir
-            );
+            .env("CARGO_TARGET_DIR", &target_dir);
 
         dbg!(&cargo);
 

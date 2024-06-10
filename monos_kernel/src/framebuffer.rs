@@ -48,7 +48,8 @@ impl Framebuffer {
         let flags = PageTableFlags::PRESENT
             | PageTableFlags::WRITABLE
             | PageTableFlags::WRITE_THROUGH
-            | PageTableFlags::CACHE_DISABLE;
+            | PageTableFlags::CACHE_DISABLE
+            | PageTableFlags::USER_ACCESSIBLE; // TODO: instead map fb to user space memory
 
         loop {
             unsafe { mem::map_to(&front_buffer_page, &front_buffer_frame, flags) }

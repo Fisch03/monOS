@@ -70,6 +70,7 @@ monOS currently uses the following algorithms for allocating memory:
 | pages             | bitmap allocator      | 
 | heap memory       | linked list allocator |
 | virtual addresses | bump allocator        |
+| userspace heap    | linked list allocator |
 
 these were basically all just chosen because they were the easiest to implement. memory performance really isn't a big concern for this OS. 
 as for virtual addresses, i would like to switch over to something more robust at some point. since monOS is strictly 64-bit with the kernel mapped into the higher half,
@@ -142,7 +143,7 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] spawning/killing processes
     - [ ] filesystem access
   - [ ] userspace memory
-    - [ ] heap
+    - [x] heap
     - [ ] sensible memory structure
     - [ ] ondemand paging
     - [ ] free on process exit

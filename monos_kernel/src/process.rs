@@ -63,11 +63,11 @@ impl Process {
         assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
         let obj = object::File::parse(elf).expect("failed to parse ELF file");
 
-        let mut free_start = VirtualAddress::new(
-            obj.segments()
-                .fold(0, |free_start, segment| free_start.max(segment.address())),
-        );
-        free_start += 0x1000;
+        let mut free_start = VirtualAddress::new(obj.segments().fold(0, |free_start, segment| {
+            free_start.max(segment.address() + segment.size())
+        }));
+
+        free_start = free_start.align_up(0x1000) + 0x1000;
 
         let page_table_frame = alloc_frame().expect("failed to alloc frame for process page table");
         let page_table_page = Page::around(alloc_vmem(4096));
@@ -115,6 +115,7 @@ impl Process {
         let user_stack_addr = free_start.clone();
         let user_stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
         let user_stack_page = Page::around(user_stack_addr);
+        let user_stack_addr = user_stack_page.start_address();
         unsafe {
             process_mapper
                 .map_to(
@@ -126,18 +127,19 @@ impl Process {
                 )
                 .expect("failed to map stack page");
         }
-        free_start += 0x2000;
+        free_start += 0x4000;
 
         let user_heap_addr = free_start.clone();
         let mut user_heap_size = 0;
         let mut user_heap_page = Page::around(user_heap_addr);
+        let user_heap_addr = user_heap_page.start_address();
         for _ in 0..10 {
             let user_heap_frame = alloc_frame().expect("failed to alloc frame for process heap");
 
             unsafe {
                 process_mapper
                     .map_to(
-                        &crate::dbg!(user_heap_page),
+                        &user_heap_page,
                         &user_heap_frame,
                         PageTableFlags::PRESENT
                             | PageTableFlags::WRITABLE
@@ -150,7 +152,6 @@ impl Process {
             free_start += 0x1000;
             user_heap_size += 0x1000;
         }
-
 
         let code_addr = obj.entry();
 
@@ -218,7 +219,7 @@ impl Process {
                 kernel_stack_end: kernel_stack_addr + KERNEL_STACK_SIZE,
             },
             heap_start: user_heap_addr,
-            heap_size: user_heap_size,
+            heap_size: user_heap_size - 1,
         };
 
         let mut processes = PROCESSES.write();
@@ -240,9 +241,6 @@ impl Process {
         // unsafe {
         //     CR3::write(frame, flags);
         // }
-
-        crate::dbg!(self.heap_size);
-        crate::dbg!(self.heap_start);
         unsafe {
             crate::interrupts::disable();
             asm!(

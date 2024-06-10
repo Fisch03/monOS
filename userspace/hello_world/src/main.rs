@@ -1,9 +1,9 @@
 #![no_std]
 #![no_main]
 
-use monos_std::syscall;
+use monos_std::{println, syscall::open_fb};
 
 #[no_mangle]
 fn main() {
-    syscall::print("good mononing!\n");
+    println!("{} {}", "good mononing!", 42);
 }

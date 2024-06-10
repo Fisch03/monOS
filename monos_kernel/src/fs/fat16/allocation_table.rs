@@ -10,7 +10,7 @@ pub enum AllocationType {
 }
 
 pub fn lookup_allocation(fs: &Fat16Fs, cluster: u16) -> AllocationType {
-    let fat_offset = cluster as u32 * 2;
+    let fat_offset = (cluster + 2) as u32 * 2;
     let fat_sector = fs.first_fat_sector + (fat_offset / fs.bytes_per_sector);
     let fat_offset = fat_offset % fs.bytes_per_sector;
 
@@ -25,6 +25,6 @@ pub fn lookup_allocation(fs: &Fat16Fs, cluster: u16) -> AllocationType {
         0x0001 | 0x0002 => AllocationType::NotAllowed,
         0xFFF7 => AllocationType::Bad,
         0xFFF8..=0xFFFF => AllocationType::EndOfFile,
-        _ => AllocationType::Next(fat_entry),
+        _ => AllocationType::Next(fat_entry - 2),
     }
 }

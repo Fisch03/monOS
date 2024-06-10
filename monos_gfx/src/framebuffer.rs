@@ -17,6 +17,18 @@ pub struct OpenedFramebuffer {
 
     text_buffer: VecDeque<char>,
 }
+impl core::fmt::Debug for OpenedFramebuffer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OpenedFramebuffer")
+            .field("dimensions", &self.dimensions)
+            .field("stride", &self.stride)
+            .field("bytes_per_pixel", &self.bytes_per_pixel)
+            .field("front_buffer length", &self.front_buffer.len())
+            .field("back_buffer length", &self.back_buffer.len())
+            .field("text_buffer", &self.text_buffer)
+            .finish()
+    }
+}
 
 impl OpenedFramebuffer {
     pub fn new(
