@@ -13,7 +13,6 @@ pub fn print(s: &str) {
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {{
-        use core::fmt::Write;
         $crate::syscall::print(&$crate::prelude::format!($($arg)*));
 
     }};

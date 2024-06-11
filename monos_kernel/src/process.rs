@@ -28,7 +28,6 @@ struct Process {
 const USER_CODE_START: u64 = 0x10000;
 
 //TODO: raise these
-const USER_STACK_SIZE: u64 = 0x1000;
 const KERNEL_STACK_SIZE: u64 = 0x1000;
 
 const ELF_BYTES: [u8; 4] = [0x7f, b'E', b'L', b'F'];
@@ -113,19 +112,27 @@ impl Process {
         }
 
         let user_stack_addr = free_start.clone();
-        let user_stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
-        let user_stack_page = Page::around(user_stack_addr);
+        let mut user_stack_size = 0;
+        let mut user_stack_page = Page::around(user_stack_addr);
         let user_stack_addr = user_stack_page.start_address();
-        unsafe {
-            process_mapper
-                .map_to(
-                    &user_stack_page,
-                    &user_stack_frame,
-                    PageTableFlags::PRESENT
-                        | PageTableFlags::WRITABLE
-                        | PageTableFlags::USER_ACCESSIBLE,
-                )
-                .expect("failed to map stack page");
+        for _ in 0..10 {
+            let user_stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
+
+            unsafe {
+                process_mapper
+                    .map_to(
+                        &user_stack_page,
+                        &user_stack_frame,
+                        PageTableFlags::PRESENT
+                            | PageTableFlags::WRITABLE
+                            | PageTableFlags::USER_ACCESSIBLE,
+                    )
+                    .expect("failed to map stack page");
+            }
+            user_stack_page = user_stack_page.next();
+
+            free_start += 0x1000;
+            user_stack_size += 0x1000;
         }
         free_start += 0x4000;
 
@@ -215,7 +222,7 @@ impl Process {
             page_table_frame,
             code_addr,
             stacks: ProcessStacks {
-                user_stack_end: user_stack_addr + USER_STACK_SIZE,
+                user_stack_end: user_stack_addr + user_stack_size,
                 kernel_stack_end: kernel_stack_addr + KERNEL_STACK_SIZE,
             },
             heap_start: user_heap_addr,
@@ -237,6 +244,7 @@ impl Process {
             CR3::write(self.page_table_frame, flags);
         }
 
+        crate::dbg!(self.stacks.user_stack_end);
         // let (frame, flags) = CR3::read();
         // unsafe {
         //     CR3::write(frame, flags);

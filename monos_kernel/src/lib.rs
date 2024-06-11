@@ -26,6 +26,19 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
     interrupts::init_idt();
     syscall::init();
 
+    interrupts::without_interrupts(|| {
+        use arch::registers::CR4;
+        use utils::BitField;
+        let mut cr4 = CR4::read();
+
+        cr4.set_bit(CR4::ENABLE_MACHINE_CHECK, true);
+        cr4.set_bit(CR4::ENABLE_SSE, true);
+        cr4.set_bit(CR4::ENABLE_UNMASKED_SSE, true);
+        cr4.set_bit(CR4::TIME_STAMP_DISABLE, false);
+
+        unsafe { CR4::write(cr4) };
+    });
+
     // safety: the physical memory offset is valid since it was provided by the bootloader.
     // the bootloader config guarantees that the entire physical memory is mapped.
     unsafe { mem::init(&boot_info) };

@@ -65,6 +65,29 @@ impl CR3 {
     }
 }
 
+pub struct CR4;
+impl CR4 {
+    pub const ENABLE_MACHINE_CHECK: usize = 6;
+    pub const ENABLE_SSE: usize = 9;
+    pub const ENABLE_UNMASKED_SSE: usize = 10;
+    pub const TIME_STAMP_DISABLE: usize = 2;
+
+    #[inline]
+    pub fn read() -> u64 {
+        let value: u64;
+        unsafe {
+            asm!("mov {}, cr4", out(reg) value, options(nomem, nostack, preserves_flags));
+        }
+        value
+    }
+    #[inline]
+    pub unsafe fn write(value: u64) {
+        unsafe {
+            asm!("mov cr4, {}", in(reg) value, options(nomem, nostack));
+        }
+    }
+}
+
 pub struct MSR(u32);
 impl MSR {
     #[inline]

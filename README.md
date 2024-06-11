@@ -148,6 +148,7 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] ondemand paging
     - [ ] free on process exit
   - [ ] ipc
+  - [ ] get sse to work
   - [ ] running doom
     - [ ] figure out linking
     - [ ] scuffed libc port

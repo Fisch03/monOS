@@ -1,5 +1,8 @@
 #![no_std]
+#![feature(alloc_error_handler)]
 #![feature(prelude_import)]
+#![feature(naked_functions)]
+#![feature(core_intrinsics)]
 
 extern crate alloc;
 
@@ -29,23 +32,38 @@ extern "C" {
 }
 
 #[no_mangle]
-pub extern "sysv64" fn _start() -> ! {
-    let heap_start: usize;
-    let heap_size: usize;
-    unsafe {
-        asm!("",
-             lateout("r10") heap_start,
-             lateout("r11") heap_size,
-             options(pure, nomem, nostack)
-        )
-    };
+#[naked]
+pub unsafe extern "sysv64" fn _start() -> ! {
+    asm!(
+        "and rsp, -16",
 
+        "mov rdi, r10",
+        "mov rsi, r11",
+        "call {start_inner}",
+        "2:",
+        "jmp 2b",
+
+        start_inner = sym start_inner,
+        options(noreturn)
+    )
+}
+
+#[inline(never)]
+extern "C" fn start_inner(heap_start: usize, heap_size: usize) {
+    // let rsp: usize;
+    // unsafe { asm!("mov {}, rsp", lateout(reg) rsp, options(nostack)) };
     unsafe { memory::init(heap_start, heap_size) };
 
-    unsafe { main() };
+    {
+        let test = Box::new(42);
+        assert_eq!(*test, 42);
+    }
+
+    println!("heap_size: {:#x}, heap_start: {:#x}", heap_size, heap_start);
+
+    // unsafe { main() };
 
     // TODO: exit syscall
-    loop {}
 }
 
 #[cfg(not(test))]
@@ -55,7 +73,10 @@ use core::panic::PanicInfo;
 fn panic(info: &PanicInfo) -> ! {
     // TODO
 
-    syscall::print("userspace program panicked!");
+    let mut panic_buf: arrayvec::ArrayString<512> = arrayvec::ArrayString::new();
+    use core::fmt::Write;
+    write!(panic_buf, "{}", info).unwrap();
+    syscall::print(panic_buf.as_str());
     //println!("oh noes! the program {}", info);
     loop {}
 }

@@ -30,12 +30,10 @@ pub static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
         VirtualAddress::from_ptr(unsafe { addr_of!(STACK) }) + STACK_SIZE as u64
     };
 
-    // tss.privilege_stack_table[0] = {
-    //     static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-    //     let stack_addr = VirtualAddress::from_ptr(unsafe { addr_of!(STACK) }) + STACK_SIZE as u64;
-    //     stack_addr
-    // };
-
+    tss.privilege_stack_table[0] = {
+        static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+        VirtualAddress::from_ptr(unsafe { addr_of!(STACK) }) + STACK_SIZE as u64
+    };
     tss
 });
 
