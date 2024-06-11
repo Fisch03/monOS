@@ -13,7 +13,12 @@ pub fn print(s: &str) {
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {{
-        $crate::syscall::print(&$crate::prelude::format!($($arg)*));
+        use core::fmt::Write;
+
+        // TODO: figure out why format!() doesn't work
+        let mut s = String::new();
+        let _ = write!(s, $($arg)*);
+        $crate::syscall::print(&s);
 
     }};
 }

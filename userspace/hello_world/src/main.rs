@@ -1,9 +1,10 @@
 #![no_std]
 #![no_main]
 
-use monos_std::{prelude::*, println, syscall::open_fb};
+use monos_std::prelude::*;
+
 
 #[no_mangle]
 fn main() {
-    println!("{} {}", "good mononing!", 42);
+    println!("good mononing!");
 }

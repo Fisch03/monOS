@@ -244,7 +244,6 @@ impl Process {
             CR3::write(self.page_table_frame, flags);
         }
 
-        crate::dbg!(self.stacks.user_stack_end);
         // let (frame, flags) = CR3::read();
         // unsafe {
         //     CR3::write(frame, flags);

@@ -20,7 +20,7 @@ pub mod prelude {
     pub use crate::{print, println};
     pub use alloc::{
         boxed::Box,
-        format,
+        //format, // format!() causes a page fault for some reason
         string::{String, ToString},
         vec::Vec,
     };
@@ -50,18 +50,9 @@ pub unsafe extern "sysv64" fn _start() -> ! {
 
 #[inline(never)]
 extern "C" fn start_inner(heap_start: usize, heap_size: usize) {
-    // let rsp: usize;
-    // unsafe { asm!("mov {}, rsp", lateout(reg) rsp, options(nostack)) };
     unsafe { memory::init(heap_start, heap_size) };
 
-    {
-        let test = Box::new(42);
-        assert_eq!(*test, 42);
-    }
-
-    println!("heap_size: {:#x}, heap_start: {:#x}", heap_size, heap_start);
-
-    // unsafe { main() };
+    unsafe { main() };
 
     // TODO: exit syscall
 }
@@ -71,12 +62,9 @@ use core::panic::PanicInfo;
 #[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    // TODO
+    println!("oh noes! the program {}", info);
 
-    let mut panic_buf: arrayvec::ArrayString<512> = arrayvec::ArrayString::new();
-    use core::fmt::Write;
-    write!(panic_buf, "{}", info).unwrap();
-    syscall::print(panic_buf.as_str());
-    //println!("oh noes! the program {}", info);
+    // TODO: exit syscall
+
     loop {}
 }
