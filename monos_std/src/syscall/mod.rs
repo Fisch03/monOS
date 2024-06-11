@@ -23,12 +23,13 @@ impl core::convert::TryFrom<u64> for Syscall {
 
 #[inline(always)]
 pub fn open_fb() -> Option<crate::gfx::OpenedFramebuffer> {
+    use crate::gfx::OpenedFramebuffer;
     let mut fb = None;
 
     unsafe {
         syscall_1(
             Syscall::OpenFramebuffer,
-            &mut fb as *mut Option<crate::gfx::OpenedFramebuffer> as u64,
+            &mut fb as *mut Option<OpenedFramebuffer> as u64,
         )
     };
 

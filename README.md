@@ -49,6 +49,7 @@ BIOS boot is currently utterly broken and will not be supported going forward, s
 - [`monos_std`](https://github.com/Fisch03/monOS/tree/master/monos_std) is the library that userspace programs link against.
 - the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) contains the included userspace programs that get shipped together with the kernel. these currently include:
   - [`hello_world`](https://github.com/Fisch03/monOS/tree/master/userspace/hello_world) basic template application
+  - [`rooftop`](https://github.com/Fisch03/monOS/tree/master/userspace/rooftop) monOS's desktop environment
 - the [`os_disk` directory](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) will be used to construct the ramdisk (see below)
 - [`monoscript`](https://github.com/Fisch03/monOS/tree/master/monoscript) is a (platform independent) library containing the monoscript parser and runtime
 - [`monoscript_emu`](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) contains a minimal monoscript runner for windows/linux/macOS

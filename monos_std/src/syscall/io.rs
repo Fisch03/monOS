@@ -28,3 +28,17 @@ macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
+
+#[macro_export]
+macro_rules! dbg {
+    () => ($crate::println!());
+    ($val:expr) => {{
+        let val = $val;
+        $crate::print!("{} = {:?}\n", stringify!($val), &val);
+        val
+
+    }};
+    ($($val:expr),+ $(,)?) => {
+        ($($crate::dbg!($val)),+,)
+    };
+}

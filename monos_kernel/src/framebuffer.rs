@@ -17,8 +17,6 @@ pub fn get() -> Option<MutexGuard<'static, Framebuffer>> {
 }
 
 pub struct Framebuffer {
-    info: FrameBufferInfo,
-
     fb: OpenedFramebuffer,
     borrowed: bool,
 }
@@ -71,8 +69,6 @@ impl Framebuffer {
 
         let dimensions = Dimension::new(info.width, info.height);
         let mut framebuffer = Self {
-            info,
-
             fb: OpenedFramebuffer::new(
                 front_buffer,
                 back_buffer,
@@ -82,8 +78,6 @@ impl Framebuffer {
             ),
             borrowed: false,
         };
-
-        framebuffer.fb.update();
 
         framebuffer
     }
@@ -97,6 +91,14 @@ impl Framebuffer {
 
             // safety: this *does* create a aliased mutable reference, but it's safe because we keep track of the borrow and only allow one at a time
             *receiver = Some(unsafe { fb_ptr.read() });
+        }
+    }
+
+    pub fn as_mut(&mut self) -> Option<&mut OpenedFramebuffer> {
+        if self.borrowed {
+            None
+        } else {
+            Some(&mut self.fb)
         }
     }
 

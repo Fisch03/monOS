@@ -1788,6 +1788,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rooftop"
+version = "0.1.0"
+dependencies = [
+ "monos_gfx",
+ "monos_std",
+]
+
+[[package]]
 name = "rustix"
 version = "0.37.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"

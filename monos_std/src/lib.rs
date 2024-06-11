@@ -1,8 +1,6 @@
 #![no_std]
 #![feature(alloc_error_handler)]
-#![feature(prelude_import)]
 #![feature(naked_functions)]
-#![feature(core_intrinsics)]
 
 extern crate alloc;
 
@@ -12,12 +10,10 @@ mod memory;
 pub mod syscall;
 pub use monos_gfx as gfx;
 
-#[allow(unused_imports)]
-#[prelude_import]
 pub use prelude::*;
 
 pub mod prelude {
-    pub use crate::{print, println};
+    pub use crate::{dbg, print, println, syscall};
     pub use alloc::{
         boxed::Box,
         //format, // format!() causes a page fault for some reason

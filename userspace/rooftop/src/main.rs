@@ -8,7 +8,17 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
+use monos_gfx::OpenedFramebuffer;
+
 #[no_mangle]
 fn main() {
-    println!("good mononing!");
+    let mut fb = syscall::open_fb().unwrap();
+
+    loop {
+        draw_cursor(&mut fb);
+
+        fb.update();
+    }
 }
+
+fn draw_cursor(fb: &mut OpenedFramebuffer) {}

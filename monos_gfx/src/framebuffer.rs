@@ -1,5 +1,3 @@
-use alloc::collections::VecDeque;
-
 use crate::fonts;
 use crate::types::*;
 
@@ -14,10 +12,10 @@ pub struct OpenedFramebuffer {
 
     front_buffer: &'static mut [u8],
     back_buffer: &'static mut [u8],
-
-    text_buffer: VecDeque<char>,
 }
-impl core::fmt::Debug for OpenedFramebuffer {
+
+use core::fmt;
+impl fmt::Debug for OpenedFramebuffer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OpenedFramebuffer")
             .field("dimensions", &self.dimensions)
@@ -25,7 +23,6 @@ impl core::fmt::Debug for OpenedFramebuffer {
             .field("bytes_per_pixel", &self.bytes_per_pixel)
             .field("front_buffer length", &self.front_buffer.len())
             .field("back_buffer length", &self.back_buffer.len())
-            .field("text_buffer", &self.text_buffer)
             .finish()
     }
 }
@@ -38,21 +35,23 @@ impl OpenedFramebuffer {
         stride: usize,
         bytes_per_pixel: usize,
     ) -> Self {
-        let text_buffer_width = dimensions.width / CHAR_WIDTH;
-        let text_buffer_height = dimensions.height / CHAR_HEIGHT;
+        back_buffer.fill(0);
 
-        Self {
+        let mut fb = Self {
             dimensions,
             stride,
             bytes_per_pixel,
 
             front_buffer,
             back_buffer,
+        };
 
-            text_buffer: VecDeque::with_capacity(text_buffer_width * text_buffer_height),
-        }
+        fb.update();
+
+        fb
     }
 
+    #[inline]
     fn clear(&mut self) {
         // for some reason, the builtin fill function is *really* slow, so we'll do it manually
         // self.back_buffer.fill(0);
@@ -60,6 +59,7 @@ impl OpenedFramebuffer {
         unsafe { core::ptr::write_bytes(self.back_buffer.as_mut_ptr(), 0, self.back_buffer.len()) };
     }
 
+    #[inline]
     fn swap_buffers(&mut self) {
         // this fares a lot better than fill, but its still slower than manually copying
         // self.front_buffer.copy_from_slice(self.back_buffer);
@@ -73,41 +73,10 @@ impl OpenedFramebuffer {
         }
     }
 
+    #[inline]
     pub fn update(&mut self) {
-        self.clear();
-
-        let mut position = Position::new(0, 0);
-        for i in 0..self.text_buffer.len() {
-            let character = self.text_buffer.get(i);
-            match character {
-                Some('\n') => {
-                    position.x = 0;
-                    position.y += 1;
-                }
-                Some(character) => {
-                    self.draw_char(&Color::new(255, 255, 255), *character, &position, false);
-                    position.x += 1;
-                    if position.x >= self.dimensions.width / CHAR_WIDTH {
-                        position.x = 0;
-                        position.y += 1;
-                    }
-                }
-                None => break,
-            }
-        }
-
         self.swap_buffers();
-    }
-
-    pub fn write_string(&mut self, s: &str) {
-        for character in s.chars() {
-            self.text_buffer.push_back(character);
-            if self.text_buffer.len()
-                > self.dimensions.width / CHAR_WIDTH * self.dimensions.height / CHAR_HEIGHT
-            {
-                self.text_buffer.pop_front();
-            }
-        }
+        self.clear();
     }
 
     fn draw_char(&mut self, color: &Color, character: char, position: &Position, overdraw: bool) {
@@ -155,28 +124,19 @@ impl OpenedFramebuffer {
         }
     }
 
-    fn draw_pixel(&mut self, position: &Position, color: &Color) {
+    #[inline]
+    pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
         if position.x >= self.dimensions.width || position.y >= self.dimensions.height {
             return;
         }
 
-        let position = Position::new(position.x * 2, position.y * 2);
-
         let y_offset_lower = position.y * self.stride;
-        let y_offset_upper = y_offset_lower + self.stride;
+        let offset = y_offset_lower + position.x;
 
-        let pixel_offsets = [
-            y_offset_lower + position.x,
-            y_offset_lower + position.x + 1,
-            y_offset_upper + position.x,
-            y_offset_upper + position.x + 1,
-        ];
-
-        pixel_offsets.iter().for_each(|offset| {
-            self.draw_pixel_raw(offset * self.bytes_per_pixel, color);
-        });
+        self.draw_pixel_raw(offset * self.bytes_per_pixel, color);
     }
 
+    #[inline]
     fn draw_pixel_raw(&mut self, byte_offset: usize, color: &Color) {
         let pixel_bytes = &mut self.back_buffer[byte_offset..];
         // match self.info.pixel_format {
@@ -206,13 +166,5 @@ impl OpenedFramebuffer {
         //         panic!("Unsupported pixel format");
         //     }
         // }
-    }
-}
-
-use core::fmt;
-impl fmt::Write for OpenedFramebuffer {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write_string(s);
-        Ok(())
     }
 }

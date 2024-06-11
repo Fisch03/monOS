@@ -140,7 +140,7 @@ impl Process {
         let mut user_heap_size = 0;
         let mut user_heap_page = Page::around(user_heap_addr);
         let user_heap_addr = user_heap_page.start_address();
-        for _ in 0..10 {
+        for _ in 0..100 {
             let user_heap_frame = alloc_frame().expect("failed to alloc frame for process heap");
 
             unsafe {
