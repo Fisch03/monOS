@@ -1,3 +1,6 @@
+<p align="center">
+<img height="125" src="https://github.com/Fisch03/monOS/blob/master/img/logo.png" />
+</p>
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_peek.png" />
 
 # the what
@@ -98,7 +101,7 @@ the build script automatically builds all the crates in the [`userspace` directo
 - [ ] exception handling
   - [x] basic handlers 
   - [ ] better panic handling
-    - [ ] handle panics when the framebuffer isn't initialized yet
+    - [x] handle panics when the framebuffer isn't initialized yet
     - [ ] show a extra screen on panic
 - [x] GDT/TSS for seperate exception stacks
 - [ ] memory
@@ -122,13 +125,12 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [x] ps2 keyboard input
     - [x] ps2 mouse input
 - [ ] gui
-  - [ ] decently usable ui framework
-    - [ ] mouse cursor
+  - [ ] decently usable immediate mode gui library
     - [ ] windows with seperate framebuffers
-    - [ ] invalidation rectangles (or some other mechanic for only redrawing the screen if needed)
-  - [ ] boot screen 
+    - [ ] ...
+  - [x] boot screen 
+  - [ ] desktop environment (`rooftop`)
   - [ ] terminal
-  - [ ] home menu
 - [ ] task management
   - [ ] async executor
   - [x] process spawning
@@ -140,8 +142,8 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] using own implementation
   - [ ] syscalls
     - [x] it works!
-    - [ ] framebuffer access
-    - [ ] spawning/killing processes
+    - [x] framebuffer access
+    - [ ] spawning/killing processes 
     - [ ] filesystem access
   - [ ] userspace memory
     - [x] heap
@@ -149,7 +151,8 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] ondemand paging
     - [ ] free on process exit
   - [ ] ipc
-  - [ ] get sse to work
+    - [ ] keyboard/mouse input 
+  - [x] get sse to work
   - [ ] running doom
     - [ ] figure out linking
     - [ ] scuffed libc port
