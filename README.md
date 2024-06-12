@@ -4,9 +4,9 @@
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_peek.png" />
 
 # the what
-monOS is a 64-bit monolithic hobby OS written in Rust, inspired by the vtuber [Mono Monet](https://www.youtube.com/@MonoMonet) of V4Mirai.
+monOS is a 64-bit monolithic hobby OS written in Rust, inspired by the vtuber [Mono Monet](https://www.youtube.com/@MonoMonet) of V4Mirai (and TempleOS, sorta).
 
-### monoscript
+### monoscript (WIP)
 while monOS may not be written in its own programming language, it comes with one! 
 monoscript is monOS's very own scripting language, designed to be as simple as possible. you can use it to quickly write tools and even small games for monOS.
 writing a "game" where you move a box around is as simple as:
@@ -29,6 +29,15 @@ key(d) { x_pos += 1 }
 ```
 you can find more info about monoscript [here](https://github.com/Fisch03/monOS/tree/master/monoscript). you can also view it's documentation from inside monOS (soon™).
 
+### monodoc (WIP)
+accompanying monoscript, there is monodoc. much like TempleOS's DolDoc, this is a file format for writing text files that can do more than just text!
+monodoc is a superset of markdown (and even shares its file extension - `.md`). this means its super simple to use, and you can read and edit monodoc files with all text editors and markdown viewers 
+while loosing out on some of the fancier features. these special features currently include:
+- in-document monoscript execution and rendering - play animations or even entire games right inside monodoc documents
+- special links - various actions inside monOS can be executed by clicking one of these links. for example a link with the location (mo:exec/hello_world) will launch the `hello_world` program when clicking it.
+
+for more info about monodoc syntax, you can look [here](https://github.com/Fisch03/monOS/tree/master/monodoc). you can also view it's documentation from inside monOS (soon™)
+
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_hmm.png" />
 
 # the why
@@ -40,7 +49,7 @@ for the same reason, monOS has quite a lot of references to TempleOS.
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_nerd.png" />
 
 # the boring stuff (aka implementation details)
-because i like torturing myself (and for educational reasons) the end goal for this kernel is to use no external dependencies apart from the [bootloader](https://github.com/rust-osdev/bootloader).
+because i like torturing myself (and for educational reasons) the end goal for the kernel is to use no external dependencies apart from the [bootloader](https://github.com/rust-osdev/bootloader).
 i handle this by first getting a basic implementation running using existing crates and then gradually substituting it with my own implementations.
 this makes things a lot less painful than writing everything from scratch directly.
 
@@ -53,7 +62,7 @@ BIOS boot is currently utterly broken and will not be supported going forward, s
 - the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) contains the included userspace programs that get shipped together with the kernel. these currently include:
   - [`hello_world`](https://github.com/Fisch03/monOS/tree/master/userspace/hello_world) basic template application
   - [`rooftop`](https://github.com/Fisch03/monOS/tree/master/userspace/rooftop) monOS's desktop environment
-- the [`os_disk` directory](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) will be used to construct the ramdisk (see below)
+- the [`os_disk` directory](https://github.com/Fisch03/monOS/tree/master/os_disk) will be used to construct the ramdisk (see below)
 - [`monoscript`](https://github.com/Fisch03/monOS/tree/master/monoscript) is a (platform independent) library containing the monoscript parser and runtime
 - [`monoscript_emu`](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) contains a minimal monoscript runner for windows/linux/macOS
 
@@ -81,7 +90,7 @@ as for virtual addresses, i would like to switch over to something more robust a
 there is around 256TiB of virtual memory available for allocation. i just dont see that being reached over the time a single boot with the current scope of the project.
 
 the heap allocator is using the [linked_list_allocator](https://github.com/rust-osdev/linked-list-allocator) crate right now, because i couldn't be bothered to write my own.
-implementing my own is something i still want to do at some point though.
+its something i still want to do at some point though.
 
 #### filesystem
 monOS (currently) has no way of accessing external disks, all data is kept within a ramdisk. this means that all data gets wiped when the os reboots. feel free to wreak havoc :P.
@@ -188,7 +197,7 @@ the build script automatically builds all the crates in the [`userspace` directo
 - to Philipp Oppermann's [amazing blog series](https://os.phil-opp.com/) for getting me on the right track
 - to this [blog post](https://nfil.dev/kernel/rust/coding/rust-kernel-to-userspace-and-back/) for getting me on the right track with getting into userspace
 - to all the developers of the [x86_64 crate](https://github.com/rust-osdev/x86_64) that served as a great reference point for my own implementations
-- to [moros](https://github.com/vinc/moros), [Hermit OS](https://github.com/hermit-os) and [Redox OS](https://www.redox-os.org/) for also serving as references
+- to [moros](https://github.com/vinc/moros), [EuraliOS](https://github.com/bendudson/EuraliOS), [Hermit OS](https://github.com/hermit-os) and [Redox OS](https://www.redox-os.org/) for also serving as references
 - to the [OSDev Wiki](https://wiki.osdev.org)
 
 
@@ -198,4 +207,4 @@ the build script automatically builds all the crates in the [`userspace` directo
 please contact me if you want your work removed. i wasn't able to find decent licensing information for all of these and am using them under the assumption that using for non-profit fan content is fine.
 - [woofycakes](https://x.com/woofycakes) for the mono emotes in this file
 - [NOiiRE ❖](https://noiire.carrd.co/) for the [mono cursor](https://x.com/noiireism/status/1736755359308792252)
-- [slavfox](https://github.com/slavfox) for making [Cozette](https://github.com/slavfox/Cozette) (the system font)
+- [slavfox](https://github.com/slavfox) for [Cozette](https://github.com/slavfox/Cozette), the system font
