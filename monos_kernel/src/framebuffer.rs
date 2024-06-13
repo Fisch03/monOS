@@ -37,7 +37,13 @@ impl Framebuffer {
         // let front_buffer = unsafe { slice::from_raw_parts_mut(front_buffer, info.byte_len) };
 
         let back_buffer_virt = mem::alloc_vmem(info.byte_len as u64);
+        let back_buffer_phys = mem::translate_addr(back_buffer_virt).unwrap_or_else(|_| {
+            mem::alloc_frame()
+                .expect("failed to allocate frame for back buffer")
+                .start_address()
+        });
         let mut back_buffer_page = mem::Page::around(back_buffer_virt);
+        let back_buffer_frame = mem::Frame::around(back_buffer_phys);
 
         let back_buffer = back_buffer_page.start_address().as_mut_ptr::<u8>();
         let back_buffer = unsafe { slice::from_raw_parts_mut(back_buffer, info.byte_len) };
@@ -53,8 +59,6 @@ impl Framebuffer {
             unsafe { mem::map_to(&front_buffer_page, &front_buffer_frame, flags) }
                 .expect("failed to map frame buffer");
 
-            let back_buffer_frame =
-                mem::alloc_frame().expect("failed to allocate back buffer frame");
             unsafe { mem::map_to(&back_buffer_page, &back_buffer_frame, flags) }
                 .expect("failed to map back buffer");
 
@@ -68,7 +72,7 @@ impl Framebuffer {
         }
 
         let dimensions = Dimension::new(info.width, info.height);
-        let mut framebuffer = Self {
+        let framebuffer = Self {
             fb: OpenedFramebuffer::new(
                 front_buffer,
                 back_buffer,

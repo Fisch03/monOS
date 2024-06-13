@@ -87,6 +87,7 @@ impl fmt::Debug for PageTable {
     }
 }
 
+#[derive(Debug)]
 pub enum PageTableFrameError {
     NotPresent,
     HugePage,
@@ -172,8 +173,7 @@ impl PageTableEntry {
 
     #[inline]
     pub unsafe fn set_frame<S: PageSize>(&mut self, frame: &Frame<S>) {
-        self.0
-            .set_bits(ADDRESS, frame.start_address().as_u64() >> 12);
+        self.set_addr(frame.start_address());
     }
 
     // safety: the flags must be valid.
@@ -186,9 +186,13 @@ impl PageTableEntry {
     pub fn addr(&self) -> PhysicalAddress {
         PhysicalAddress::new(self.0.get_bits(ADDRESS) << 12)
     }
+    #[inline]
+    pub unsafe fn set_addr(&mut self, addr: PhysicalAddress) {
+        self.0.set_bits(ADDRESS, addr.as_u64() >> 12);
+    }
 
     #[inline]
-    pub fn frame(&self) -> Result<Frame<PageSize4K>, PageTableFrameError> {
+    pub fn frame_4k(&self) -> Result<Frame<PageSize4K>, PageTableFrameError> {
         if !self.is_present() {
             Err(PageTableFrameError::NotPresent)
         } else if self.is_huge() {
@@ -238,9 +242,15 @@ impl PageTableFlags {
         self.0
     }
 
+    #[inline]
     pub fn mask_parent(&self) -> Self {
         Self(self.0)
             & (PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE)
+    }
+
+    #[inline]
+    pub fn contains(&self, other: PageTableFlag) -> bool {
+        self.0 & other.0 == other.0
     }
 }
 

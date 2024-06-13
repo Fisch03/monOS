@@ -12,6 +12,6 @@ use monos_std::prelude::*;
 fn main() {
     loop {
         syscall::print("oats curry!\n");
-        // println!("good mononing!");
+        // println!("oats curry!");
     }
 }

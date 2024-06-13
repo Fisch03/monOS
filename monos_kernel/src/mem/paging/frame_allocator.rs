@@ -49,4 +49,14 @@ impl FrameAllocator {
         let frame_addr = self.start + (frame as u64 * 4096);
         Some(Frame::new(frame_addr).unwrap())
     }
+
+    pub fn reserve_range(&mut self, start: PhysicalAddress, size: usize) {
+        let mut curr = Frame::around(start);
+        let end = PhysicalAddress::new(start.as_u64() + size as u64 + 4096).align(4096);
+        while curr.start_address().as_u64() <= end.as_u64() {
+            let frame = curr.number() as usize;
+            self.map.set(frame, true);
+            curr = Frame::new(curr.end_address()).unwrap();
+        }
+    }
 }

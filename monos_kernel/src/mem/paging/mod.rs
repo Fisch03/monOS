@@ -44,7 +44,8 @@ pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
         let start_frame = Frame::around(PhysicalAddress::new(
             boot_info.kernel_addr + boot_info.kernel_len,
         ));
-        let frame_allocator = FrameAllocator::new(&boot_info.memory_regions, start_frame);
+        let mut frame_allocator = FrameAllocator::new(&boot_info.memory_regions, start_frame);
+
         Mutex::new(frame_allocator)
     });
 }
@@ -83,6 +84,64 @@ pub fn alloc_frame() -> Option<Frame<PageSize4K>> {
         .expect("memory hasn't been initialized yet")
         .lock()
         .allocate_frame()
+}
+
+pub fn empty_page_table() -> (*mut PageTable, Frame) {
+    let page_table_frame = alloc_frame().expect("failed to alloc frame for process page table");
+    let page_table_page = Page::around(super::alloc_vmem(4096));
+    unsafe {
+        map_to(
+            &page_table_page,
+            &page_table_frame,
+            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE,
+        )
+        .expect("failed to map page table page");
+    };
+
+    let page_table_ptr: *mut PageTable = page_table_page.start_address().as_mut_ptr();
+
+    unsafe {
+        (*page_table_ptr).clear();
+    }
+
+    (page_table_ptr, page_table_frame)
+}
+
+pub fn copy_pagetable(source_l4: &PageTable, target_l4: &mut PageTable) {
+    fn copy_recursive(
+        physical_mem_offset: VirtualAddress,
+        source: &PageTable,
+        dest: &mut PageTable,
+        level: u16,
+    ) {
+        for (i, entry) in source.iter().enumerate() {
+            if entry.is_present() {
+                if level == 1 || entry.flags().contains(PageTableFlags::HUGE_PAGE) {
+                    unsafe {
+                        dest[i].set_addr(entry.addr());
+                        dest[i].set_flags(&entry.flags());
+                    }
+                } else {
+                    let (new_page_table, new_frame) = empty_page_table();
+                    let new_dest = unsafe { &mut *new_page_table };
+
+                    unsafe {
+                        dest[i].set_frame(&new_frame);
+                        dest[i].set_flags(&entry.flags());
+                    }
+
+                    let new_source = {
+                        let virt = physical_mem_offset + entry.addr().as_u64();
+                        unsafe { &*virt.as_ptr() }
+                    };
+
+                    copy_recursive(physical_mem_offset, new_source, new_dest, level - 1);
+                }
+            }
+        }
+    }
+
+    copy_recursive(physical_mem_offset(), source_l4, target_l4, 4);
 }
 
 pub trait PageSize: Copy {

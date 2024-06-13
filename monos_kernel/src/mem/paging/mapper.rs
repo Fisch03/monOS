@@ -178,7 +178,7 @@ impl MapTo<PageSize4K> for Mapper<'_> {
         let l1 = self.manager.entry_to_table(&mut l2[page.p2_index()])?;
 
         let entry = &mut l1[page.p1_index()];
-        entry.frame()?;
+        entry.frame_4k()?;
 
         entry.clear();
         page.flush();
@@ -224,7 +224,7 @@ impl MapTo<PageSize2M> for Mapper<'_> {
         let l2 = self.manager.entry_to_table(&mut l3[page.p3_index()])?;
 
         let entry = &mut l2[page.p2_index()];
-        entry.frame()?;
+        entry.frame_4k()?;
 
         entry.clear();
         page.flush();
@@ -266,7 +266,7 @@ impl MapTo<PageSize1G> for Mapper<'_> {
         let l3 = self.manager.entry_to_table(&mut self.l4[page.p4_index()])?;
 
         let entry = &mut l3[page.p3_index()];
-        entry.frame()?;
+        entry.frame_4k()?;
 
         entry.clear();
         page.flush();
@@ -291,7 +291,7 @@ impl PageManager {
         &self,
         entry: &'a PageTableEntry,
     ) -> Result<&'a mut PageTable, PageTableFrameError> {
-        let frame = entry.frame()?;
+        let frame = entry.frame_4k()?;
         let virt = self.offset + frame.start_address().as_u64();
         let ptr: *mut PageTable = virt.as_mut_ptr();
         Ok(unsafe { &mut *ptr })

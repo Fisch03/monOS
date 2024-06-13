@@ -46,7 +46,7 @@ pub unsafe extern "sysv64" fn _start() -> ! {
 
 #[inline(never)]
 extern "C" fn start_inner(heap_start: usize, heap_size: usize) {
-    // unsafe { memory::init(heap_start, heap_size) };
+    unsafe { memory::init(heap_start, heap_size) };
 
     unsafe { main() };
 
@@ -58,8 +58,7 @@ use core::panic::PanicInfo;
 #[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    syscall::print("panic");
-    // println!("oh noes! the program {}", info);
+    println!("oh noes! the program {}", info);
 
     // TODO: exit syscall
 

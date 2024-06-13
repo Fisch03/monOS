@@ -2,8 +2,8 @@ use crate::arch::registers::CR3;
 use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
-    active_level_4_table, alloc_frame, alloc_vmem, map_to, physical_mem_offset, Frame, MapTo,
-    Mapper, Page, PageTable, PageTableFlags, VirtualAddress,
+    active_level_4_table, alloc_frame, alloc_vmem, copy_pagetable, empty_page_table, map_to,
+    physical_mem_offset, Frame, MapTo, Mapper, Page, PageTable, PageTableFlags, VirtualAddress,
 };
 
 use alloc::{boxed::Box, collections::VecDeque};
@@ -15,10 +15,11 @@ static PROCESS_QUEUE: RwLock<VecDeque<Box<Process>>> = RwLock::new(VecDeque::new
 static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
 static NEXT_PID: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Debug, Clone)]
-struct Process {
+#[derive(Debug)]
+struct Process<'pt> {
     id: usize,
     page_table_frame: Frame,
+    mapper: Mapper<'pt>,
     code_addr: u64,
     stacks: ProcessStacks,
     heap_start: VirtualAddress,
@@ -78,7 +79,6 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
         current.page_table_frame = CR3::read().0;
 
         let old_id = current.id;
-        crate::dbg!(old_id);
         processes.push_back(current);
     }
 
@@ -86,7 +86,6 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 
     match current.as_ref() {
         Some(current) => {
-            crate::dbg!(current.id);
             gdt::set_kernel_stack(current.stacks.kernel_stack_end);
 
             let (_, flags) = CR3::read();
@@ -100,7 +99,7 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
     }
 }
 
-impl Process {
+impl Process<'static> {
     fn new(elf: &[u8]) -> usize {
         assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
         let obj = object::File::parse(elf).expect("failed to parse ELF file");
@@ -111,31 +110,11 @@ impl Process {
 
         free_start = free_start.align_up(0x1000) + 0x1000;
 
-        let page_table_frame = alloc_frame().expect("failed to alloc frame for process page table");
-        let page_table_page = Page::around(alloc_vmem(4096));
-        unsafe {
-            map_to(
-                &page_table_page,
-                &page_table_frame,
-                PageTableFlags::PRESENT
-                    | PageTableFlags::WRITABLE
-                    | PageTableFlags::USER_ACCESSIBLE,
-            )
-            .expect("failed to map page table page");
-        };
-
         let kernel_page_table = active_level_4_table(); // TODO: this may break if we are currently running a process
 
-        //safety: this page table is invalid right now, but we overwrite it before it's used
-        let process_page_table = page_table_page.start_address().as_mut_ptr::<PageTable>();
+        let (process_page_table, page_table_frame) = empty_page_table();
         let process_page_table = unsafe { &mut *process_page_table };
-
-        process_page_table
-            .iter_mut()
-            .zip(kernel_page_table.iter())
-            .for_each(|(process_entry, kernel_entry)| {
-                *process_entry = kernel_entry.clone();
-            });
+        copy_pagetable(kernel_page_table, process_page_table);
 
         let mut process_mapper = unsafe { Mapper::new(physical_mem_offset(), process_page_table) };
 
@@ -215,8 +194,6 @@ impl Process {
             let start_addr = VirtualAddress::new(segment.address());
             let end_addr = start_addr + segment.size();
 
-            //TODO: check address bounds
-
             let mut page = Page::around(start_addr);
             let end_page = Page::around(end_addr);
 
@@ -227,7 +204,7 @@ impl Process {
                     process_mapper
                         .map_to(
                             &page,
-                            crate::dbg!(&frame),
+                            &frame,
                             PageTableFlags::PRESENT
                                 | PageTableFlags::WRITABLE
                                 | PageTableFlags::USER_ACCESSIBLE,
@@ -246,6 +223,12 @@ impl Process {
             let dest = start_addr.as_mut_ptr::<u8>();
             let src = segment.data().unwrap();
 
+            crate::println!(
+                "copying segment from {:#x} to {:#x} to {:#x}",
+                src.as_ptr() as u64,
+                src.as_ptr() as u64 + src.len() as u64,
+                dest as u64
+            );
             let (current_pt_frame, flags) = CR3::read();
             without_interrupts(|| {
                 unsafe {
@@ -285,10 +268,6 @@ impl Process {
             context.r10 = user_heap_addr.as_u64();
             context.r11 = user_heap_size as u64;
 
-            crate::dbg!(process_mapper
-                .translate_addr(VirtualAddress::new(context.rip))
-                .unwrap());
-
             unsafe {
                 CR3::write(current_pt_frame, flags);
             }
@@ -302,6 +281,7 @@ impl Process {
                 user_stack_end,
                 kernel_stack_end,
             },
+            mapper: process_mapper,
             heap_start: user_heap_addr,
             heap_size: user_heap_size - 1,
             context_addr,

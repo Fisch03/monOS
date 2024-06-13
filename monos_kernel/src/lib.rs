@@ -41,16 +41,22 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
 
     // safety: the physical memory offset is valid since it was provided by the bootloader.
     // the bootloader config guarantees that the entire physical memory is mapped.
+    println!("init mem");
     unsafe { mem::init(&boot_info) };
 
+    println!("init fs");
     fs::init(boot_info);
 
+    println!("init apic");
     interrupts::init_apic();
+    println!("init acpi");
     acpi::init(boot_info);
 
     let fb = boot_info.framebuffer.take().unwrap();
+    println!("init framebuffer");
     framebuffer::init(fb);
 
+    println!("init devices");
     dev::init();
     interrupts::enable();
 }

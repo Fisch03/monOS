@@ -112,7 +112,7 @@ impl fmt::Debug for VirtualAddress {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct PhysicalAddress(u64);
 
