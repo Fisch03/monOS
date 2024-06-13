@@ -8,7 +8,7 @@ use crate::arch::registers;
 use crate::mem::VirtualAddress;
 use crate::utils::BitField;
 use core::{arch::asm, ptr::addr_of};
-use spin::Lazy;
+use spin::{Lazy, Mutex};
 
 const KERNEL_GS_BASE: u32 = 0xC000_0102;
 
@@ -17,7 +17,7 @@ const STACK_SIZE: usize = 4096 * 4;
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const TIMER_IST_INDEX: u16 = 1;
 
-pub static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
+pub static TSS: Lazy<Mutex<TaskStateSegment>> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();
 
     tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
@@ -34,15 +34,21 @@ pub static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
         static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
         VirtualAddress::from_ptr(unsafe { addr_of!(STACK) }) + STACK_SIZE as u64
     };
-    tss
+
+    Mutex::new(tss)
 });
 
 pub static GDT: Lazy<(GlobalDescriptorTable, Segments)> = Lazy::new(|| {
     let mut gdt = GlobalDescriptorTable::new();
 
+    let tss_ptr = {
+        let ptr = &*TSS.lock() as *const TaskStateSegment;
+        unsafe { &*ptr }
+    };
+
     let code = gdt.add_descriptor(SegmentDescriptor::kernel_code());
     let data = gdt.add_descriptor(SegmentDescriptor::kernel_data());
-    let tss_ss = gdt.add_descriptor(SegmentDescriptor::tss(&TSS));
+    let tss_ss = gdt.add_descriptor(SegmentDescriptor::tss(tss_ptr));
     let user_data = gdt.add_descriptor(SegmentDescriptor::user_data());
     let user_code = gdt.add_descriptor(SegmentDescriptor::user_code());
 
@@ -75,8 +81,13 @@ pub fn init() {
 }
 
 pub fn tss_address() -> VirtualAddress {
-    let tss_ptr = &*TSS as *const TaskStateSegment;
+    let tss_ptr = &*TSS.lock() as *const TaskStateSegment;
     VirtualAddress::from_ptr(tss_ptr)
+}
+
+pub fn set_kernel_stack(stack: VirtualAddress) {
+    let mut tss = TSS.lock();
+    tss.privilege_stack_table[0] = stack;
 }
 
 #[derive(Debug, Clone, Copy)]

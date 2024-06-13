@@ -1,18 +1,19 @@
 use crate::arch::registers::CR3;
-use crate::gdt::GDT;
+use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
     active_level_4_table, alloc_frame, alloc_vmem, map_to, physical_mem_offset, Frame, MapTo,
     Mapper, Page, PageTable, PageTableFlags, VirtualAddress,
 };
 
-use alloc::vec::Vec;
+use alloc::{boxed::Box, collections::VecDeque};
 use core::arch::asm;
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use object::{Object, ObjectSegment};
 use spin::RwLock;
 
-static PROCESSES: RwLock<Vec<Process>> = RwLock::new(Vec::new());
+static PROCESS_QUEUE: RwLock<VecDeque<Box<Process>>> = RwLock::new(VecDeque::new());
+static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
 static NEXT_PID: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone)]
@@ -23,11 +24,37 @@ struct Process {
     stacks: ProcessStacks,
     heap_start: VirtualAddress,
     heap_size: usize,
+    context_addr: VirtualAddress,
+}
+
+#[derive(Debug, Clone, Default)]
+#[repr(packed)]
+pub struct Context {
+    pub r15: u64,
+    pub r14: u64,
+    pub r13: u64,
+    pub r12: u64,
+    pub r11: u64,
+    pub r10: u64,
+    pub r9: u64,
+    pub r8: u64,
+
+    pub rbp: u64,
+    pub rsi: u64,
+    pub rdi: u64,
+    pub rdx: u64,
+    pub rcx: u64,
+    pub rbx: u64,
+    pub rax: u64,
+
+    rip: u64,
+    cs: u64,
+    rflags: u64,
+    rsp: u64,
+    ss: u64,
 }
 
 const USER_CODE_START: u64 = 0x10000;
-
-//TODO: raise these
 const KERNEL_STACK_SIZE: u64 = 0x1000;
 
 const ELF_BYTES: [u8; 4] = [0x7f, b'E', b'L', b'F'];
@@ -39,23 +66,43 @@ struct ProcessStacks {
 }
 
 pub fn spawn(elf: &[u8]) {
-    let pid = Process::new(elf);
-
-    let proc = {
-        let processes = PROCESSES.read();
-        processes.iter().find(|p| p.id == pid).unwrap().clone()
-    };
+    Process::new(elf);
 
     //set_kernel_stack(&proc);
-
-    // swap to user stack
-    proc.run();
 }
 
-// fn set_kernel_stack(proc: &Process) {
-//     let tss = unsafe { &mut *CoreLocal::get().tss.get() };
-//     tss.privilege_stack_table[0] = proc.stacks.kernel_stack_end;
-// }
+fn set_kernel_stack(proc: &Process) {
+    crate::gdt::set_kernel_stack(proc.stacks.kernel_stack_end);
+}
+
+pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
+    let mut processes = PROCESS_QUEUE.write();
+    let mut current = CURRENT_PROCESS.write();
+
+    if let Some(mut current) = current.take() {
+        current.context_addr = current_context_addr;
+
+        current.page_table_frame = CR3::read().0;
+
+        processes.push_back(current);
+    }
+
+    *current = processes.pop_front();
+
+    match current.as_ref() {
+        Some(current) => {
+            gdt::set_kernel_stack(current.stacks.kernel_stack_end);
+
+            let (_, flags) = CR3::read();
+            unsafe {
+                CR3::write(current.page_table_frame, flags);
+            }
+
+            current.context_addr
+        }
+        None => VirtualAddress::new(0),
+    }
+}
 
 impl Process {
     fn new(elf: &[u8]) -> usize {
@@ -110,6 +157,7 @@ impl Process {
                 )
                 .expect("failed to map stack page");
         }
+        let kernel_stack_end = kernel_stack_page.start_address() + KERNEL_STACK_SIZE;
 
         let user_stack_addr = free_start.clone();
         let mut user_stack_size = 0;
@@ -134,6 +182,8 @@ impl Process {
             free_start += 0x1000;
             user_stack_size += 0x1000;
         }
+        let user_stack_end = user_stack_addr + user_stack_size;
+
         free_start += 0x4000;
 
         let user_heap_addr = free_start.clone();
@@ -217,65 +267,52 @@ impl Process {
         }
 
         let id = NEXT_PID.fetch_add(1, Ordering::SeqCst);
+
+        let context_addr = user_stack_end - core::mem::size_of::<Context>() as u64;
+        without_interrupts(|| {
+            let (current_pt_frame, flags) = CR3::read();
+            unsafe {
+                CR3::write(page_table_frame, flags);
+            }
+
+            let context = unsafe { &mut *context_addr.as_mut_ptr::<Context>() };
+            context.rip = code_addr;
+            context.rflags = 0x200;
+
+            let data = GDT.1.user_data.as_u16();
+            let code = GDT.1.user_code.as_u16();
+            context.cs = code as u64;
+            context.ss = data as u64;
+
+            context.rsp = user_stack_end.as_u64();
+
+            context.r10 = user_heap_addr.as_u64();
+            context.r11 = user_heap_size as u64;
+
+            crate::dbg!(user_heap_addr);
+            crate::dbg!(user_heap_size);
+
+            unsafe {
+                CR3::write(current_pt_frame, flags);
+            }
+        });
+
         let process = Self {
             id,
             page_table_frame,
             code_addr,
             stacks: ProcessStacks {
-                user_stack_end: user_stack_addr + user_stack_size,
-                kernel_stack_end: kernel_stack_addr + KERNEL_STACK_SIZE,
+                user_stack_end,
+                kernel_stack_end,
             },
             heap_start: user_heap_addr,
             heap_size: user_heap_size - 1,
+            context_addr,
         };
 
-        let mut processes = PROCESSES.write();
-        processes.push(process);
+        let mut processes = PROCESS_QUEUE.write();
+        processes.push_front(Box::new(process));
 
         id
-    }
-
-    fn run(&self) {
-        let data = GDT.1.user_data.as_u16();
-        let code = GDT.1.user_code.as_u16();
-
-        let (_, flags) = CR3::read();
-        unsafe {
-            CR3::write(self.page_table_frame, flags);
-        }
-
-        // let (frame, flags) = CR3::read();
-        // unsafe {
-        //     CR3::write(frame, flags);
-        // }
-        unsafe {
-            crate::interrupts::disable();
-            asm!(
-                "push rax",
-                "push rsi",
-                "push 0x200",
-                "push rdx",
-                "push rdi",
-                "iretq",
-                in("rax") data,
-                in("rsi") self.stacks.user_stack_end.as_u64(),
-                in("rdx") code,
-                in("rdi") self.code_addr,
-                in("r10") self.heap_start.as_u64(),
-                in("r11") self.heap_size
-            );
-        }
-
-        // let stack_frame = InterruptStackFrame::new(
-        //     VirtualAddress::new(self.code_addr),
-        //     GDT.1.user_code,
-        //     0x200,
-        //     self.stacks.user_stack_end,
-        //     GDT.1.user_data,
-        // );
-
-        // unsafe {
-        //     stack_frame.iretq();
-        // }
     }
 }

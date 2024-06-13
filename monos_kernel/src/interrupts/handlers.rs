@@ -3,6 +3,9 @@ use super::InterruptStackFrame;
 use crate::eprintln;
 use crate::gdt::{DOUBLE_FAULT_IST_INDEX, TIMER_IST_INDEX};
 use crate::interrupts::apic::LOCAL_APIC;
+use crate::mem::VirtualAddress;
+
+use core::arch::asm;
 
 #[derive(Debug, Clone)]
 #[repr(u8)]
@@ -143,9 +146,72 @@ irq_handler!(hypervisor_injection_exception_handler);
 irq_handler_err!(vmm_communication_exception_handler);
 irq_handler_err!(security_exception_handler);
 
+#[naked]
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    // crate::print!(".");
+    unsafe {
+        asm!(
+            // disable interrupts
+            "cli",
+            // save registers onto stack (building a context struct)
+            "push rax",
+            "push rbx",
+            "push rcx",
+            "push rdx",
+            "push rdi",
+            "push rsi",
+            "push rbp",
+            "push r8",
+            "push r9",
+            "push r10",
+            "push r11",
+            "push r12",
+            "push r13",
+            "push r14",
+            "push r15",
+            // get current stack pointer to allow access to context
+            "mov rdi, rsp",
+            // call handler
+            "call {handler}",
+            // if the handler returns a new stack pointer, use it
+            "cmp rax, 0",
+            "je 2f",
+            "mov rsp, rax",
+            "2:",
+            // restore context
+            "pop r15",
+            "pop r14",
+            "pop r13",
+            "pop r12",
+            "pop r11",
+            "pop r10",
+            "pop r9",
+            "pop r8",
+            "pop rbp",
+            "pop rsi",
+            "pop rdi",
+            "pop rdx",
+            "pop rcx",
+            "pop rbx",
+            "pop rax",
+            // re-enable interrupts
+            "sti",
+            // all done!
+            "iretq",
+            handler = sym timer_interrupt_handler_inner,
+            options(noreturn),
+        );
+    }
+}
+
+extern "C" fn timer_interrupt_handler_inner(context_addr: u64) -> usize {
+    let context_addr = VirtualAddress::new(context_addr);
+
+    use crate::process;
+    let stack_pointer = process::schedule_next(context_addr);
+
     LOCAL_APIC.get().unwrap().eoi();
+
+    stack_pointer.as_usize()
 }
 
 extern "x86-interrupt" fn spurious_interrupt_handler(_stack_frame: InterruptStackFrame) {
