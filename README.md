@@ -161,7 +161,7 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] free on process exit
   - [ ] ipc
     - [ ] keyboard/mouse input 
-  - [x] get sse to work
+  - [ ] get sse to work
   - [ ] running doom
     - [ ] figure out linking
     - [ ] scuffed libc port

@@ -7,8 +7,7 @@ use crate::mem::{
 };
 
 use alloc::{boxed::Box, collections::VecDeque};
-use core::arch::asm;
-use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 use object::{Object, ObjectSegment};
 use spin::RwLock;
 
@@ -47,7 +46,7 @@ pub struct Context {
     pub rbx: u64,
     pub rax: u64,
 
-    rip: u64,
+    pub rip: u64,
     cs: u64,
     rflags: u64,
     rsp: u64,
@@ -67,12 +66,6 @@ struct ProcessStacks {
 
 pub fn spawn(elf: &[u8]) {
     Process::new(elf);
-
-    //set_kernel_stack(&proc);
-}
-
-fn set_kernel_stack(proc: &Process) {
-    crate::gdt::set_kernel_stack(proc.stacks.kernel_stack_end);
 }
 
 pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
@@ -84,6 +77,8 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 
         current.page_table_frame = CR3::read().0;
 
+        let old_id = current.id;
+        crate::dbg!(old_id);
         processes.push_back(current);
     }
 
@@ -91,6 +86,7 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 
     match current.as_ref() {
         Some(current) => {
+            crate::dbg!(current.id);
             gdt::set_kernel_stack(current.stacks.kernel_stack_end);
 
             let (_, flags) = CR3::read();
@@ -128,7 +124,7 @@ impl Process {
             .expect("failed to map page table page");
         };
 
-        let kernel_page_table = active_level_4_table();
+        let kernel_page_table = active_level_4_table(); // TODO: this may break if we are currently running a process
 
         //safety: this page table is invalid right now, but we overwrite it before it's used
         let process_page_table = page_table_page.start_address().as_mut_ptr::<PageTable>();
@@ -231,7 +227,7 @@ impl Process {
                     process_mapper
                         .map_to(
                             &page,
-                            &frame,
+                            crate::dbg!(&frame),
                             PageTableFlags::PRESENT
                                 | PageTableFlags::WRITABLE
                                 | PageTableFlags::USER_ACCESSIBLE,
@@ -268,7 +264,7 @@ impl Process {
 
         let id = NEXT_PID.fetch_add(1, Ordering::SeqCst);
 
-        let context_addr = user_stack_end - core::mem::size_of::<Context>() as u64;
+        let context_addr = kernel_stack_end - core::mem::size_of::<Context>() as u64;
         without_interrupts(|| {
             let (current_pt_frame, flags) = CR3::read();
             unsafe {
@@ -289,8 +285,9 @@ impl Process {
             context.r10 = user_heap_addr.as_u64();
             context.r11 = user_heap_size as u64;
 
-            crate::dbg!(user_heap_addr);
-            crate::dbg!(user_heap_size);
+            crate::dbg!(process_mapper
+                .translate_addr(VirtualAddress::new(context.rip))
+                .unwrap());
 
             unsafe {
                 CR3::write(current_pt_frame, flags);
@@ -309,6 +306,13 @@ impl Process {
             heap_size: user_heap_size - 1,
             context_addr,
         };
+
+        crate::println!(
+            "spawned process {}, entry: {:#x}, pt: {:#x}",
+            id,
+            process.code_addr,
+            process.page_table_frame.start_address().as_u64()
+        );
 
         let mut processes = PROCESS_QUEUE.write();
         processes.push_front(Box::new(process));

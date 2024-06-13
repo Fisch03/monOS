@@ -75,8 +75,10 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         data
     };
 
-    process::spawn(&hello.as_slice());
-    process::spawn(&bye.as_slice());
+    interrupts::without_interrupts(|| {
+        process::spawn(&hello.as_slice());
+        process::spawn(&bye.as_slice());
+    });
 
     loop {
         unsafe {

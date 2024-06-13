@@ -3,7 +3,7 @@ use super::InterruptStackFrame;
 use crate::eprintln;
 use crate::gdt::{DOUBLE_FAULT_IST_INDEX, TIMER_IST_INDEX};
 use crate::interrupts::apic::LOCAL_APIC;
-use crate::mem::VirtualAddress;
+use crate::mem::{translate_addr, VirtualAddress};
 
 use core::arch::asm;
 

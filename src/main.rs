@@ -9,9 +9,9 @@ fn main() {
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
     // if uefi {
     cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
-    cmd.arg("-serial").arg("stdio");
-    // cmd.arg("-s").arg("-S");
-    // cmd.arg("-monitor").arg("stdio");
+    //cmd.arg("-serial").arg("stdio");
+    cmd.arg("-s").arg("-S");
+    cmd.arg("-monitor").arg("stdio");
     cmd.arg("-drive")
         .arg(format!("format=raw,file={uefi_path}"));
     // } else {

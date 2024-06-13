@@ -66,6 +66,11 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
         manifest_dir.join("monos_std").display()
     );
 
+    println!(
+        "cargo:rerun-if-changed={}",
+        manifest_dir.join("x86_64-monos_user.json").display()
+    );
+
     for user_crate in fs::read_dir(crates_dir).unwrap() {
         println!(
             "cargo:rerun-if-changed={}",
