@@ -6,4 +6,3 @@ edition = "2021"
 [dependencies]
 monos_std = { path = "../../monos_std" }
 
-

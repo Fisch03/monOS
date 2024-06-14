@@ -32,8 +32,8 @@ pub fn kernel_init(boot_info: &'static mut BootInfo) {
         let mut cr4 = CR4::read();
 
         cr4.set_bit(CR4::ENABLE_MACHINE_CHECK, true);
-        cr4.set_bit(CR4::ENABLE_SSE, true);
-        cr4.set_bit(CR4::ENABLE_UNMASKED_SSE, true);
+        // cr4.set_bit(CR4::ENABLE_SSE, true);
+        // cr4.set_bit(CR4::ENABLE_UNMASKED_SSE, true);
         cr4.set_bit(CR4::TIME_STAMP_DISABLE, false);
 
         unsafe { CR4::write(cr4) };

@@ -11,7 +11,6 @@ use monos_std::prelude::*;
 #[no_mangle]
 fn main() {
     loop {
-        syscall::print("oats curry!\n");
-        // println!("oats curry!");
+        println!("oats curry!");
     }
 }

@@ -30,10 +30,7 @@ pub static TSS: Lazy<Mutex<TaskStateSegment>> = Lazy::new(|| {
         VirtualAddress::from_ptr(unsafe { addr_of!(STACK) }) + STACK_SIZE as u64
     };
 
-    tss.privilege_stack_table[0] = {
-        static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-        VirtualAddress::from_ptr(unsafe { addr_of!(STACK) }) + STACK_SIZE as u64
-    };
+    tss.privilege_stack_table[0] = tss.interrupt_stack_table[TIMER_IST_INDEX as usize];
 
     Mutex::new(tss)
 });
@@ -87,7 +84,7 @@ pub fn tss_address() -> VirtualAddress {
 
 pub fn set_kernel_stack(stack: VirtualAddress) {
     let mut tss = TSS.lock();
-    tss.privilege_stack_table[0] = stack;
+    tss.interrupt_stack_table[TIMER_IST_INDEX as usize] = stack;
 }
 
 #[derive(Debug, Clone, Copy)]

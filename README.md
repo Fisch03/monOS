@@ -71,9 +71,9 @@ only PS2 mouse/keyboard support for now. i want to implement USB at some point b
 monOS does use the newer APIC instead of the old fashioned 8259 PIC since its support seems to be (basically?) nonexistent under UEFI.
 
 ### memory
-the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 16MiB.
+the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 4MiB.
 i would have raised this further if it wasn't for the fact that the page allocator currently is slow as heck (mostly because it doesn't allow allocating bigger blocks at once).
-allocating the kernel heap already makes up most of boot time as-is, so i'd rather not raise it until that's solved. it's not like monOS uses even remotely close to the full 16MiB anyways.
+allocating the kernel heap already makes up most of boot time as-is, so i'd rather not raise it until that's solved. it's not like monOS uses even remotely close to the full 4MiB anyways.
 
 #### allocation
 monOS currently uses the following algorithms for allocating memory:
@@ -135,7 +135,6 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [x] ps2 mouse input
 - [ ] gui
   - [ ] decently usable immediate mode gui library
-    - [ ] windows with seperate framebuffers
     - [ ] ...
   - [x] boot screen 
   - [ ] desktop environment (`rooftop`)
@@ -143,7 +142,7 @@ the build script automatically builds all the crates in the [`userspace` directo
 - [ ] task management
   - [ ] async executor
   - [x] process spawning
-  - [ ] scheduler
+  - [x] scheduler
 - [ ] getting to userspace
   - [x] map kernel to upper half
   - [x] it works!
@@ -161,7 +160,7 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] free on process exit
   - [ ] ipc
     - [ ] keyboard/mouse input 
-  - [ ] get sse to work
+  - [ ] get sse/avx to work
   - [ ] running doom
     - [ ] figure out linking
     - [ ] scuffed libc port
@@ -186,7 +185,7 @@ the build script automatically builds all the crates in the [`userspace` directo
   - [ ] block device drivers
 - [ ] multiprocessor support (maybe)
 - [ ] USB support (maybe)
-- [ ] whatever else comes to mind :)
+- [ ] whatever else comes to mind (suggest something!) :)
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_cheers.png" />
 

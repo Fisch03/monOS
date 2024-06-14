@@ -76,10 +76,8 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     };
 
     interrupts::without_interrupts(|| {
-        // 6a5d000
         process::spawn(&hello.as_slice());
 
-        // 6acf000
         process::spawn(&bye.as_slice());
     });
 

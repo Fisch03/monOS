@@ -1,6 +1,6 @@
 use crate::mem::{self, VirtualAddress};
 
-use bootloader_api::info::{FrameBuffer as RawFrameBuffer, FrameBufferInfo};
+use bootloader_api::info::FrameBuffer as RawFrameBuffer;
 use core::slice;
 use spin::{Mutex, MutexGuard, Once};
 

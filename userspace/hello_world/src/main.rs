@@ -11,7 +11,6 @@ use monos_std::prelude::*;
 #[no_mangle]
 fn main() {
     loop {
-        syscall::print("good mononing!\n");
-        // println!("good mononing!");
+        println!("good mononing!");
     }
 }

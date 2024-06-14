@@ -59,7 +59,10 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
     let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let target_dir = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| manifest_dir.join("target"));
+        .unwrap_or_else(|| manifest_dir.join("target"))
+        .join("userspace");
+
+    let profile = std::env::var("PROFILE").unwrap();
 
     println!(
         "cargo:rerun-if-changed={}",
@@ -82,13 +85,21 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
         let mut cargo = std::process::Command::new("cargo");
         cargo
             .arg("rustc")
-            .arg("--release")
             .arg("--target")
             .arg(manifest_dir.join("x86_64-monos_user.json"))
             .arg("-Zbuild-std=core,alloc,compiler_builtins")
             .arg("-Zbuild-std-features=compiler-builtins-mem")
             .arg("--manifest-path")
-            .arg(crate_path.join("Cargo.toml"))
+            .arg(crate_path.join("Cargo.toml"));
+
+        match profile.as_str() {
+            "release" => {
+                cargo.arg("--release");
+            }
+            _ => {}
+        }
+
+        cargo
             .arg("--")
             .arg("-Clink-arg=--image-base=0x10000")
             .env("CARGO_TARGET_DIR", &target_dir);

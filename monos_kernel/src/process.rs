@@ -6,7 +6,7 @@ use crate::mem::{
     physical_mem_offset, Frame, MapTo, Mapper, Page, PageTable, PageTableFlags, VirtualAddress,
 };
 
-use alloc::{boxed::Box, collections::VecDeque};
+use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use object::{Object, ObjectSegment};
 use spin::RwLock;
@@ -16,11 +16,10 @@ static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
 static NEXT_PID: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug)]
-struct Process<'pt> {
+struct Process {
+    #[allow(dead_code)]
     id: usize,
     page_table_frame: Frame,
-    mapper: Mapper<'pt>,
-    code_addr: u64,
     stacks: ProcessStacks,
     heap_start: VirtualAddress,
     heap_size: usize,
@@ -63,6 +62,7 @@ const ELF_BYTES: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 struct ProcessStacks {
     user_stack_end: VirtualAddress,
     kernel_stack_end: VirtualAddress,
+    kernel_stack: Vec<u8>,
 }
 
 pub fn spawn(elf: &[u8]) {
@@ -71,6 +71,12 @@ pub fn spawn(elf: &[u8]) {
 
 pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
     let mut processes = PROCESS_QUEUE.write();
+
+    // small optimization: if there are no other processes, don't bother switching
+    if processes.is_empty() {
+        return VirtualAddress::new(0);
+    }
+
     let mut current = CURRENT_PROCESS.write();
 
     if let Some(mut current) = current.take() {
@@ -78,7 +84,6 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 
         current.page_table_frame = CR3::read().0;
 
-        let old_id = current.id;
         processes.push_back(current);
     }
 
@@ -99,7 +104,7 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
     }
 }
 
-impl Process<'static> {
+impl Process {
     fn new(elf: &[u8]) -> usize {
         assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
         let obj = object::File::parse(elf).expect("failed to parse ELF file");
@@ -117,22 +122,6 @@ impl Process<'static> {
         copy_pagetable(kernel_page_table, process_page_table);
 
         let mut process_mapper = unsafe { Mapper::new(physical_mem_offset(), process_page_table) };
-
-        let kernel_stack_addr = crate::mem::alloc_vmem(KERNEL_STACK_SIZE);
-        let kernel_stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
-        let kernel_stack_page = Page::around(kernel_stack_addr);
-        unsafe {
-            process_mapper
-                .map_to(
-                    &kernel_stack_page,
-                    &kernel_stack_frame,
-                    PageTableFlags::PRESENT
-                        | PageTableFlags::WRITABLE
-                        | PageTableFlags::USER_ACCESSIBLE,
-                )
-                .expect("failed to map stack page");
-        }
-        let kernel_stack_end = kernel_stack_page.start_address() + KERNEL_STACK_SIZE;
 
         let user_stack_addr = free_start.clone();
         let mut user_stack_size = 0;
@@ -247,6 +236,10 @@ impl Process<'static> {
 
         let id = NEXT_PID.fetch_add(1, Ordering::SeqCst);
 
+        let kernel_stack = Vec::with_capacity(KERNEL_STACK_SIZE as usize);
+        let kernel_stack_start = VirtualAddress::from_ptr(kernel_stack.as_ptr());
+        let kernel_stack_end = kernel_stack_start + KERNEL_STACK_SIZE;
+
         let context_addr = kernel_stack_end - core::mem::size_of::<Context>() as u64;
         without_interrupts(|| {
             let (current_pt_frame, flags) = CR3::read();
@@ -255,6 +248,8 @@ impl Process<'static> {
             }
 
             let context = unsafe { &mut *context_addr.as_mut_ptr::<Context>() };
+            *context = Context::default();
+
             context.rip = code_addr;
             context.rflags = 0x200;
 
@@ -276,23 +271,17 @@ impl Process<'static> {
         let process = Self {
             id,
             page_table_frame,
-            code_addr,
             stacks: ProcessStacks {
                 user_stack_end,
                 kernel_stack_end,
+                kernel_stack,
             },
-            mapper: process_mapper,
             heap_start: user_heap_addr,
             heap_size: user_heap_size - 1,
             context_addr,
         };
 
-        crate::println!(
-            "spawned process {}, entry: {:#x}, pt: {:#x}",
-            id,
-            process.code_addr,
-            process.page_table_frame.start_address().as_u64()
-        );
+        crate::println!("spawned process {:#?}", process);
 
         let mut processes = PROCESS_QUEUE.write();
         processes.push_front(Box::new(process));

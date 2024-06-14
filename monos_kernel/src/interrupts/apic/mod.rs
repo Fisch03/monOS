@@ -1,4 +1,5 @@
 mod pic;
+mod pit;
 
 mod local_apic;
 use local_apic::{LocalAPIC, LocalAPICField};
@@ -122,7 +123,7 @@ pub fn init() {
         let mut local_apic = LocalAPIC::new(page.start_address());
 
         local_apic.write(LocalAPICField::TimerDivideConfig, 0b11);
-        local_apic.write(LocalAPICField::TimerInitialCount, 100_000);
+        local_apic.write(LocalAPICField::TimerInitialCount, 1_000_000); //TODO: measure apic speed using the pit and adjust the timer accordingly
 
         local_apic
     });

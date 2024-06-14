@@ -52,13 +52,13 @@ impl VirtualAddress {
         self.0 & (align - 1) == 0
     }
 
-    #[inline]
+    #[inline(always)]
     #[allow(dead_code)]
     pub fn as_u64(&self) -> u64 {
         self.0
     }
 
-    #[inline]
+    #[inline(always)]
     #[allow(dead_code)]
     pub fn as_usize(&self) -> usize {
         self.0 as usize
@@ -157,12 +157,12 @@ impl PhysicalAddress {
         self.0 & 0xfff
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn as_u64(&self) -> u64 {
         self.0
     }
 
-    #[inline]
+    #[inline(always)]
     #[allow(dead_code)]
     pub fn as_usize(&self) -> usize {
         self.0 as usize

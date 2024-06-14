@@ -68,8 +68,8 @@ impl CR3 {
 pub struct CR4;
 impl CR4 {
     pub const ENABLE_MACHINE_CHECK: usize = 6;
-    pub const ENABLE_SSE: usize = 9;
-    pub const ENABLE_UNMASKED_SSE: usize = 10;
+    // pub const ENABLE_SSE: usize = 9;
+    // pub const ENABLE_UNMASKED_SSE: usize = 10;
     pub const TIME_STAMP_DISABLE: usize = 2;
 
     #[inline]

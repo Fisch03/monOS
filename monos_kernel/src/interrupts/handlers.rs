@@ -3,7 +3,7 @@ use super::InterruptStackFrame;
 use crate::eprintln;
 use crate::gdt::{DOUBLE_FAULT_IST_INDEX, TIMER_IST_INDEX};
 use crate::interrupts::apic::LOCAL_APIC;
-use crate::mem::{translate_addr, VirtualAddress};
+use crate::mem::VirtualAddress;
 
 use core::arch::asm;
 
@@ -203,7 +203,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     }
 }
 
-extern "C" fn timer_interrupt_handler_inner(context_addr: u64) -> usize {
+extern "C" fn timer_interrupt_handler_inner(context_addr: u64) -> u64 {
     let context_addr = VirtualAddress::new(context_addr);
 
     use crate::process;
@@ -211,7 +211,7 @@ extern "C" fn timer_interrupt_handler_inner(context_addr: u64) -> usize {
 
     LOCAL_APIC.get().unwrap().eoi();
 
-    stack_pointer.as_usize()
+    stack_pointer.as_u64()
 }
 
 extern "x86-interrupt" fn spurious_interrupt_handler(_stack_frame: InterruptStackFrame) {
