@@ -8,6 +8,8 @@ use super::{Frame, PageSize4K};
 pub struct FrameAllocator {
     map: BitArray<32768>, // enough for 1 GiB of memory
     start: PhysicalAddress,
+    start_number: usize,
+    last_allocated: usize,
 }
 
 impl FrameAllocator {
@@ -39,14 +41,24 @@ impl FrameAllocator {
 
         Self {
             map,
+            start_number: start_frame_number,
             start: start_frame.start_address(),
+            last_allocated: 0,
         }
     }
 
     pub fn allocate_frame(&mut self) -> Option<Frame> {
-        let frame = self.map.iter().position(|b| !b)?;
+        let frame = if let Some(position) = self.map.iter_from(self.last_allocated).position(|b| !b)
+        {
+            position + self.last_allocated
+        } else {
+            self.map.iter().position(|b| !b)?
+        };
         self.map.set(frame, true);
+        self.last_allocated = frame + 1;
+
         let frame_addr = self.start + (frame as u64 * 4096);
+
         Some(Frame::new(frame_addr).unwrap())
     }
 
@@ -54,8 +66,10 @@ impl FrameAllocator {
     //     let mut curr = Frame::around(start);
     //     let end = PhysicalAddress::new(start.as_u64() + size as u64 + 4096).align(4096);
     //     while curr.start_address().as_u64() <= end.as_u64() {
-    //         let frame = curr.number() as usize;
-    //         self.map.set(frame, true);
+    //         let curr_num = curr.number() as usize;
+    //         if curr_num >= self.start_number {
+    //             self.map.set(curr_num - self.start_number, true);
+    //         }
     //         curr = Frame::new(curr.end_address()).unwrap();
     //     }
     // }

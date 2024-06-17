@@ -39,6 +39,14 @@ impl<const NUM_BYTES: usize> BitArray<NUM_BYTES> {
     pub fn iter(&self) -> BitArrayIter<'_, NUM_BYTES> {
         self.into_iter()
     }
+
+    #[inline]
+    pub fn iter_from(&self, start: usize) -> BitArrayIter<'_, NUM_BYTES> {
+        BitArrayIter {
+            array: &self,
+            index: start,
+        }
+    }
 }
 
 impl<const NUM_BYTES: usize> fmt::Debug for BitArray<NUM_BYTES> {

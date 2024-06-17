@@ -1,5 +1,5 @@
 use crate::gdt::SegmentSelector;
-use crate::mem::{Frame, PageSize4K, PhysicalAddress};
+use crate::mem::{Frame, PageSize4K, PhysicalAddress, VirtualAddress};
 
 use core::arch::asm;
 
@@ -38,6 +38,18 @@ pub unsafe fn set_es(selector: SegmentSelector) {
 
 pub unsafe fn set_ss(selector: SegmentSelector) {
     set_segment!("ss", selector);
+}
+
+pub struct CR2;
+impl CR2 {
+    #[inline]
+    pub fn read() -> VirtualAddress {
+        let value: u64;
+        unsafe {
+            asm!("mov {}, cr2", out(reg) value, options(nomem, nostack, preserves_flags));
+        }
+        VirtualAddress::new(value)
+    }
 }
 
 pub struct CR3;

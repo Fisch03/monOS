@@ -31,27 +31,11 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
 
     // start the desktop environment
-    // let rooftop = {
-    //     let mut fs = fs().lock();
-    //     let rooftop = fs
-    //         .iter_root_dir()
-    //         .get_entry("bin/rooftop")
-    //         .unwrap()
-    //         .as_file()
-    //         .unwrap();
-    //
-    //     let mut data = alloc::vec![0u8; rooftop.size()];
-    //     rooftop.read_all(data.as_mut_slice());
-    //     data
-    // };
-
-    // process::spawn(&rooftop.as_slice());
-
-    let hello = {
+    let rooftop = {
         let mut fs = fs().lock();
         let file = fs
             .iter_root_dir()
-            .get_entry("bin/hello_world")
+            .get_entry("bin/rooftop")
             .unwrap()
             .as_file()
             .unwrap();
@@ -61,25 +45,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         data
     };
 
-    let bye = {
-        let mut fs = fs().lock();
-        let file = fs
-            .iter_root_dir()
-            .get_entry("bin/bye_world")
-            .unwrap()
-            .as_file()
-            .unwrap();
-
-        let mut data = alloc::vec![0u8; file.size()];
-        file.read_all(data.as_mut_slice());
-        data
-    };
-
-    interrupts::without_interrupts(|| {
-        process::spawn(&hello.as_slice());
-
-        process::spawn(&bye.as_slice());
-    });
+    process::spawn(&rooftop.as_slice());
 
     loop {
         unsafe {
@@ -130,7 +96,7 @@ fn panic(info: &PanicInfo) -> ! {
 
         // TODO
 
-        fb.update();
+        fb_guard.submit_kernel_frame();
     }
 
     loop {

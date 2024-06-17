@@ -1,82 +1,46 @@
 use crate::fonts;
 use crate::types::*;
+use alloc::{boxed::Box, vec, vec::Vec};
 
 const CHAR_WIDTH: usize = 6;
 const CHAR_HEIGHT: usize = 13;
 
-pub struct OpenedFramebuffer {
-    dimensions: Dimension,
+#[derive(Debug, Clone, Copy)]
+pub struct FramebufferInfo {
+    pub dimensions: Dimension,
 
-    stride: usize,
-    bytes_per_pixel: usize,
-
-    front_buffer: &'static mut [u8],
-    back_buffer: &'static mut [u8],
+    pub stride: usize,
+    pub bytes_per_pixel: usize,
 }
 
-use core::fmt;
-impl fmt::Debug for OpenedFramebuffer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OpenedFramebuffer")
-            .field("dimensions", &self.dimensions)
-            .field("stride", &self.stride)
-            .field("bytes_per_pixel", &self.bytes_per_pixel)
-            .field("front_buffer length", &self.front_buffer.len())
-            .field("back_buffer length", &self.back_buffer.len())
-            .finish()
-    }
+#[derive(Debug)]
+pub struct Framebuffer {
+    buffer: Vec<u8>,
+    // buffer: [u8; 4096000],
+    info: FramebufferInfo,
 }
 
-impl OpenedFramebuffer {
-    pub fn new(
-        front_buffer: &'static mut [u8],
-        back_buffer: &'static mut [u8],
-        dimensions: Dimension,
-        stride: usize,
-        bytes_per_pixel: usize,
-    ) -> Self {
-        back_buffer.fill(0);
-
-        let mut fb = Self {
-            dimensions,
-            stride,
-            bytes_per_pixel,
-
-            front_buffer,
-            back_buffer,
-        };
-
-        fb.update();
-
-        fb
+impl Framebuffer {
+    pub fn new(info: FramebufferInfo) -> Self {
+        let buffer = vec![0; info.dimensions.width * info.dimensions.height * info.bytes_per_pixel];
+        Self { buffer, info }
     }
 
     #[inline]
-    fn clear(&mut self) {
+    pub fn info(&self) -> &FramebufferInfo {
+        &self.info
+    }
+
+    pub fn buffer(&self) -> &[u8] {
+        self.buffer.as_ref()
+    }
+
+    #[inline(always)]
+    pub fn clear(&mut self) {
         // for some reason, the builtin fill function is *really* slow, so we'll do it manually
         // self.back_buffer.fill(0);
 
-        unsafe { core::ptr::write_bytes(self.back_buffer.as_mut_ptr(), 0, self.back_buffer.len()) };
-    }
-
-    #[inline]
-    fn swap_buffers(&mut self) {
-        // this fares a lot better than fill, but its still slower than manually copying
-        // self.front_buffer.copy_from_slice(self.back_buffer);
-
-        unsafe {
-            core::ptr::copy_nonoverlapping(
-                self.back_buffer.as_ptr(),
-                self.front_buffer.as_mut_ptr(),
-                self.back_buffer.len(),
-            );
-        }
-    }
-
-    #[inline]
-    pub fn update(&mut self) {
-        self.swap_buffers();
-        self.clear();
+        unsafe { core::ptr::write_bytes(self.buffer.as_mut_ptr(), 0, self.buffer.len()) };
     }
 
     fn draw_char(&mut self, color: &Color, character: char, position: &Position, overdraw: bool) {
@@ -126,19 +90,19 @@ impl OpenedFramebuffer {
 
     #[inline]
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
-        if position.x >= self.dimensions.width || position.y >= self.dimensions.height {
+        if position.x >= self.info.dimensions.width || position.y >= self.info.dimensions.height {
             return;
         }
 
-        let y_offset_lower = position.y * self.stride;
+        let y_offset_lower = position.y * self.info.stride;
         let offset = y_offset_lower + position.x;
 
-        self.draw_pixel_raw(offset * self.bytes_per_pixel, color);
+        self.draw_pixel_raw(offset * self.info.bytes_per_pixel, color);
     }
 
     #[inline]
     fn draw_pixel_raw(&mut self, byte_offset: usize, color: &Color) {
-        let pixel_bytes = &mut self.back_buffer[byte_offset..];
+        let pixel_bytes = &mut self.buffer[byte_offset..];
         // match self.info.pixel_format {
         //     PixelFormat::Rgb => {
         pixel_bytes[0] = color.r;

@@ -46,6 +46,13 @@ pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
         ));
         let mut frame_allocator = FrameAllocator::new(&boot_info.memory_regions, start_frame);
 
+        // if let Some(ramdisk_addr) = boot_info.ramdisk_addr.as_ref() {
+        //     let ramdisk_phys = translate_addr(VirtualAddress::new(*ramdisk_addr))
+        //         .expect("failed to translate ramdisk address");
+        //
+        //     frame_allocator.reserve_range(ramdisk_phys, boot_info.ramdisk_len as usize);
+        // }
+
         Mutex::new(frame_allocator)
     });
 }
@@ -142,6 +149,76 @@ pub fn copy_pagetable(source_l4: &PageTable, target_l4: &mut PageTable) {
     }
 
     copy_recursive(physical_mem_offset(), source_l4, target_l4, 4);
+}
+
+pub fn create_user_demand_pages(
+    mapper: &mut Mapper,
+    start: VirtualAddress,
+    size: u64,
+) -> Result<(), MapToError> {
+    let initial_frame = alloc_frame().ok_or(MapToError::OutOfMemory)?;
+
+    let mut page = Page::around(start);
+    let end_page: Page<PageSize4K> = Page::around(page.start_address() + size).next();
+    crate::dbg!(end_page);
+
+    // make the first page usable normally
+    unsafe {
+        mapper.map_to(
+            &page,
+            &initial_frame,
+            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE,
+        )?;
+    }
+
+    page = page.next();
+
+    // map the rest to the same frame, but with only read permissions. they will trigger a page
+    // fault when written which allows us to allocate the frame lazily.
+    loop {
+        unsafe {
+            mapper.map_to_with_parent_flags(
+                &page,
+                &initial_frame,
+                PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE,
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::USER_ACCESSIBLE,
+            )?;
+        }
+
+        if page == end_page {
+            break;
+        }
+
+        page = page.next();
+    }
+
+    Ok(())
+}
+
+pub fn alloc_demand_page(virt: VirtualAddress) -> Result<(), &'static str> {
+    let mut table = active_level_4_table();
+    for index in [virt.p4_index(), virt.p3_index(), virt.p2_index()] {
+        let entry = &mut table[index];
+        table = unsafe { &mut *(physical_mem_offset() + entry.addr().as_u64()).as_mut_ptr() };
+    }
+    let entry = &mut table[virt.p1_index()];
+
+    if entry.flags() != (PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE) {
+        return Err("page is not demand-allocated");
+    }
+
+    let frame = alloc_frame().ok_or("failed to allocate frame for demand page")?;
+
+    unsafe {
+        entry.set_addr(frame.start_address());
+        entry.set_flags(
+            &(PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE),
+        );
+    }
+
+    Ok(())
 }
 
 pub trait PageSize: Copy {

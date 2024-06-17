@@ -72,8 +72,19 @@ monOS does use the newer APIC instead of the old fashioned 8259 PIC since its su
 
 ### memory
 the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 4MiB.
-i would have raised this further if it wasn't for the fact that the page allocator currently is slow as heck (mostly because it doesn't allow allocating bigger blocks at once).
+i would have raised this further if it wasn't for the fact that the frame allocator currently is slow as heck (mostly because it doesn't allow allocating bigger blocks at once).
 allocating the kernel heap already makes up most of boot time as-is, so i'd rather not raise it until that's solved. it's not like monOS uses even remotely close to the full 4MiB anyways.
+
+#### layout
+| type            | start                  | size  | page table indices |
+| --------------- | ---------------------- | ----- | ------------------ |
+| userspace code  |              0x200_000 |       | (  0, 0, 1, 0, 0)  |
+| userspace heap  |       0x28_000_000_000 |       | (  5, 0, 0, 0, 0)  |
+| userspace stack |      0x400_000_000_000 | 8 MiB | (128, 0, 0, 0, 0)  |
+| ???             |                        |       | (129, 0, 0, 0, 0)  |
+| --------------- | ---------------------- | ----- | ------------------ |
+| kernel code     | 0xffff_800_000_000_000 |       | (256, 0, 0, 0, 0)  |
+| kernel heap     | after kernel           | 4 MiB | 
 
 #### allocation
 monOS currently uses the following algorithms for allocating memory:
@@ -91,6 +102,7 @@ there is around 256TiB of virtual memory available for allocation. i just dont s
 
 the heap allocator is using the [linked_list_allocator](https://github.com/rust-osdev/linked-list-allocator) crate right now, because i couldn't be bothered to write my own.
 its something i still want to do at some point though.
+
 
 #### filesystem
 monOS (currently) has no way of accessing external disks, all data is kept within a ramdisk. this means that all data gets wiped when the os reboots. feel free to wreak havoc :P.
@@ -150,13 +162,13 @@ the build script automatically builds all the crates in the [`userspace` directo
     - [ ] using own implementation
   - [ ] syscalls
     - [x] it works!
-    - [x] framebuffer access
+    - [ ] framebuffer access
     - [ ] spawning/killing processes 
     - [ ] filesystem access
   - [ ] userspace memory
     - [x] heap
-    - [ ] sensible memory structure
-    - [ ] ondemand paging
+    - [x] sensible memory structure
+    - [x] ondemand paging
     - [ ] free on process exit
   - [ ] ipc
     - [ ] keyboard/mouse input 

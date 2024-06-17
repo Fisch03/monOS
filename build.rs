@@ -71,6 +71,11 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
 
     println!(
         "cargo:rerun-if-changed={}",
+        manifest_dir.join("monos_gfx").display()
+    );
+
+    println!(
+        "cargo:rerun-if-changed={}",
         manifest_dir.join("x86_64-monos_user.json").display()
     );
 
@@ -85,23 +90,15 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
         let mut cargo = std::process::Command::new("cargo");
         cargo
             .arg("rustc")
+            .arg("--release")
             .arg("--target")
             .arg(manifest_dir.join("x86_64-monos_user.json"))
             .arg("-Zbuild-std=core,alloc,compiler_builtins")
             .arg("-Zbuild-std-features=compiler-builtins-mem")
             .arg("--manifest-path")
-            .arg(crate_path.join("Cargo.toml"));
-
-        match profile.as_str() {
-            "release" => {
-                cargo.arg("--release");
-            }
-            _ => {}
-        }
-
-        cargo
+            .arg(crate_path.join("Cargo.toml"))
             .arg("--")
-            .arg("-Clink-arg=--image-base=0x10000")
+            .arg("-Clink-arg=--image-base=0x200000")
             .env("CARGO_TARGET_DIR", &target_dir);
 
         dbg!(&cargo);

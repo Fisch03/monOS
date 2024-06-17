@@ -8,17 +8,18 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
-use monos_gfx::OpenedFramebuffer;
+use monos_gfx::Framebuffer;
 
 #[no_mangle]
 fn main() {
     let mut fb = syscall::open_fb().unwrap();
+    println!("{:#?}", fb);
 
     loop {
         draw_cursor(&mut fb);
 
-        fb.update();
+        syscall::submit_frame(&fb);
     }
 }
 
-fn draw_cursor(fb: &mut OpenedFramebuffer) {}
+fn draw_cursor(fb: &mut Framebuffer) {}

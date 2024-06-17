@@ -3,37 +3,15 @@ use core::arch::asm;
 mod io;
 pub use io::*;
 
+mod gfx;
+pub use gfx::*;
+
 #[derive(Debug)]
 #[repr(u64)]
 pub enum Syscall {
     Print = 0,
     OpenFramebuffer = 1,
-}
-
-impl core::convert::TryFrom<u64> for Syscall {
-    type Error = ();
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Syscall::Print),
-            _ => Err(()),
-        }
-    }
-}
-
-#[inline(always)]
-pub fn open_fb() -> Option<crate::gfx::OpenedFramebuffer> {
-    use crate::gfx::OpenedFramebuffer;
-    let mut fb = None;
-
-    unsafe {
-        syscall_1(
-            Syscall::OpenFramebuffer,
-            &mut fb as *mut Option<OpenedFramebuffer> as u64,
-        )
-    };
-
-    fb
+    SubmitFrame = 2,
 }
 
 #[inline(always)]

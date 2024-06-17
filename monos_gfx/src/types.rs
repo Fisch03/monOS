@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -20,7 +20,7 @@ impl core::ops::Mul<usize> for &Position {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Dimension {
     pub width: usize,
     pub height: usize,
@@ -32,7 +32,7 @@ impl Dimension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Color {
     pub r: u8,
     pub g: u8,

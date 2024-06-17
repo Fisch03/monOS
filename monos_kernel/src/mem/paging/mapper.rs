@@ -25,12 +25,23 @@ pub enum TranslateError {
 }
 
 pub trait MapTo<S: PageSize> {
+    unsafe fn map_to_with_parent_flags(
+        &mut self,
+        page: &Page<S>,
+        frame: &Frame<S>,
+        flags: PageTableFlags,
+        parent_flags: PageTableFlags,
+    ) -> Result<(), MapToError>;
+
     unsafe fn map_to(
         &mut self,
         page: &Page<S>,
         frame: &Frame<S>,
         flags: PageTableFlags,
-    ) -> Result<(), MapToError>;
+    ) -> Result<(), MapToError> {
+        let parent_flags = flags.mask_parent();
+        self.map_to_with_parent_flags(page, frame, flags, parent_flags)
+    }
 
     fn unmap(&mut self, page: &Page<S>) -> Result<(), UnmapError>;
 }
@@ -136,14 +147,13 @@ impl<'pt> Mapper<'pt> {
 
 /// safety: the flags must be valid. the new mapping must not cause any undefined behavior (overlapping physical addresses, etc).
 impl MapTo<PageSize4K> for Mapper<'_> {
-    unsafe fn map_to(
+    unsafe fn map_to_with_parent_flags(
         &mut self,
         page: &Page<PageSize4K>,
         frame: &Frame<PageSize4K>,
         flags: PageTableFlags,
+        parent_flags: PageTableFlags,
     ) -> Result<(), MapToError> {
-        let parent_flags = flags.mask_parent();
-
         let l3 = self
             .manager
             .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
@@ -188,14 +198,13 @@ impl MapTo<PageSize4K> for Mapper<'_> {
 }
 
 impl MapTo<PageSize2M> for Mapper<'_> {
-    unsafe fn map_to(
+    unsafe fn map_to_with_parent_flags(
         &mut self,
         page: &Page<PageSize2M>,
         frame: &Frame<PageSize2M>,
         flags: PageTableFlags,
+        parent_flags: PageTableFlags,
     ) -> Result<(), MapToError> {
-        let parent_flags = flags.mask_parent();
-
         let l3 = self
             .manager
             .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;
@@ -234,14 +243,13 @@ impl MapTo<PageSize2M> for Mapper<'_> {
 }
 
 impl MapTo<PageSize1G> for Mapper<'_> {
-    unsafe fn map_to(
+    unsafe fn map_to_with_parent_flags(
         &mut self,
         page: &Page<PageSize1G>,
         frame: &Frame<PageSize1G>,
         flags: PageTableFlags,
+        parent_flags: PageTableFlags,
     ) -> Result<(), MapToError> {
-        let parent_flags = flags.mask_parent();
-
         let l3 = self
             .manager
             .get_or_create_table(&mut self.l4[page.p4_index()], parent_flags)?;

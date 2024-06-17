@@ -10,6 +10,7 @@ mod gfx;
 pub enum Syscall {
     Print = 0,
     OpenFramebuffer = 1,
+    SubmitFrame = 2,
 }
 
 impl core::convert::TryFrom<u64> for Syscall {
@@ -19,6 +20,7 @@ impl core::convert::TryFrom<u64> for Syscall {
         match value {
             0 => Ok(Syscall::Print),
             1 => Ok(Syscall::OpenFramebuffer),
+            2 => Ok(Syscall::SubmitFrame),
             _ => Err(()),
         }
     }
@@ -144,6 +146,7 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
                 crate::print!("{}", s);
             }
             Syscall::OpenFramebuffer => gfx::sys_open_fb(arg1),
+            Syscall::SubmitFrame => gfx::sys_submit_frame(arg1, arg2),
         }
     } else {
         crate::println!(

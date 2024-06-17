@@ -2,8 +2,9 @@ use crate::arch::registers::CR3;
 use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
-    active_level_4_table, alloc_frame, alloc_vmem, copy_pagetable, empty_page_table, map_to,
-    physical_mem_offset, Frame, MapTo, Mapper, Page, PageTable, PageTableFlags, VirtualAddress,
+    active_level_4_table, alloc_frame, alloc_vmem, copy_pagetable, create_user_demand_pages,
+    empty_page_table, map_to, physical_mem_offset, Frame, MapTo, Mapper, Page, PageTable,
+    PageTableFlags, VirtualAddress,
 };
 
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
@@ -14,6 +15,10 @@ use spin::RwLock;
 static PROCESS_QUEUE: RwLock<VecDeque<Box<Process>>> = RwLock::new(VecDeque::new());
 static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
 static NEXT_PID: AtomicUsize = AtomicUsize::new(0);
+
+pub fn current_pid() -> Option<usize> {
+    CURRENT_PROCESS.read().as_ref().map(|p| p.id())
+}
 
 #[derive(Debug)]
 struct Process {
@@ -53,8 +58,13 @@ pub struct Context {
     ss: u64,
 }
 
-const USER_CODE_START: u64 = 0x10000;
-const KERNEL_STACK_SIZE: u64 = 0x1000;
+const KERNEL_STACK_SIZE: u64 = 0x1000; // 4 KiB
+
+const USER_CODE_START: u64 = 0x200_000; // there is some bootloader stuff at 0x188_00
+const USER_STACK_START: u64 = 0x400_000_000_000;
+const USER_STACK_SIZE: u64 = 1024 * 1024 * 8; // 8 MiB
+const USER_HEAP_START: u64 = 0x28_000_000_000;
+const USER_HEAP_SIZE: u64 = 1024 * 1024 * 128; // 128 MiB
 
 const ELF_BYTES: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 
@@ -115,19 +125,24 @@ impl Process {
 
         free_start = free_start.align_up(0x1000) + 0x1000;
 
-        let kernel_page_table = active_level_4_table(); // TODO: this may break if we are currently running a process
+        let kernel_page_table = active_level_4_table();
 
         let (process_page_table, page_table_frame) = empty_page_table();
         let process_page_table = unsafe { &mut *process_page_table };
         copy_pagetable(kernel_page_table, process_page_table);
 
+        unsafe { CR3::write(page_table_frame, 0) };
+
         let mut process_mapper = unsafe { Mapper::new(physical_mem_offset(), process_page_table) };
 
-        let user_stack_addr = free_start.clone();
-        let mut user_stack_size = 0;
-        let mut user_stack_page = Page::around(user_stack_addr);
-        let user_stack_addr = user_stack_page.start_address();
-        for _ in 0..10 {
+        let user_stack_start = VirtualAddress::new(USER_STACK_START);
+        let mut user_stack_page = Page::around(user_stack_start);
+        let user_stack_end = user_stack_page.start_address() + USER_STACK_SIZE;
+        let user_stack_end_page = Page::around(user_stack_end);
+
+        user_stack_page = user_stack_page.next(); // skip one page to act as guard page
+
+        loop {
             let user_stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
 
             unsafe {
@@ -141,38 +156,21 @@ impl Process {
                     )
                     .expect("failed to map stack page");
             }
+
+            if user_stack_page == user_stack_end_page {
+                break;
+            }
+
             user_stack_page = user_stack_page.next();
 
             free_start += 0x1000;
-            user_stack_size += 0x1000;
         }
-        let user_stack_end = user_stack_addr + user_stack_size;
 
-        free_start += 0x4000;
+        // free_start += 0x4000;
 
-        let user_heap_addr = free_start.clone();
-        let mut user_heap_size = 0;
-        let mut user_heap_page = Page::around(user_heap_addr);
-        let user_heap_addr = user_heap_page.start_address();
-        for _ in 0..100 {
-            let user_heap_frame = alloc_frame().expect("failed to alloc frame for process heap");
-
-            unsafe {
-                process_mapper
-                    .map_to(
-                        &user_heap_page,
-                        &user_heap_frame,
-                        PageTableFlags::PRESENT
-                            | PageTableFlags::WRITABLE
-                            | PageTableFlags::USER_ACCESSIBLE,
-                    )
-                    .expect("failed to map heap page");
-            }
-            user_heap_page = user_heap_page.next();
-
-            free_start += 0x1000;
-            user_heap_size += 0x1000;
-        }
+        let user_heap_addr = VirtualAddress::new(USER_HEAP_START);
+        create_user_demand_pages(&mut process_mapper, user_heap_addr, USER_HEAP_SIZE)
+            .expect("failed to create user demand pages");
 
         let code_addr = obj.entry();
 
@@ -180,11 +178,12 @@ impl Process {
             if segment.address() < USER_CODE_START {
                 panic!("segment address too low");
             }
+
             let start_addr = VirtualAddress::new(segment.address());
             let end_addr = start_addr + segment.size();
 
             let mut page = Page::around(start_addr);
-            let end_page = Page::around(end_addr);
+            let end_page = Page::around(end_addr.align_up(0x1000));
 
             let mut frame = alloc_frame().expect("failed to alloc frame for process");
 
@@ -261,7 +260,7 @@ impl Process {
             context.rsp = user_stack_end.as_u64();
 
             context.r10 = user_heap_addr.as_u64();
-            context.r11 = user_heap_size as u64;
+            context.r11 = USER_HEAP_SIZE as u64 - 1;
 
             unsafe {
                 CR3::write(current_pt_frame, flags);
@@ -277,15 +276,26 @@ impl Process {
                 kernel_stack,
             },
             heap_start: user_heap_addr,
-            heap_size: user_heap_size - 1,
+            heap_size: USER_HEAP_SIZE as usize - 1,
             context_addr,
         };
 
-        crate::println!("spawned process {:#?}", process);
+        crate::println!(
+            "spawned process {}, entry at {:#x}, stack: {:#x}, heap: {:#x}",
+            id,
+            code_addr,
+            user_stack_end.as_u64(),
+            user_heap_addr.as_u64()
+        );
 
         let mut processes = PROCESS_QUEUE.write();
         processes.push_front(Box::new(process));
 
         id
+    }
+
+    #[inline]
+    fn id(&self) -> usize {
+        self.id
     }
 }

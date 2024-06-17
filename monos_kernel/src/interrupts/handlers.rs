@@ -3,7 +3,7 @@ use super::InterruptStackFrame;
 use crate::eprintln;
 use crate::gdt::{DOUBLE_FAULT_IST_INDEX, TIMER_IST_INDEX};
 use crate::interrupts::apic::LOCAL_APIC;
-use crate::mem::VirtualAddress;
+use crate::mem::{alloc_demand_page, VirtualAddress};
 
 use core::arch::asm;
 
@@ -127,11 +127,36 @@ extern "x86-interrupt" fn general_protection_fault_handler(
 }
 
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) {
-    let error_code = x86_64::structures::idt::PageFaultErrorCode::from_bits_truncate(error_code);
-    panic!(
-        "page fault\nerror code: {:#?}\n{:#?}",
-        error_code, stack_frame
-    );
+    use x86_64::structures::idt::PageFaultErrorCode;
+
+    let error_code = PageFaultErrorCode::from_bits_truncate(error_code);
+    let cr2 = crate::arch::registers::CR2::read();
+
+    if error_code
+        == (PageFaultErrorCode::PROTECTION_VIOLATION
+            | PageFaultErrorCode::CAUSED_BY_WRITE
+            | PageFaultErrorCode::USER_MODE)
+    {
+        // probably a ondemand page access, try allocating it
+        if let Err(msg) = alloc_demand_page(cr2) {
+            panic!(
+                "page fault\nerror code: {:#?}\ntried accessing memory address: {:#x}\ntried allocating demand page: {}\n{:#?}",
+                error_code,
+                cr2.as_u64(),
+                msg,
+                stack_frame,
+            );
+        }
+
+        crate::print!("allocated demand page at {:#x}\n", cr2.as_u64());
+    } else {
+        panic!(
+            "page fault\nerror code: {:#?}\ntried accessing memory address: {:#x}\n{:#?}",
+            error_code,
+            cr2.as_u64(),
+            stack_frame
+        );
+    }
 }
 
 irq_handler!(x87_floating_point_handler);
@@ -206,8 +231,18 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
 extern "C" fn timer_interrupt_handler_inner(context_addr: u64) -> u64 {
     let context_addr = VirtualAddress::new(context_addr);
 
+    // let context = unsafe { &*(context_addr.as_ptr::<crate::process::Context>()) };
+    // let rip = context.rip;
+    // crate::println!("before - rip: {:#x}", rip);
+
     use crate::process;
     let stack_pointer = process::schedule_next(context_addr);
+
+    // if stack_pointer.as_u64() != 0 {
+    //     let context = unsafe { &*(stack_pointer.as_ptr::<crate::process::Context>()) };
+    //     let rip = context.rip;
+    //     crate::println!("after - rip: {:#x}", rip);
+    // }
 
     LOCAL_APIC.get().unwrap().eoi();
 

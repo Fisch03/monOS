@@ -16,7 +16,7 @@ macro_rules! print {
         use core::fmt::Write;
 
         // TODO: figure out why format!() doesn't work
-        let mut s = String::new();
+        let mut s = $crate::prelude::String::new();
         let _ = write!(s, $($arg)*);
         $crate::syscall::print(&s);
 

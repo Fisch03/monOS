@@ -11,4 +11,4 @@ pub mod gui;
 mod fonts;
 
 mod framebuffer;
-pub use framebuffer::OpenedFramebuffer;
+pub use framebuffer::{Framebuffer, FramebufferInfo};
