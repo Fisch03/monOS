@@ -3,24 +3,16 @@ use crate::gfx::*;
 
 #[inline(always)]
 pub fn open_fb() -> Option<Framebuffer> {
-    let mut fb_info: Option<FramebufferInfo> = None;
+    let mut fb: Option<Framebuffer> = None;
 
     unsafe {
         syscall_1(
             Syscall::OpenFramebuffer,
-            &mut fb_info as *mut Option<FramebufferInfo> as u64,
+            &mut fb as *mut Option<Framebuffer> as u64,
         )
     };
 
-    let fb_info = fb_info?;
-
-    crate::println!("{:?}", fb_info);
-    crate::println!(
-        "{}",
-        fb_info.dimensions.width * fb_info.dimensions.height * fb_info.bytes_per_pixel,
-    );
-
-    Some(Framebuffer::new(fb_info))
+    fb
 }
 
 #[inline(always)]

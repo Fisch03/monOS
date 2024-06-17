@@ -62,7 +62,7 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
         .unwrap_or_else(|| manifest_dir.join("target"))
         .join("userspace");
 
-    let profile = std::env::var("PROFILE").unwrap();
+    //let profile = std::env::var("PROFILE").unwrap();
 
     println!(
         "cargo:rerun-if-changed={}",

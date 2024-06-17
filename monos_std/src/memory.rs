@@ -1,9 +1,12 @@
 use linked_list_allocator::LockedHeap;
 
+use crate::syscall;
+
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub(crate) unsafe fn init(heap_start: usize, heap_size: usize) {
+    syscall::print("init heap\n");
     unsafe { ALLOCATOR.lock().init(heap_start as *mut u8, heap_size) }
     crate::println!("heap size: {}", heap_size);
 }

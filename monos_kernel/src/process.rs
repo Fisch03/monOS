@@ -13,22 +13,28 @@ use object::{Object, ObjectSegment};
 use spin::RwLock;
 
 static PROCESS_QUEUE: RwLock<VecDeque<Box<Process>>> = RwLock::new(VecDeque::new());
-static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
+pub static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
 static NEXT_PID: AtomicUsize = AtomicUsize::new(0);
 
-pub fn current_pid() -> Option<usize> {
-    CURRENT_PROCESS.read().as_ref().map(|p| p.id())
-}
-
 #[derive(Debug)]
-struct Process {
-    #[allow(dead_code)]
+pub struct Process {
     id: usize,
+    mapper: Mapper<'static>,
     page_table_frame: Frame,
     stacks: ProcessStacks,
     heap_start: VirtualAddress,
     heap_size: usize,
     context_addr: VirtualAddress,
+}
+
+impl Process {
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn mapper(&mut self) -> &mut Mapper<'static> {
+        &mut self.mapper
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -62,7 +68,7 @@ const KERNEL_STACK_SIZE: u64 = 0x1000; // 4 KiB
 
 const USER_CODE_START: u64 = 0x200_000; // there is some bootloader stuff at 0x188_00
 const USER_STACK_START: u64 = 0x400_000_000_000;
-const USER_STACK_SIZE: u64 = 1024 * 1024 * 8; // 8 MiB
+const USER_STACK_SIZE: u64 = 1024 * 1024 * 4; // 4 MiB
 const USER_HEAP_START: u64 = 0x28_000_000_000;
 const USER_HEAP_SIZE: u64 = 1024 * 1024 * 128; // 128 MiB
 
@@ -269,6 +275,7 @@ impl Process {
 
         let process = Self {
             id,
+            mapper: process_mapper,
             page_table_frame,
             stacks: ProcessStacks {
                 user_stack_end,
@@ -292,10 +299,5 @@ impl Process {
         processes.push_front(Box::new(process));
 
         id
-    }
-
-    #[inline]
-    fn id(&self) -> usize {
-        self.id
     }
 }

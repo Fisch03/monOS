@@ -44,14 +44,7 @@ pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
         let start_frame = Frame::around(PhysicalAddress::new(
             boot_info.kernel_addr + boot_info.kernel_len,
         ));
-        let mut frame_allocator = FrameAllocator::new(&boot_info.memory_regions, start_frame);
-
-        // if let Some(ramdisk_addr) = boot_info.ramdisk_addr.as_ref() {
-        //     let ramdisk_phys = translate_addr(VirtualAddress::new(*ramdisk_addr))
-        //         .expect("failed to translate ramdisk address");
-        //
-        //     frame_allocator.reserve_range(ramdisk_phys, boot_info.ramdisk_len as usize);
-        // }
+        let frame_allocator = FrameAllocator::new(&boot_info.memory_regions, start_frame);
 
         Mutex::new(frame_allocator)
     });
@@ -91,6 +84,14 @@ pub fn alloc_frame() -> Option<Frame<PageSize4K>> {
         .expect("memory hasn't been initialized yet")
         .lock()
         .allocate_frame()
+}
+
+pub fn alloc_frames(count: usize) -> Option<Frame<PageSize4K>> {
+    FRAME_ALLOCATOR
+        .get()
+        .expect("memory hasn't been initialized yet")
+        .lock()
+        .allocate_consecutive(count)
 }
 
 pub fn empty_page_table() -> (*mut PageTable, Frame) {
@@ -160,7 +161,6 @@ pub fn create_user_demand_pages(
 
     let mut page = Page::around(start);
     let end_page: Page<PageSize4K> = Page::around(page.start_address() + size).next();
-    crate::dbg!(end_page);
 
     // make the first page usable normally
     unsafe {

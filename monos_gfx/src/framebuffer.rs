@@ -5,34 +5,53 @@ use alloc::{boxed::Box, vec, vec::Vec};
 const CHAR_WIDTH: usize = 6;
 const CHAR_HEIGHT: usize = 13;
 
-#[derive(Debug, Clone, Copy)]
-pub struct FramebufferInfo {
-    pub dimensions: Dimension,
-
-    pub stride: usize,
-    pub bytes_per_pixel: usize,
-}
-
 #[derive(Debug)]
 pub struct Framebuffer {
-    buffer: Vec<u8>,
-    // buffer: [u8; 4096000],
-    info: FramebufferInfo,
+    buffer: &'static mut [u8],
+    dimensions: Dimension,
+
+    stride: usize,
+    bytes_per_pixel: usize,
 }
 
 impl Framebuffer {
-    pub fn new(info: FramebufferInfo) -> Self {
-        let buffer = vec![0; info.dimensions.width * info.dimensions.height * info.bytes_per_pixel];
-        Self { buffer, info }
+    pub fn new(
+        buffer: &'static mut [u8],
+        dimensions: Dimension,
+        stride: usize,
+        bytes_per_pixel: usize,
+    ) -> Self {
+        Self {
+            buffer,
+            dimensions,
+            stride,
+            bytes_per_pixel,
+        }
     }
 
-    #[inline]
-    pub fn info(&self) -> &FramebufferInfo {
-        &self.info
-    }
-
+    #[inline(always)]
     pub fn buffer(&self) -> &[u8] {
         self.buffer.as_ref()
+    }
+
+    #[inline(always)]
+    pub fn dimensions(&self) -> Dimension {
+        self.dimensions
+    }
+
+    #[inline(always)]
+    pub fn stride(&self) -> usize {
+        self.stride
+    }
+
+    #[inline(always)]
+    pub fn bytes_per_pixel(&self) -> usize {
+        self.bytes_per_pixel
+    }
+
+    #[inline(always)]
+    pub fn byte_len(&self) -> usize {
+        self.buffer.len()
     }
 
     #[inline(always)]
@@ -90,14 +109,14 @@ impl Framebuffer {
 
     #[inline]
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
-        if position.x >= self.info.dimensions.width || position.y >= self.info.dimensions.height {
+        if position.x >= self.dimensions.width || position.y >= self.dimensions.height {
             return;
         }
 
-        let y_offset_lower = position.y * self.info.stride;
+        let y_offset_lower = position.y * self.stride;
         let offset = y_offset_lower + position.x;
 
-        self.draw_pixel_raw(offset * self.info.bytes_per_pixel, color);
+        self.draw_pixel_raw(offset * self.bytes_per_pixel, color);
     }
 
     #[inline]

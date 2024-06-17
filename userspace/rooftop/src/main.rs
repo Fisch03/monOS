@@ -13,9 +13,10 @@ use monos_gfx::Framebuffer;
 #[no_mangle]
 fn main() {
     let mut fb = syscall::open_fb().unwrap();
-    println!("{:#?}", fb);
 
     loop {
+        fb.clear();
+
         draw_cursor(&mut fb);
 
         syscall::submit_frame(&fb);

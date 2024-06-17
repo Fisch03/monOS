@@ -10,6 +10,10 @@ pub fn print(s: &str) {
     unsafe { syscall_2(Syscall::Print, ptr, len) };
 }
 
+pub fn open_input() {
+    //unsafe { syscall_1(Syscall::OpenInput) }
+}
+
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {{

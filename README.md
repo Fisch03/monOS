@@ -76,15 +76,15 @@ i would have raised this further if it wasn't for the fact that the frame alloca
 allocating the kernel heap already makes up most of boot time as-is, so i'd rather not raise it until that's solved. it's not like monOS uses even remotely close to the full 4MiB anyways.
 
 #### layout
-| type            | start                  | size  | page table indices |
-| --------------- | ---------------------- | ----- | ------------------ |
-| userspace code  |              0x200_000 |       | (  0, 0, 1, 0, 0)  |
-| userspace heap  |       0x28_000_000_000 |       | (  5, 0, 0, 0, 0)  |
-| userspace stack |      0x400_000_000_000 | 8 MiB | (128, 0, 0, 0, 0)  |
-| ???             |                        |       | (129, 0, 0, 0, 0)  |
-| --------------- | ---------------------- | ----- | ------------------ |
-| kernel code     | 0xffff_800_000_000_000 |       | (256, 0, 0, 0, 0)  |
-| kernel heap     | after kernel           | 4 MiB | 
+| type               | start                  | size  | page table indices |
+| ------------------ | ---------------------- | ----- | ------------------ |
+| userspace code     |              0x200_000 |       | (  0, 0, 1, 0, 0)  |
+| userspace heap     |       0x28_000_000_000 |       | (  5, 0, 0, 0, 0)  |
+| userspace stack    |      0x400_000_000_000 | 4 MiB | (128, 0, 0, 0, 0)  |
+| mapped framebuffer |      0x410_000_000_000 |       | (130, 0, 0, 0, 0)  |
+| ------------------ | ---------------------- | ----- | ------------------ |
+| kernel code        | 0xffff_800_000_000_000 |       | (256, 0, 0, 0, 0)  |
+| kernel heap        | after kernel           | 4 MiB |                    |
 
 #### allocation
 monOS currently uses the following algorithms for allocating memory:

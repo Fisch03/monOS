@@ -1,18 +1,24 @@
-use crate::process;
-use monos_gfx::FramebufferInfo;
+use crate::{mem::VirtualAddress, process};
+use monos_gfx::*;
 
 use super::LOWER_HALF_END;
 
 pub fn sys_open_fb(arg1: u64) {
     assert!(arg1 <= LOWER_HALF_END);
 
-    let fb_ptr = arg1 as *mut Option<FramebufferInfo>;
+    let fb_ptr = arg1 as *mut Option<Framebuffer>;
     let mut fb = unsafe { &mut *fb_ptr };
 
     if let Some(mut fb_guard) = crate::framebuffer::get() {
-        let process_id = process::current_pid().unwrap();
+        let mut current_proc = process::CURRENT_PROCESS.write();
+        let current_proc = current_proc.as_mut().unwrap();
 
-        fb_guard.borrow(&mut fb, process_id);
+        fb_guard.borrow(
+            current_proc.id(),
+            &mut fb,
+            current_proc.mapper(),
+            VirtualAddress::new(0x410000000000),
+        );
     }
 }
 

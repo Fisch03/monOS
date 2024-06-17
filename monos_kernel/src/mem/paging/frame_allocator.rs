@@ -62,6 +62,38 @@ impl FrameAllocator {
         Some(Frame::new(frame_addr).unwrap())
     }
 
+    pub fn allocate_consecutive(&mut self, amount: usize) -> Option<Frame> {
+        let mut start = None;
+        let mut count = 0;
+        for (i, b) in self.map.iter().enumerate() {
+            if !b {
+                if start.is_none() {
+                    start = Some(i);
+                }
+                count += 1;
+            } else {
+                start = None;
+                count = 0;
+            }
+
+            if count == amount {
+                break;
+            }
+        }
+
+        if let Some(start) = start {
+            for i in start..start + count {
+                self.map.set(i, true);
+            }
+
+            let frame_addr = self.start + (start as u64 * 4096);
+
+            Some(Frame::new(frame_addr).unwrap())
+        } else {
+            None
+        }
+    }
+
     // pub fn reserve_range(&mut self, start: PhysicalAddress, size: usize) {
     //     let mut curr = Frame::around(start);
     //     let end = PhysicalAddress::new(start.as_u64() + size as u64 + 4096).align(4096);
