@@ -7,7 +7,7 @@ pub fn open_fb() -> Option<Framebuffer> {
 
     unsafe {
         syscall_1(
-            Syscall::OpenFramebuffer,
+            Syscall::new(SyscallType::OpenFramebuffer),
             &mut fb as *mut Option<Framebuffer> as u64,
         )
     };
@@ -21,7 +21,7 @@ pub fn submit_frame(framebuffer: &Framebuffer) {
 
     unsafe {
         syscall_2(
-            Syscall::SubmitFrame,
+            Syscall::new(SyscallType::SubmitFrame),
             frame.as_ptr() as u64,
             frame.len() as u64,
         );

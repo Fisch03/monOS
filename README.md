@@ -70,21 +70,30 @@ BIOS boot is currently utterly broken and will not be supported going forward, s
 only PS2 mouse/keyboard support for now. i want to implement USB at some point but it seems like a huge pain. most vms and even hardware emulates PS2 from USB devices anyways.
 monOS does use the newer APIC instead of the old fashioned 8259 PIC since its support seems to be (basically?) nonexistent under UEFI.
 
+### messaging
+a process can use the `serve` syscall to provide a server at a given port (a port is basically just a unique string). any other thread can then send messages to that port using the `send` syscall.
+a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
+the send syscall is a bit special since it uses the syscall id to pass some additional parameters:
+| bits  | content                            |
+| ----- | ---------------------------------- |
+|  0- 7 | syscall id                         |
+|  8-15 | length of the port string          |
+| 16-48 | virtual address of the port string |
+| 49-63 | nothing... for now :)              |
+
 ### memory
-the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 4MiB.
-i would have raised this further if it wasn't for the fact that the frame allocator currently is slow as heck (mostly because it doesn't allow allocating bigger blocks at once).
-allocating the kernel heap already makes up most of boot time as-is, so i'd rather not raise it until that's solved. it's not like monOS uses even remotely close to the full 4MiB anyways.
+the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 16MiB.
 
 #### layout
-| type               | start                  | size  | page table indices |
-| ------------------ | ---------------------- | ----- | ------------------ |
-| userspace code     |              0x200_000 |       | (  0, 0, 1, 0, 0)  |
-| userspace heap     |       0x28_000_000_000 |       | (  5, 0, 0, 0, 0)  |
-| userspace stack    |      0x400_000_000_000 | 4 MiB | (128, 0, 0, 0, 0)  |
-| mapped framebuffer |      0x410_000_000_000 |       | (130, 0, 0, 0, 0)  |
-| ------------------ | ---------------------- | ----- | ------------------ |
-| kernel code        | 0xffff_800_000_000_000 |       | (256, 0, 0, 0, 0)  |
-| kernel heap        | after kernel           | 4 MiB |                    |
+| type               | start                  | size   | page table indices |
+| ------------------ | ---------------------- | ------ | ------------------ |
+| userspace code     |              0x200_000 |        | (  0, 0, 1, 0, 0)  |
+| userspace heap     |       0x28_000_000_000 |        | (  5, 0, 0, 0, 0)  |
+| userspace stack    |      0x400_000_000_000 | 4 MiB  | (128, 0, 0, 0, 0)  |
+| mapped framebuffer |      0x410_000_000_000 |        | (130, 0, 0, 0, 0)  |
+| ------------------ | ---------------------- | ------ | ------------------ |
+| kernel code        | 0xffff_800_000_000_000 |        | (256, 0, 0, 0, 0)  |
+| kernel heap        | after kernel           | 16 MiB |                    |
 
 #### allocation
 monOS currently uses the following algorithms for allocating memory:

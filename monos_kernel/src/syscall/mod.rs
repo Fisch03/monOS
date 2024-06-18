@@ -1,30 +1,11 @@
 use crate::arch::registers::MSR;
 use crate::gdt;
 
+use monos_std::syscall::{Syscall, SyscallType};
+
 use core::arch::asm;
 
 mod gfx;
-
-#[derive(Debug)]
-#[repr(u64)]
-pub enum Syscall {
-    Print = 0,
-    OpenFramebuffer = 1,
-    SubmitFrame = 2,
-}
-
-impl core::convert::TryFrom<u64> for Syscall {
-    type Error = ();
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Syscall::Print),
-            1 => Ok(Syscall::OpenFramebuffer),
-            2 => Ok(Syscall::SubmitFrame),
-            _ => Err(()),
-        }
-    }
-}
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
 const IA32_STAR_MSR: u32 = 0xC0000081;
@@ -130,9 +111,9 @@ extern "C" fn handle_syscall() {
 }
 
 extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64, arg4: u64) {
-    if let Ok(syscall_id) = Syscall::try_from(syscall_id) {
-        match syscall_id {
-            Syscall::Print => {
+    if let Ok(syscall) = Syscall::try_from(syscall_id) {
+        match syscall.ty {
+            SyscallType::Print => {
                 assert!(arg1 < LOWER_HALF_END);
                 assert!(arg1 + arg2 < LOWER_HALF_END);
 
@@ -145,8 +126,9 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
 
                 crate::print!("{}", s);
             }
-            Syscall::OpenFramebuffer => gfx::sys_open_fb(arg1),
-            Syscall::SubmitFrame => gfx::sys_submit_frame(arg1, arg2),
+            SyscallType::OpenFramebuffer => gfx::sys_open_fb(arg1),
+            SyscallType::SubmitFrame => gfx::sys_submit_frame(arg1, arg2),
+            _ => crate::println!("unimplemented syscall {:?}", syscall),
         }
     } else {
         crate::println!(

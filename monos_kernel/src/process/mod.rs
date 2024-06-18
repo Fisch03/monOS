@@ -1,10 +1,12 @@
+mod messaging;
+use messaging::Mailbox;
+
 use crate::arch::registers::CR3;
 use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
-    active_level_4_table, alloc_frame, alloc_vmem, copy_pagetable, create_user_demand_pages,
-    empty_page_table, map_to, physical_mem_offset, Frame, MapTo, Mapper, Page, PageTable,
-    PageTableFlags, VirtualAddress,
+    active_level_4_table, alloc_frame, copy_pagetable, create_user_demand_pages, empty_page_table,
+    physical_mem_offset, Frame, MapTo, Mapper, Page, PageTableFlags, VirtualAddress,
 };
 
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
@@ -21,10 +23,21 @@ pub struct Process {
     id: usize,
     mapper: Mapper<'static>,
     page_table_frame: Frame,
-    stacks: ProcessStacks,
+    memory: ProcessMemory,
+    context_addr: VirtualAddress,
+    mailbox: Mailbox,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+struct ProcessMemory {
+    user_stack_end: VirtualAddress,
+
+    kernel_stack_end: VirtualAddress,
+    kernel_stack: Vec<u8>,
+
     heap_start: VirtualAddress,
     heap_size: usize,
-    context_addr: VirtualAddress,
 }
 
 impl Process {
@@ -74,13 +87,6 @@ const USER_HEAP_SIZE: u64 = 1024 * 1024 * 128; // 128 MiB
 
 const ELF_BYTES: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 
-#[derive(Debug, Clone)]
-struct ProcessStacks {
-    user_stack_end: VirtualAddress,
-    kernel_stack_end: VirtualAddress,
-    kernel_stack: Vec<u8>,
-}
-
 pub fn spawn(elf: &[u8]) {
     Process::new(elf);
 }
@@ -107,7 +113,7 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 
     match current.as_ref() {
         Some(current) => {
-            gdt::set_kernel_stack(current.stacks.kernel_stack_end);
+            gdt::set_kernel_stack(current.memory.kernel_stack_end);
 
             let (_, flags) = CR3::read();
             unsafe {
@@ -277,14 +283,17 @@ impl Process {
             id,
             mapper: process_mapper,
             page_table_frame,
-            stacks: ProcessStacks {
+            memory: ProcessMemory {
                 user_stack_end,
+
                 kernel_stack_end,
                 kernel_stack,
+
+                heap_start: user_heap_addr,
+                heap_size: USER_HEAP_SIZE as usize - 1,
             },
-            heap_start: user_heap_addr,
-            heap_size: USER_HEAP_SIZE as usize - 1,
             context_addr,
+            mailbox: Mailbox::new(),
         };
 
         crate::println!(

@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use super::{syscall_1, syscall_2, syscall_3, syscall_4, Syscall};
+use super::*;
 
 #[inline(always)]
 pub fn print(s: &str) {
@@ -7,11 +7,7 @@ pub fn print(s: &str) {
     let len = s.len() as u64;
 
     // SAFETY: the parameters come from a valid string slice
-    unsafe { syscall_2(Syscall::Print, ptr, len) };
-}
-
-pub fn open_input() {
-    //unsafe { syscall_1(Syscall::OpenInput) }
+    unsafe { syscall_2(Syscall::new(SyscallType::Print), ptr, len) };
 }
 
 #[macro_export]

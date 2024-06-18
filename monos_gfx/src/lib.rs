@@ -12,5 +12,3 @@ mod fonts;
 
 mod framebuffer;
 pub use framebuffer::Framebuffer;
-
-pub mod input;

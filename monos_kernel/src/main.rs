@@ -92,7 +92,7 @@ fn panic(info: &PanicInfo) -> ! {
     dbg!(info);
 
     if let Some(mut fb_guard) = framebuffer::get() {
-        let fb = unsafe { fb_guard.now_or_never() };
+        let _fb = unsafe { fb_guard.now_or_never() };
 
         // TODO
 

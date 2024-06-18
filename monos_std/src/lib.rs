@@ -6,7 +6,11 @@ extern crate alloc;
 
 use core::arch::asm;
 
+#[cfg(not(feature = "lib_only"))]
 mod memory;
+
+pub mod messaging;
+
 pub mod syscall;
 pub use monos_gfx as gfx;
 
@@ -27,6 +31,7 @@ extern "C" {
     fn main();
 }
 
+#[cfg(not(feature = "lib_only"))]
 #[no_mangle]
 #[naked]
 pub unsafe extern "sysv64" fn _start() -> ! {
@@ -46,15 +51,21 @@ pub unsafe extern "sysv64" fn _start() -> ! {
 
 #[inline(never)]
 extern "C" fn start_inner(heap_start: usize, heap_size: usize) {
-    unsafe { memory::init(heap_start, heap_size) };
+    #[cfg(not(feature = "lib_only"))]
+    unsafe {
+        memory::init(heap_start, heap_size)
+    };
 
     unsafe { main() };
 
     // TODO: exit syscall
 }
 
+#[cfg(not(feature = "lib_only"))]
 #[cfg(not(test))]
 use core::panic::PanicInfo;
+
+#[cfg(not(feature = "lib_only"))]
 #[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
