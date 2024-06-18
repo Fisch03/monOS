@@ -8,7 +8,7 @@ pub fn open_fb() -> Option<Framebuffer> {
     unsafe {
         syscall_1(
             Syscall::new(SyscallType::OpenFramebuffer),
-            &mut fb as *mut Option<Framebuffer> as u64,
+            &mut fb as *mut _ as u64,
         )
     };
 

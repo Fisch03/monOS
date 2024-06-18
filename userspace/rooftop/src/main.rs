@@ -14,6 +14,11 @@ use monos_gfx::Framebuffer;
 fn main() {
     let mut fb = syscall::open_fb().unwrap();
 
+    let mouse_channel = syscall::connect("sys.mouse");
+    println!("Mouse channel: {:?}", mouse_channel);
+    let mouse_channel = syscall::connect("sys.keyboard");
+    println!("Keyboard channel: {:?}", mouse_channel);
+
     loop {
         fb.clear();
 

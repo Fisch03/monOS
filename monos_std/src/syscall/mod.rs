@@ -6,13 +6,18 @@ pub use io::*;
 mod gfx;
 pub use gfx::*;
 
-use num_enum::{IntoPrimitive, TryFromPrimitive, TryFromPrimitiveError};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
+use crate::messaging::ChannelHandle;
 
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum SyscallType {
     Serve = 0,
+    Connect,
+    WaitConnect,
     Send,
+    SendSync,
     Receive,
     ReceiveAny,
 
@@ -25,43 +30,32 @@ pub enum SyscallType {
 #[repr(packed)]
 pub struct Syscall {
     pub ty: SyscallType,
-    port_len: u8,
-    port_addr: u32,
-    _reserved: u16,
+    _reserved1: u8,
+    channel_handle: u32,
+    _reserved2: u16,
 }
 
 impl Syscall {
     pub const fn new(ty: SyscallType) -> Self {
         Self {
             ty,
-            port_len: 0,
-            port_addr: 0,
-            _reserved: 0,
+            _reserved1: 0,
+            channel_handle: 0,
+            _reserved2: 0,
         }
     }
 
     #[inline(always)]
-    pub fn get_port(&self) -> Option<&str> {
-        if self.port_len == 0 || self.port_addr == 0 {
-            return None;
+    pub fn get_channel(&self) -> Option<ChannelHandle> {
+        if self.channel_handle == 0 {
+            None
+        } else {
+            Some(ChannelHandle::new(self.channel_handle))
         }
-
-        // safety:: we checked this when creating the syscall
-        Some(unsafe {
-            core::str::from_utf8(core::slice::from_raw_parts(
-                self.port_addr as *const u8,
-                self.port_len as usize,
-            ))
-            .ok()?
-        })
     }
 
-    pub fn with_port(mut self, port: &str) -> Self {
-        assert!(port.len() < u8::MAX as usize);
-        assert!((port.as_ptr() as u64) <= (u32::MAX as u64));
-
-        self.port_len = port.len() as u8;
-        self.port_addr = port.as_ptr() as u32;
+    pub fn with_channel(mut self, channel: ChannelHandle) -> Self {
+        self.channel_handle = channel.into();
         self
     }
 }
@@ -88,8 +82,8 @@ impl TryFrom<u64> for Syscall {
 impl core::fmt::Debug for Syscall {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Syscall")
-            .field("ty", &self.ty)
-            .field("port", &self.get_port())
+            .field("type", &self.ty)
+            .field("channel", &self.get_channel())
             .finish()
     }
 }

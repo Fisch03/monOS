@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+#[cfg(not(feature = "lib_only"))]
 use core::arch::asm;
 
 #[cfg(not(feature = "lib_only"))]

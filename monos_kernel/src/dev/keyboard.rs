@@ -8,6 +8,8 @@ use crate::interrupts::{
 };
 use crate::mem::Mapping;
 
+use alloc::vec::Vec;
+use monos_std::messaging::ChannelHandle;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use spin::{Lazy, Mutex};
 use x86_64::instructions::port::Port;
@@ -19,6 +21,12 @@ static KEYBOARD: Lazy<Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>>> = Lazy::
         HandleControl::Ignore,
     ))
 });
+
+static LISTENERS: Lazy<Mutex<Vec<ChannelHandle>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
+pub fn add_listener(handle: ChannelHandle) {
+    LISTENERS.lock().push(handle);
+}
 
 pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
     let global_system_interrupt_val = madt

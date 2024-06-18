@@ -114,29 +114,32 @@ the build script automatically builds all the crates in the [`userspace` directo
 
 ### syscalls
 the following syscalls currently exist: 
-| id | name         | param 1                      | param 2      | param 3 | param 4 | description                                                                            | 
-| -- | ------------ | ---------------------------- | ------------ | ------- | ------- | -------------------------------------------------------------------------------------- |
-| 0* | serve        |                              |              |         |         | open a port with the given name                                                        |
-| 1* | send         | data 1                       | data 2       | data 3  | data 4  | send data do a given port (asynchronously)                                             |
-| 2* | receive      |                              |              |         |         | block the current thread until data is received on the given port                      |
-| 3  | receive      |                              |              |         |         | block the current thread until data is received on any port                            |
-| 4  | print        | string ptr                   | string len   |         |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
-| 5  | open_fb      | ptr to `Option<Framebuffer>` |              |         |         | opens the framebuffer. only one thread can do this and its always the `rooftop` thread |
-| 6  | submit_frame | ptr to [u8]                  | size of [u8] |         |         | submit a frame to be displayed. can only be done by the thread that opened the fb      |
+| id | name         | param 1                      | param 2        | param 3                         | param 4 | description                                                                            | 
+| -- | ------------ | ---------------------------- | -------------- | ------------------------------- | ------- | -------------------------------------------------------------------------------------- |
+| 0  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
+| 1  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
+| 2  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a thread to connect to a channel on the given port                            |
+| 3* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
+| 4* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
+| 5* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
+| 6  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
+| 7  | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 8  | open_fb      | ptr to `Option<Framebuffer>` |                |                                 |         | opens the framebuffer. only one thread can do this and its always the `rooftop` thread |
+| 9  | submit_frame | ptr to `[u8]`                | size of `[u8]` |                                 |         | submit a frame to be displayed. can only be done by the thread that opened the fb      |
 
-*it is to be noted that the syscall id is a bit special for the `send`, `receive` and `serve` syscalls (see the chapter on messaging below).
+*it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 
 #### messaging
-a process can use the `serve` syscall to provide a server at a given port (a port is basically just a unique string). any other thread can then send messages to that port using the `send` syscall.
-the message will be added to a message queue on the receiving thread which can query for messages using the `receive` syscall
+inter-process communication in monOS happens over channels. a thread can provide a channel on a port (basically just a unique string) using the `serve` sycall. other threads can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving thread (using the `wait_conn` syscall) with a channel handle. both processes can then send and receive messages over the channel using the `send`, `send_sync`, `receive` and `receive_any` syscalls.
+
 a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
-messaging related syscalls are a bit special since they use the syscall id to pass some additional parameters:
-| bits  | content                            |
-| ----- | ---------------------------------- |
-|  0- 7 | syscall id                         |
-|  8-15 | length of the port string          |
-| 16-48 | virtual address of the port string |
-| 49-63 | nothing... for now :)              |
+some messaging related syscalls are a bit special since they use the syscall id to pass some additional parameters:
+| bits  | content               |
+| ----- | --------------------- |
+|  0- 7 | syscall id            |
+|  8-15 | nothing... for now :) |
+| 16-48 | channel handle id     |
+| 49-63 | nothing... for now :) |
 
 # the big todo list
 - [x] it boots!

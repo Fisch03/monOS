@@ -7,12 +7,20 @@ use crate::interrupts::{
     InterruptIndex, InterruptStackFrame,
 };
 use crate::mem::Mapping;
+use crate::process::messaging::ChannelHandle;
 use crate::utils::BitField;
 
+use alloc::vec::Vec;
 use spin::{Lazy, Mutex};
 use x86_64::instructions::port::Port;
 
 static MOUSE: Lazy<Mutex<Mouse>> = Lazy::new(|| Mutex::new(Mouse::new()));
+
+static LISTENERS: Lazy<Mutex<Vec<ChannelHandle>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
+pub fn add_listener(handle: ChannelHandle) {
+    LISTENERS.lock().push(handle);
+}
 
 pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
     let global_system_interrupt_val = madt
@@ -45,7 +53,16 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
     let packet = unsafe { port.read() };
 
     if let Some(state) = MOUSE.lock().handle_packet(packet) {
-        crate::dbg!(state);
+        use crate::process::messaging::{send, Message};
+        let mut message = Message {
+            sender: 0,
+            handle: ChannelHandle::new(0),
+            data: (state.x as u64, state.y as u64, state.flags.0 as u64, 0),
+        };
+        for listener in LISTENERS.lock().iter() {
+            message.handle = *listener;
+            send(message.clone());
+        }
     }
 
     LOCAL_APIC.get().unwrap().eoi();

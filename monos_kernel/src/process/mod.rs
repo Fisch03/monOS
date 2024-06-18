@@ -1,4 +1,4 @@
-mod messaging;
+pub mod messaging;
 use messaging::Mailbox;
 
 use crate::arch::registers::CR3;
@@ -16,7 +16,7 @@ use spin::RwLock;
 
 static PROCESS_QUEUE: RwLock<VecDeque<Box<Process>>> = RwLock::new(VecDeque::new());
 pub static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
-static NEXT_PID: AtomicUsize = AtomicUsize::new(0);
+static NEXT_PID: AtomicUsize = AtomicUsize::new(1); // 0 is reserved for the kernel
 
 #[derive(Debug)]
 pub struct Process {

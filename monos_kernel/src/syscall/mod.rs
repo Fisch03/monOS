@@ -6,6 +6,7 @@ use monos_std::syscall::{Syscall, SyscallType};
 use core::arch::asm;
 
 mod gfx;
+mod io;
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
 const IA32_STAR_MSR: u32 = 0xC0000081;
@@ -118,16 +119,18 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
                 assert!(arg1 + arg2 < LOWER_HALF_END);
 
                 let s = unsafe {
-                    core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                    core::str::from_utf8(core::slice::from_raw_parts(
                         arg1 as *const u8,
                         arg2 as usize,
                     ))
+                    .expect("invalid utf8 string")
                 };
 
                 crate::print!("{}", s);
             }
             SyscallType::OpenFramebuffer => gfx::sys_open_fb(arg1),
             SyscallType::SubmitFrame => gfx::sys_submit_frame(arg1, arg2),
+            SyscallType::Connect => io::sys_connect(arg1, arg2, arg3),
             _ => crate::println!("unimplemented syscall {:?}", syscall),
         }
     } else {
