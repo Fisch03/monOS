@@ -11,10 +11,13 @@ use num_enum::{IntoPrimitive, TryFromPrimitive, TryFromPrimitiveError};
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum SyscallType {
-    Serve,
+    Serve = 0,
     Send,
     Receive,
+    ReceiveAny,
+
     Print,
+
     OpenFramebuffer,
     SubmitFrame,
 }

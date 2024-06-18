@@ -70,16 +70,6 @@ BIOS boot is currently utterly broken and will not be supported going forward, s
 only PS2 mouse/keyboard support for now. i want to implement USB at some point but it seems like a huge pain. most vms and even hardware emulates PS2 from USB devices anyways.
 monOS does use the newer APIC instead of the old fashioned 8259 PIC since its support seems to be (basically?) nonexistent under UEFI.
 
-### messaging
-a process can use the `serve` syscall to provide a server at a given port (a port is basically just a unique string). any other thread can then send messages to that port using the `send` syscall.
-a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
-the send syscall is a bit special since it uses the syscall id to pass some additional parameters:
-| bits  | content                            |
-| ----- | ---------------------------------- |
-|  0- 7 | syscall id                         |
-|  8-15 | length of the port string          |
-| 16-48 | virtual address of the port string |
-| 49-63 | nothing... for now :)              |
 
 ### memory
 the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 16MiB.
@@ -121,6 +111,32 @@ the ramdisk itself is a FAT16 image with the following structure:
 - `/data`: OS resources. you probably shouldn't touch these unless you want to break something >:D
 
 the build script automatically builds all the crates in the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) and puts their elf binaries in `/bin` 
+
+### syscalls
+the following syscalls currently exist: 
+| id | name         | param 1                      | param 2      | param 3 | param 4 | description                                                                            | 
+| -- | ------------ | ---------------------------- | ------------ | ------- | ------- | -------------------------------------------------------------------------------------- |
+| 0* | serve        |                              |              |         |         | open a port with the given name                                                        |
+| 1* | send         | data 1                       | data 2       | data 3  | data 4  | send data do a given port (asynchronously)                                             |
+| 2* | receive      |                              |              |         |         | block the current thread until data is received on the given port                      |
+| 3  | receive      |                              |              |         |         | block the current thread until data is received on any port                            |
+| 4  | print        | string ptr                   | string len   |         |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 5  | open_fb      | ptr to `Option<Framebuffer>` |              |         |         | opens the framebuffer. only one thread can do this and its always the `rooftop` thread |
+| 6  | submit_frame | ptr to [u8]                  | size of [u8] |         |         | submit a frame to be displayed. can only be done by the thread that opened the fb      |
+
+*it is to be noted that the syscall id is a bit special for the `send`, `receive` and `serve` syscalls (see the chapter on messaging below).
+
+#### messaging
+a process can use the `serve` syscall to provide a server at a given port (a port is basically just a unique string). any other thread can then send messages to that port using the `send` syscall.
+the message will be added to a message queue on the receiving thread which can query for messages using the `receive` syscall
+a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
+messaging related syscalls are a bit special since they use the syscall id to pass some additional parameters:
+| bits  | content                            |
+| ----- | ---------------------------------- |
+|  0- 7 | syscall id                         |
+|  8-15 | length of the port string          |
+| 16-48 | virtual address of the port string |
+| 49-63 | nothing... for now :)              |
 
 # the big todo list
 - [x] it boots!
