@@ -14,12 +14,16 @@ use monos_gfx::Framebuffer;
 fn main() {
     let mut fb = syscall::open_fb().unwrap();
 
-    let mouse_channel = syscall::connect("sys.mouse");
+    let mouse_channel = syscall::connect("sys.mouse").unwrap();
     println!("Mouse channel: {:?}", mouse_channel);
-    let mouse_channel = syscall::connect("sys.keyboard");
-    println!("Keyboard channel: {:?}", mouse_channel);
+    // let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
+    // println!("Keyboard channel: {:?}", mouse_channel);
 
     loop {
+        while let Some(msg) = syscall::receive(mouse_channel) {
+            println!("Received message: {:?}", msg);
+        }
+
         fb.clear();
 
         draw_cursor(&mut fb);

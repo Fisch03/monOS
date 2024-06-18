@@ -19,8 +19,18 @@ pub fn sys_connect(arg1: u64, arg2: u64, arg3: u64) {
     let handle_ptr = arg3 as *mut Option<ChannelHandle>;
     let handle = unsafe { &mut *handle_ptr };
 
+    let mut current_proc = crate::process::CURRENT_PROCESS.write();
+    let current_proc = current_proc.as_mut().unwrap();
+
+    *handle = connect(port, current_proc.as_mut()).ok();
+}
+
+pub fn sys_receive(handle: ChannelHandle, arg1: u64) {
+    let message_ptr = arg1 as *mut Option<Message>;
+    let message = unsafe { &mut *message_ptr };
+
     let current_proc = crate::process::CURRENT_PROCESS.read();
     let current_proc = current_proc.as_ref().unwrap();
 
-    *handle = connect(port, current_proc.id()).ok();
+    *message = current_proc.receive(handle);
 }

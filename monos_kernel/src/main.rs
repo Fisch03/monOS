@@ -89,7 +89,7 @@ use core::panic::PanicInfo;
 fn panic(info: &PanicInfo) -> ! {
     interrupts::disable();
 
-    dbg!(info);
+    println!("oh noes, the kernel panicked!\n {:#?}", info);
 
     if let Some(mut fb_guard) = framebuffer::get() {
         let _fb = unsafe { fb_guard.now_or_never() };

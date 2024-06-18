@@ -54,14 +54,12 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
 
     if let Some(state) = MOUSE.lock().handle_packet(packet) {
         use crate::process::messaging::{send, Message};
-        let mut message = Message {
+        let message = Message {
             sender: 0,
-            handle: ChannelHandle::new(0),
             data: (state.x as u64, state.y as u64, state.flags.0 as u64, 0),
         };
         for listener in LISTENERS.lock().iter() {
-            message.handle = *listener;
-            send(message.clone());
+            send(message.clone(), *listener);
         }
     }
 

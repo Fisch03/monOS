@@ -12,6 +12,31 @@ pub fn serve(port: &str, limit: ChannelLimit) {
 }
 
 #[inline(always)]
+pub fn receive_any() -> Option<Message> {
+    let mut message: Option<Message> = None;
+    // SAFETY: the handle we just created
+    unsafe {
+        syscall_1(
+            Syscall::new(SyscallType::ReceiveAny),
+            &mut message as *mut _ as u64,
+        )
+    };
+    message
+}
+
+pub fn receive(handle: ChannelHandle) -> Option<Message> {
+    let mut message: Option<Message> = None;
+
+    unsafe {
+        syscall_1(
+            Syscall::new(SyscallType::Receive).with_handle(handle),
+            &mut message as *mut _ as u64,
+        )
+    };
+    message
+}
+
+#[inline(always)]
 pub fn connect(port: &str) -> Option<ChannelHandle> {
     let port_ptr = port.as_ptr() as u64;
     let port_len = port.len() as u64;

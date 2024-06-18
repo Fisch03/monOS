@@ -130,7 +130,10 @@ the following syscalls currently exist:
 *it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 
 #### messaging
-inter-process communication in monOS happens over channels. a thread can provide a channel on a port (basically just a unique string) using the `serve` sycall. other threads can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving thread (using the `wait_conn` syscall) with a channel handle. both processes can then send and receive messages over the channel using the `send`, `send_sync`, `receive` and `receive_any` syscalls.
+inter-process communication in monOS happens over channels. a thread can provide a channel on a port (basically just a unique string) using the `serve` sycall. 
+other threads can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving thread (using the `wait_conn` syscall) with a channel handle. 
+both processes can then send and receive messages over the channel using the `send`, `send_sync`, `receive` and `receive_any` syscalls.
+
 
 a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
 some messaging related syscalls are a bit special since they use the syscall id to pass some additional parameters:
@@ -138,8 +141,10 @@ some messaging related syscalls are a bit special since they use the syscall id 
 | ----- | --------------------- |
 |  0- 7 | syscall id            |
 |  8-15 | nothing... for now :) |
-| 16-48 | channel handle id     |
-| 49-63 | nothing... for now :) |
+| 16-63 | channel handle        |
+
+a channel handle is a 48-bit value consisting of 32 bits target process id and 16 bit channel id.
+there is currently no safety in place for channels, meaning that a process can just send to any channel knowing its channel handle without `connect`ing to it first. i should probably fix that at some point...
 
 # the big todo list
 - [x] it boots!
@@ -199,7 +204,10 @@ some messaging related syscalls are a bit special since they use the syscall id 
     - [x] ondemand paging
     - [ ] free on process exit
   - [ ] ipc
-    - [ ] keyboard/mouse input 
+    - [x] kernel <-> process
+    - [ ] block waiting processes
+    - [ ] process <-> process
+    - [ ] mpsc (?)
   - [ ] get sse/avx to work
   - [ ] running doom
     - [ ] figure out linking

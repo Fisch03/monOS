@@ -1,16 +1,23 @@
 use core::num::NonZeroU64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ChannelHandle(u32);
-impl ChannelHandle {
-    pub fn new(handle: u32) -> Self {
-        Self(handle)
-    }
+#[repr(packed)]
+pub struct ChannelHandle {
+    pub thread: u32,
+    pub channel: u16,
 }
 
-impl From<ChannelHandle> for u32 {
-    fn from(handle: ChannelHandle) -> Self {
-        handle.0
+impl ChannelHandle {
+    pub fn new(thread: u32, channel: u16) -> Self {
+        Self { thread, channel }
+    }
+
+    pub fn thread(&self) -> u32 {
+        self.thread
+    }
+
+    pub fn channel(&self) -> u16 {
+        self.channel
     }
 }
 
@@ -41,6 +48,5 @@ impl From<ChannelLimit> for u64 {
 #[derive(Debug, Clone)]
 pub struct Message {
     pub sender: u64,
-    pub handle: ChannelHandle,
     pub data: (u64, u64, u64, u64),
 }

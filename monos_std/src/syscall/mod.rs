@@ -31,8 +31,8 @@ pub enum SyscallType {
 pub struct Syscall {
     pub ty: SyscallType,
     _reserved1: u8,
-    channel_handle: u32,
-    _reserved2: u16,
+    channel_pid: u32,
+    channel_number: u16,
 }
 
 impl Syscall {
@@ -40,22 +40,19 @@ impl Syscall {
         Self {
             ty,
             _reserved1: 0,
-            channel_handle: 0,
-            _reserved2: 0,
+            channel_pid: 0,
+            channel_number: 0,
         }
     }
 
     #[inline(always)]
-    pub fn get_channel(&self) -> Option<ChannelHandle> {
-        if self.channel_handle == 0 {
-            None
-        } else {
-            Some(ChannelHandle::new(self.channel_handle))
-        }
+    pub fn get_handle(&self) -> ChannelHandle {
+        ChannelHandle::new(self.channel_pid, self.channel_number)
     }
 
-    pub fn with_channel(mut self, channel: ChannelHandle) -> Self {
-        self.channel_handle = channel.into();
+    pub fn with_handle(mut self, channel: ChannelHandle) -> Self {
+        self.channel_pid = channel.thread();
+        self.channel_number = channel.channel();
         self
     }
 }
@@ -83,7 +80,7 @@ impl core::fmt::Debug for Syscall {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Syscall")
             .field("type", &self.ty)
-            .field("channel", &self.get_channel())
+            .field("handle", &self.get_handle())
             .finish()
     }
 }

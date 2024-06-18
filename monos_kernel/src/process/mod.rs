@@ -1,5 +1,5 @@
 pub mod messaging;
-use messaging::Mailbox;
+use messaging::{ChannelHandle, Mailbox, Message};
 
 use crate::arch::registers::CR3;
 use crate::gdt::{self, GDT};
@@ -10,22 +10,22 @@ use crate::mem::{
 };
 
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicU32, Ordering};
 use object::{Object, ObjectSegment};
 use spin::RwLock;
 
 static PROCESS_QUEUE: RwLock<VecDeque<Box<Process>>> = RwLock::new(VecDeque::new());
 pub static CURRENT_PROCESS: RwLock<Option<Box<Process>>> = RwLock::new(None);
-static NEXT_PID: AtomicUsize = AtomicUsize::new(1); // 0 is reserved for the kernel
+static NEXT_PID: AtomicU32 = AtomicU32::new(1); // 0 is reserved for the kernel
 
 #[derive(Debug)]
 pub struct Process {
-    id: usize,
+    id: u32,
     mapper: Mapper<'static>,
     page_table_frame: Frame,
     memory: ProcessMemory,
     context_addr: VirtualAddress,
-    mailbox: Mailbox,
+    channels: Vec<Mailbox>,
 }
 
 #[allow(dead_code)]
@@ -41,7 +41,7 @@ struct ProcessMemory {
 }
 
 impl Process {
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> u32 {
         self.id
     }
 
@@ -127,7 +127,12 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 }
 
 impl Process {
-    fn new(elf: &[u8]) -> usize {
+    pub fn receive(&self, handle: ChannelHandle) -> Option<Message> {
+        let mailbox = self.channels.get(handle.channel as usize)?;
+        mailbox.receive()
+    }
+
+    fn new(elf: &[u8]) -> u32 {
         assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
         let obj = object::File::parse(elf).expect("failed to parse ELF file");
 
@@ -293,7 +298,7 @@ impl Process {
                 heap_size: USER_HEAP_SIZE as usize - 1,
             },
             context_addr,
-            mailbox: Mailbox::new(),
+            channels: Vec::new(),
         };
 
         crate::println!(

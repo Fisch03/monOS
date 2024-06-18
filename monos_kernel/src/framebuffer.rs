@@ -25,7 +25,7 @@ pub struct KernelFramebuffer {
 
     back_buffer_start_frame: mem::Frame,
 
-    borrowed: Option<usize>,
+    borrowed: Option<u32>,
 }
 
 impl KernelFramebuffer {
@@ -113,7 +113,7 @@ impl KernelFramebuffer {
 
     pub fn borrow(
         &mut self,
-        process_id: usize,
+        process_id: u32,
         receiver: &mut Option<Framebuffer>,
         mapper: &mut mem::Mapper,
         start: VirtualAddress,
