@@ -2,7 +2,6 @@
 use super::*;
 use crate::messaging::*;
 
-#[inline(always)]
 pub fn serve(port: &str, limit: ChannelLimit) {
     let ptr = port.as_ptr() as u64;
     let len = port.len() as u64;
@@ -11,7 +10,6 @@ pub fn serve(port: &str, limit: ChannelLimit) {
     unsafe { syscall_3(Syscall::new(SyscallType::Serve), ptr, len, limit.into()) };
 }
 
-#[inline(always)]
 pub fn receive_any() -> Option<Message> {
     let mut message: Option<Message> = None;
     // SAFETY: the handle we just created
@@ -36,7 +34,6 @@ pub fn receive(handle: ChannelHandle) -> Option<Message> {
     message
 }
 
-#[inline(always)]
 pub fn connect(port: &str) -> Option<ChannelHandle> {
     let port_ptr = port.as_ptr() as u64;
     let port_len = port.len() as u64;
@@ -56,7 +53,6 @@ pub fn connect(port: &str) -> Option<ChannelHandle> {
     handle
 }
 
-#[inline(always)]
 pub fn print(s: &str) {
     let ptr = s.as_ptr() as u64;
     let len = s.len() as u64;

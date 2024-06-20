@@ -1,7 +1,4 @@
-use crate::{
-    mem::{self, PageTableFlags, VirtualAddress},
-    process,
-};
+use crate::mem::{self, PageTableFlags, VirtualAddress};
 
 use bootloader_api::info::FrameBuffer as RawFrameBuffer;
 use core::slice;

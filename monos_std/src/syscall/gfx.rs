@@ -1,7 +1,6 @@
 use super::*;
 use crate::gfx::*;
 
-#[inline(always)]
 pub fn open_fb() -> Option<Framebuffer> {
     let mut fb: Option<Framebuffer> = None;
 
@@ -15,7 +14,6 @@ pub fn open_fb() -> Option<Framebuffer> {
     fb
 }
 
-#[inline(always)]
 pub fn submit_frame(framebuffer: &Framebuffer) {
     let frame = framebuffer.buffer();
 

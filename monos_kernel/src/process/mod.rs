@@ -132,6 +132,16 @@ impl Process {
         mailbox.receive()
     }
 
+    pub fn receive_any(&self) -> Option<Message> {
+        for mailbox in &self.channels {
+            if let Some(message) = mailbox.receive() {
+                return Some(message);
+            }
+        }
+
+        None
+    }
+
     fn new(elf: &[u8]) -> u32 {
         assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
         let obj = object::File::parse(elf).expect("failed to parse ELF file");

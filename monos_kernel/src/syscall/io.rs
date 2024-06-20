@@ -34,3 +34,13 @@ pub fn sys_receive(handle: PartialReceiveChannelHandle, arg1: u64) {
 
     *message = current_proc.receive(handle);
 }
+
+pub fn sys_receive_any(arg1: u64) {
+    let message_ptr = arg1 as *mut Option<Message>;
+    let message = unsafe { &mut *message_ptr };
+
+    let current_proc = crate::process::CURRENT_PROCESS.read();
+    let current_proc = current_proc.as_ref().unwrap();
+
+    *message = current_proc.receive_any();
+}

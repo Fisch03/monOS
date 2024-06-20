@@ -8,7 +8,6 @@ use super::{Frame, PageSize4K};
 pub struct FrameAllocator {
     map: BitArray<32768>, // enough for 1 GiB of memory
     start: PhysicalAddress,
-    start_number: usize,
     last_allocated: usize,
 }
 
@@ -41,7 +40,6 @@ impl FrameAllocator {
 
         Self {
             map,
-            start_number: start_frame_number,
             start: start_frame.start_address(),
             last_allocated: 0,
         }

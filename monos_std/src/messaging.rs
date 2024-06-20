@@ -49,6 +49,12 @@ impl PartialSendChannelHandle {
     }
 }
 
+impl PartialEq<ChannelHandle> for PartialSendChannelHandle {
+    fn eq(&self, other: &ChannelHandle) -> bool {
+        self.target_thread == other.target_thread && self.target_channel == other.target_channel
+    }
+}
+
 impl From<ChannelHandle> for PartialSendChannelHandle {
     fn from(handle: ChannelHandle) -> Self {
         Self {

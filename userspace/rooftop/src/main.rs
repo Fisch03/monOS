@@ -15,24 +15,30 @@ fn main() {
     let mut fb = syscall::open_fb().unwrap();
 
     let mouse_channel = syscall::connect("sys.mouse").unwrap();
-    // println!("Mouse channel: {:?}", mouse_channel);
-    // let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
-    // println!("Keyboard channel: {:?}", mouse_channel);
+    println!("Mouse channel: {:?}", mouse_channel);
+    let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
+    println!("Keyboard channel: {:?}", mouse_channel);
 
     let mut cursor_pos = Position::new(10, 10);
 
     fb.clear();
     loop {
-        while let Some(msg) = syscall::receive(mouse_channel) {
-            let x: u32 = msg.data.0 as u32;
-            let x = unsafe { core::mem::transmute::<u32, i32>(x) };
-            cursor_pos.x += x as i64;
+        while let Some(msg) = syscall::receive_any() {
+            if msg.sender == mouse_channel {
+                let x: u32 = msg.data.0 as u32;
+                let x = unsafe { core::mem::transmute::<u32, i32>(x) };
+                cursor_pos.x += x as i64;
 
-            let y: u32 = msg.data.1 as u32;
-            let y = unsafe { core::mem::transmute::<u32, i32>(y) };
-            cursor_pos.y += y as i64;
+                let y: u32 = msg.data.1 as u32;
+                let y = unsafe { core::mem::transmute::<u32, i32>(y) };
+                cursor_pos.y -= y as i64;
+            } else if msg.sender == keyboard_channel {
+                let key = msg.data.0 as u8 as char;
+                println!("Key: {:?}", key);
+            }
         }
 
+        fb.clear();
         draw_cursor(&mut fb, cursor_pos);
         syscall::submit_frame(&fb);
     }
