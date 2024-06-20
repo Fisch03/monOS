@@ -1,18 +1,18 @@
 #[derive(Debug, Clone, Copy)]
 pub struct Position {
-    pub x: usize,
-    pub y: usize,
+    pub x: i64,
+    pub y: i64,
 }
 
 impl Position {
-    pub fn new(x: usize, y: usize) -> Position {
+    pub fn new(x: i64, y: i64) -> Position {
         Position { x, y }
     }
 }
 
-impl core::ops::Mul<usize> for &Position {
+impl core::ops::Mul<i64> for &Position {
     type Output = Position;
-    fn mul(self, rhs: usize) -> Position {
+    fn mul(self, rhs: i64) -> Position {
         Position {
             x: self.x * rhs,
             y: self.y * rhs,

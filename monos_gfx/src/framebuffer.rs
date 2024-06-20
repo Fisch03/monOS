@@ -63,19 +63,22 @@ impl Framebuffer {
     }
 
     fn draw_char(&mut self, color: &Color, character: char, position: &Position, overdraw: bool) {
+        let position_x = position.x as usize;
+        let position_y = position.y as usize;
+
         if let Some(char) = fonts::cozette::get_char(character) {
             let char = Character::from_raw(char);
 
-            let base_x = position.x * CHAR_WIDTH;
-            let base_y = position.y * CHAR_HEIGHT;
+            let base_x = position_x * CHAR_WIDTH;
+            let base_y = position_y * CHAR_HEIGHT;
 
             if overdraw {
                 for y in 0..CHAR_HEIGHT {
                     for x in 0..CHAR_WIDTH {
                         self.draw_pixel(
                             &Position {
-                                x: base_x + x,
-                                y: base_y + y,
+                                x: (base_x + x) as i64,
+                                y: (base_y + y) as i64,
                             },
                             &Color::new(0, 0, 0),
                         );
@@ -91,8 +94,8 @@ impl Framebuffer {
                     if byte & (1 << bit_offset) == 0 {
                         self.draw_pixel(
                             &Position {
-                                x: base_x + x,
-                                y: base_y + y,
+                                x: (base_x + x) as i64,
+                                y: (base_y + y) as i64,
                             },
                             color,
                         );
@@ -109,12 +112,15 @@ impl Framebuffer {
 
     #[inline]
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
-        if position.x >= self.dimensions.width || position.y >= self.dimensions.height {
+        let position_x = position.x as usize;
+        let position_y = position.y as usize;
+
+        if position_x >= self.dimensions.width || position_y >= self.dimensions.height {
             return;
         }
 
-        let y_offset_lower = position.y * self.stride;
-        let offset = y_offset_lower + position.x;
+        let y_offset_lower = position_y * self.stride;
+        let offset = y_offset_lower + position_x;
 
         self.draw_pixel_raw(offset * self.bytes_per_pixel, color);
     }

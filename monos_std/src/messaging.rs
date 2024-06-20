@@ -1,23 +1,74 @@
 use core::num::NonZeroU64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct ChannelHandle {
-    pub thread: u32,
-    pub channel: u16,
+    pub target_thread: u32,
+    pub target_channel: u16,
+    pub own_channel: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PartialSendChannelHandle {
+    pub target_thread: u32,
+    pub target_channel: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PartialReceiveChannelHandle {
+    pub own_channel: u16,
 }
 
 impl ChannelHandle {
-    pub fn new(thread: u32, channel: u16) -> Self {
-        Self { thread, channel }
+    pub fn new(other_thread: u32, other_channel: u16, own_channel: u16) -> Self {
+        Self {
+            target_thread: other_thread,
+            target_channel: other_channel,
+            own_channel,
+        }
     }
 
-    pub fn thread(&self) -> u32 {
-        self.thread
+    pub fn from_parts(
+        send_part: PartialSendChannelHandle,
+        recv_part: PartialReceiveChannelHandle,
+    ) -> Self {
+        Self {
+            target_thread: send_part.target_thread,
+            target_channel: send_part.target_channel,
+            own_channel: recv_part.own_channel,
+        }
     }
+}
 
-    pub fn channel(&self) -> u16 {
-        self.channel
+impl PartialSendChannelHandle {
+    pub fn new(other_thread: u32, other_channel: u16) -> Self {
+        Self {
+            target_thread: other_thread,
+            target_channel: other_channel,
+        }
+    }
+}
+
+impl From<ChannelHandle> for PartialSendChannelHandle {
+    fn from(handle: ChannelHandle) -> Self {
+        Self {
+            target_thread: handle.target_thread,
+            target_channel: handle.target_channel,
+        }
+    }
+}
+
+impl PartialReceiveChannelHandle {
+    pub fn new(own_channel: u16) -> Self {
+        Self { own_channel }
+    }
+}
+
+impl From<ChannelHandle> for PartialReceiveChannelHandle {
+    fn from(handle: ChannelHandle) -> Self {
+        Self {
+            own_channel: handle.own_channel,
+        }
     }
 }
 
@@ -47,6 +98,6 @@ impl From<ChannelLimit> for u64 {
 
 #[derive(Debug, Clone)]
 pub struct Message {
-    pub sender: u64,
+    pub sender: PartialSendChannelHandle,
     pub data: (u64, u64, u64, u64),
 }

@@ -1,7 +1,7 @@
 use super::idt::{IDTEntry, InterruptDescriptorTable};
 use super::InterruptStackFrame;
 use crate::eprintln;
-use crate::gdt::{DOUBLE_FAULT_IST_INDEX, TIMER_IST_INDEX};
+use crate::gdt::{DOUBLE_FAULT_IST_INDEX, KEYBOARD_IST_INDEX, MOUSE_IST_INDEX, TIMER_IST_INDEX};
 use crate::interrupts::apic::LOCAL_APIC;
 use crate::mem::{alloc_demand_page, VirtualAddress};
 
@@ -71,7 +71,19 @@ pub fn attach_handlers(idt: &mut InterruptDescriptorTable) {
 
     idt[InterruptIndex::Keyboard.as_usize()] =
         IDTEntry::new(crate::dev::keyboard::interrupt_handler);
+    // unsafe {
+    //     idt[InterruptIndex::Keyboard.as_usize()]
+    //         .options
+    //         .set_stack_index(KEYBOARD_IST_INDEX);
+    // }
+
     idt[InterruptIndex::Mouse.as_usize()] = IDTEntry::new(crate::dev::mouse::interrupt_handler);
+    // unsafe {
+    //     idt[InterruptIndex::Mouse.as_usize()]
+    //         .options
+    //         .set_stack_index(MOUSE_IST_INDEX);
+    // }
+
     idt[InterruptIndex::SpuriousInterrupt.as_usize()] = IDTEntry::new(spurious_interrupt_handler);
 }
 

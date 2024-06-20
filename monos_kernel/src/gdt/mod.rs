@@ -16,6 +16,8 @@ const STACK_SIZE: usize = 4096 * 4;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const TIMER_IST_INDEX: u16 = 1;
+pub const KEYBOARD_IST_INDEX: u16 = 1;
+pub const MOUSE_IST_INDEX: u16 = 1;
 
 pub static TSS: Lazy<Mutex<TaskStateSegment>> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();

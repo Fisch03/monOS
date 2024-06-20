@@ -7,19 +7,24 @@ use crate::interrupts::{
     InterruptIndex, InterruptStackFrame,
 };
 use crate::mem::Mapping;
-use crate::process::messaging::ChannelHandle;
+use crate::process::messaging::{add_system_port, PartialSendChannelHandle};
 use crate::utils::BitField;
 
 use alloc::vec::Vec;
-use spin::{Lazy, Mutex};
+use spin::{Lazy, Mutex, Once};
 use x86_64::instructions::port::Port;
 
 static MOUSE: Lazy<Mutex<Mouse>> = Lazy::new(|| Mutex::new(Mouse::new()));
 
-static LISTENERS: Lazy<Mutex<Vec<ChannelHandle>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static LISTENERS: Lazy<Mutex<Vec<PartialSendChannelHandle>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static CHANNEL_HANDLE: Once<PartialSendChannelHandle> = Once::new();
 
-pub fn add_listener(handle: ChannelHandle) {
+pub fn add_listener(handle: PartialSendChannelHandle) -> PartialSendChannelHandle {
     LISTENERS.lock().push(handle);
+    CHANNEL_HANDLE
+        .get()
+        .expect("mouse channel not initialized")
+        .clone()
 }
 
 pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
@@ -46,6 +51,8 @@ pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
     io_apic.set_ioredtbl(global_system_interrupt_val, entry);
 
     MOUSE.lock().init().expect("failed to initialize mouse");
+
+    CHANNEL_HANDLE.call_once(|| add_system_port("sys.mouse", add_listener));
 }
 
 pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFrame) {
@@ -55,7 +62,7 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
     if let Some(state) = MOUSE.lock().handle_packet(packet) {
         use crate::process::messaging::{send, Message};
         let message = Message {
-            sender: 0,
+            sender: *CHANNEL_HANDLE.get().expect("mouse channel not initialized"),
             data: (state.x as u64, state.y as u64, state.flags.0 as u64, 0),
         };
         for listener in LISTENERS.lock().iter() {

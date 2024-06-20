@@ -1,5 +1,5 @@
 pub mod messaging;
-use messaging::{ChannelHandle, Mailbox, Message};
+use messaging::{Mailbox, Message, PartialReceiveChannelHandle};
 
 use crate::arch::registers::CR3;
 use crate::gdt::{self, GDT};
@@ -127,8 +127,8 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 }
 
 impl Process {
-    pub fn receive(&self, handle: ChannelHandle) -> Option<Message> {
-        let mailbox = self.channels.get(handle.channel as usize)?;
+    pub fn receive(&self, handle: PartialReceiveChannelHandle) -> Option<Message> {
+        let mailbox = self.channels.get(handle.own_channel as usize)?;
         mailbox.receive()
     }
 

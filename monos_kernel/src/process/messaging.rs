@@ -1,22 +1,15 @@
 use super::{Process, CURRENT_PROCESS, PROCESS_QUEUE};
-use alloc::{string::String, vec, vec::Vec};
-use core::sync::atomic::{AtomicU32, Ordering};
-use crossbeam_queue::ArrayQueue;
-pub use monos_std::messaging::{ChannelHandle, Message};
+use alloc::{boxed::Box, string::String, vec::Vec};
+use core::sync::atomic::{AtomicU16, Ordering};
+use crossbeam_queue::SegQueue;
+pub use monos_std::messaging::{
+    ChannelHandle, Message, PartialReceiveChannelHandle, PartialSendChannelHandle,
+};
 use spin::{Lazy, RwLock};
 
-const MAX_QUEUE_SIZE: usize = 10;
+const MAX_QUEUE_SIZE: usize = 100;
 
-static PORTS: Lazy<RwLock<Vec<Port>>> = Lazy::new(|| {
-    let ports = vec![
-        Port::new("sys.keyboard", PortType::System(SystemPort::Keyboard)),
-        Port::new("sys.mouse", PortType::System(SystemPort::Mouse)),
-    ];
-
-    RwLock::new(ports)
-});
-
-static NEXT_SYS_HANDLE: AtomicU32 = AtomicU32::new(0);
+static PORTS: Lazy<RwLock<Vec<Port>>> = Lazy::new(|| RwLock::new(Vec::new()));
 
 #[derive(Debug)]
 struct Port {
@@ -31,32 +24,52 @@ impl Port {
     }
 }
 
-#[derive(Debug)]
+type SystemPortRegisterFn =
+    dyn Fn(PartialSendChannelHandle) -> PartialSendChannelHandle + Sync + Send;
 enum PortType {
-    System(SystemPort),
+    System(Box<SystemPortRegisterFn>),
     Process(usize),
 }
 
-#[derive(Debug)]
-enum SystemPort {
-    Keyboard,
-    Mouse,
+impl core::fmt::Debug for PortType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            PortType::System(_) => write!(f, "System"),
+            PortType::Process(pid) => f.debug_tuple("Process").field(pid).finish(),
+        }
+    }
+}
+
+static NEXT_SYS_HANDLE: AtomicU16 = AtomicU16::new(0);
+pub fn add_system_port<F>(name: &str, register_fn: F) -> PartialSendChannelHandle
+where
+    F: Fn(PartialSendChannelHandle) -> PartialSendChannelHandle + Sync + Send + 'static,
+{
+    let handle = PartialSendChannelHandle::new(0, NEXT_SYS_HANDLE.fetch_add(1, Ordering::Relaxed));
+
+    PORTS
+        .write()
+        .push(Port::new(&name, PortType::System(Box::new(register_fn))));
+
+    handle
 }
 
 #[derive(Debug)]
 pub struct Mailbox {
-    queue: ArrayQueue<Message>,
+    queue: SegQueue<Message>, //TODO: figure out why ArrayQueue doesn't work
 }
 
 impl Mailbox {
     pub fn new() -> Mailbox {
         Mailbox {
-            queue: ArrayQueue::new(MAX_QUEUE_SIZE),
+            queue: SegQueue::new(),
         }
     }
 
     pub fn send(&self, message: Message) {
-        if let Err(_message) = self.queue.push(message) {
+        if self.queue.len() < MAX_QUEUE_SIZE {
+            self.queue.push(message);
+        } else {
             todo!("block sender until there is space in the queue")
         }
     }
@@ -80,10 +93,9 @@ pub fn connect(
     connecting_process: &mut Process,
 ) -> Result<ChannelHandle, ConnectError> {
     connecting_process.channels.push(Mailbox::new());
-    let from_handle = ChannelHandle::new(
-        connecting_process.id(),
-        connecting_process.channels.len() as u16 - 1,
-    );
+    let channel_id = connecting_process.channels.len() as u16 - 1;
+
+    let from_handle = PartialSendChannelHandle::new(connecting_process.id(), channel_id);
 
     let ports = PORTS.read();
     let port = ports
@@ -92,30 +104,25 @@ pub fn connect(
         .ok_or(ConnectError::PortNotFound)?;
 
     let to_handle = match &port.port_type {
-        PortType::System(system_port) => {
-            let to_handle = ChannelHandle::new(NEXT_SYS_HANDLE.fetch_add(1, Ordering::Relaxed), 0);
-
-            match system_port {
-                SystemPort::Keyboard => crate::dev::keyboard::add_listener(from_handle),
-                SystemPort::Mouse => crate::dev::mouse::add_listener(from_handle),
-            }
-            to_handle
-        }
+        PortType::System(register_fn) => register_fn(from_handle),
         PortType::Process(_pid) => todo!("connect to process port"),
     };
 
     crate::println!(
         "connected pid {} -> pid {} on port '{}'",
-        from_handle.thread(),
-        to_handle.thread(),
+        from_handle.target_thread,
+        to_handle.target_channel,
         port.name
     );
 
-    Ok(to_handle)
+    Ok(ChannelHandle::from_parts(
+        to_handle,
+        PartialReceiveChannelHandle::new(channel_id),
+    ))
 }
 
-pub fn send(message: Message, handle: ChannelHandle) {
-    let receiver = handle.thread();
+pub fn send(message: Message, receiver_handle: PartialSendChannelHandle) {
+    let receiver = receiver_handle.target_thread;
 
     let current_process = CURRENT_PROCESS.read();
     let process_queue = PROCESS_QUEUE.read();
@@ -129,7 +136,10 @@ pub fn send(message: Message, handle: ChannelHandle) {
         todo!("handle blocked process / process not found")
     };
 
-    if let Some(mailbox) = process.channels.get(handle.channel() as usize) {
+    if let Some(mailbox) = process
+        .channels
+        .get(receiver_handle.target_channel as usize)
+    {
         mailbox.send(message);
     } else {
         todo!("handle process without open channel")

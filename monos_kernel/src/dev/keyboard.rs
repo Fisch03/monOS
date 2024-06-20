@@ -7,11 +7,11 @@ use crate::interrupts::{
     InterruptIndex, InterruptStackFrame,
 };
 use crate::mem::Mapping;
+use crate::process::messaging::{add_system_port, PartialSendChannelHandle};
 
 use alloc::vec::Vec;
-use monos_std::messaging::ChannelHandle;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
-use spin::{Lazy, Mutex};
+use spin::{Lazy, Mutex, Once};
 use x86_64::instructions::port::Port;
 
 static KEYBOARD: Lazy<Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>>> = Lazy::new(|| {
@@ -22,10 +22,15 @@ static KEYBOARD: Lazy<Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>>> = Lazy::
     ))
 });
 
-static LISTENERS: Lazy<Mutex<Vec<ChannelHandle>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static LISTENERS: Lazy<Mutex<Vec<PartialSendChannelHandle>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static CHANNEL_HANDLE: Once<PartialSendChannelHandle> = Once::new();
 
-pub fn add_listener(handle: ChannelHandle) {
+pub fn add_listener(handle: PartialSendChannelHandle) -> PartialSendChannelHandle {
     LISTENERS.lock().push(handle);
+    CHANNEL_HANDLE
+        .get()
+        .expect("keyboard channel not initialized")
+        .clone()
 }
 
 pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
@@ -50,6 +55,8 @@ pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
     entry.set_masked(false);
     entry.set_destination(processor_local_apic);
     io_apic.set_ioredtbl(global_system_interrupt_val, entry);
+
+    CHANNEL_HANDLE.call_once(|| add_system_port("sys.keyboard", add_listener));
 }
 
 pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFrame) {

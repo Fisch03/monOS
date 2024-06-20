@@ -131,7 +131,7 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
             SyscallType::OpenFramebuffer => gfx::sys_open_fb(arg1),
             SyscallType::SubmitFrame => gfx::sys_submit_frame(arg1, arg2),
             SyscallType::Connect => io::sys_connect(arg1, arg2, arg3),
-            SyscallType::Receive => io::sys_receive(syscall.get_handle(), arg1),
+            SyscallType::Receive => io::sys_receive(syscall.get_handle_recv(), arg1),
             _ => crate::println!("unimplemented syscall {:?}", syscall),
         }
     } else {

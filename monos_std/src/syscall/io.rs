@@ -29,7 +29,7 @@ pub fn receive(handle: ChannelHandle) -> Option<Message> {
 
     unsafe {
         syscall_1(
-            Syscall::new(SyscallType::Receive).with_handle(handle),
+            Syscall::new(SyscallType::Receive).with_handle_recv(handle),
             &mut message as *mut _ as u64,
         )
     };

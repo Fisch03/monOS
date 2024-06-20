@@ -25,7 +25,7 @@ pub fn sys_connect(arg1: u64, arg2: u64, arg3: u64) {
     *handle = connect(port, current_proc.as_mut()).ok();
 }
 
-pub fn sys_receive(handle: ChannelHandle, arg1: u64) {
+pub fn sys_receive(handle: PartialReceiveChannelHandle, arg1: u64) {
     let message_ptr = arg1 as *mut Option<Message>;
     let message = unsafe { &mut *message_ptr };
 

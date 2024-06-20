@@ -8,7 +8,7 @@ pub use gfx::*;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::messaging::ChannelHandle;
+use crate::messaging::{ChannelHandle, PartialReceiveChannelHandle, PartialSendChannelHandle};
 
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
@@ -27,10 +27,10 @@ pub enum SyscallType {
     SubmitFrame,
 }
 
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct Syscall {
     pub ty: SyscallType,
-    _reserved1: u8,
+    flags: u8,
     channel_pid: u32,
     channel_number: u16,
 }
@@ -39,20 +39,31 @@ impl Syscall {
     pub const fn new(ty: SyscallType) -> Self {
         Self {
             ty,
-            _reserved1: 0,
+            flags: 0,
             channel_pid: 0,
             channel_number: 0,
         }
     }
 
     #[inline(always)]
-    pub fn get_handle(&self) -> ChannelHandle {
-        ChannelHandle::new(self.channel_pid, self.channel_number)
+    pub fn get_handle_recv(&self) -> PartialReceiveChannelHandle {
+        PartialReceiveChannelHandle::new(self.channel_number)
     }
 
-    pub fn with_handle(mut self, channel: ChannelHandle) -> Self {
-        self.channel_pid = channel.thread();
-        self.channel_number = channel.channel();
+    #[inline(always)]
+    pub fn get_handle_send(&self) -> PartialSendChannelHandle {
+        PartialSendChannelHandle::new(self.channel_pid, self.channel_number)
+    }
+
+    pub fn with_handle_send(mut self, channel: ChannelHandle) -> Self {
+        self.channel_pid = channel.target_thread;
+        self.channel_number = channel.target_channel;
+        self
+    }
+
+    pub fn with_handle_recv(mut self, channel: ChannelHandle) -> Self {
+        self.channel_pid = 0;
+        self.channel_number = channel.own_channel;
         self
     }
 }
@@ -78,9 +89,14 @@ impl TryFrom<u64> for Syscall {
 
 impl core::fmt::Debug for Syscall {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let pid = self.channel_pid;
+        let channel = self.channel_number;
+
         f.debug_struct("Syscall")
             .field("type", &self.ty)
-            .field("handle", &self.get_handle())
+            .field("flags", &self.flags)
+            .field("channel_pid", &pid)
+            .field("channel_number", &channel)
             .finish()
     }
 }
