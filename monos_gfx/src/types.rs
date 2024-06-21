@@ -5,7 +5,7 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn new(x: i64, y: i64) -> Position {
+    pub const fn new(x: i64, y: i64) -> Position {
         Position { x, y }
     }
 }
@@ -21,14 +21,54 @@ impl core::ops::Mul<i64> for &Position {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct Rect {
+    pub min: Position,
+    pub max: Position,
+}
+
+impl Rect {
+    pub const fn new(min: Position, max: Position) -> Rect {
+        Rect { min, max }
+    }
+
+    pub const fn zero() -> Rect {
+        Rect {
+            min: Position::new(0, 0),
+            max: Position::new(0, 0),
+        }
+    }
+
+    pub const fn from_dimensions(dimensions: Dimension) -> Rect {
+        Rect {
+            min: Position::new(0, 0),
+            max: Position::new(dimensions.width as i64, dimensions.height as i64),
+        }
+    }
+
+    pub fn dimensions(&self) -> Dimension {
+        Dimension::new(
+            (self.max.x - self.min.x) as u32,
+            (self.max.y - self.min.y) as u32,
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Dimension {
-    pub width: usize,
-    pub height: usize,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Dimension {
-    pub fn new(width: usize, height: usize) -> Dimension {
+    pub const fn new(width: u32, height: u32) -> Dimension {
         Dimension { width, height }
+    }
+
+    pub const fn zero() -> Dimension {
+        Dimension {
+            width: 0,
+            height: 0,
+        }
     }
 }
 
@@ -40,27 +80,7 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn new(r: u8, g: u8, b: u8) -> Color {
+    pub const fn new(r: u8, g: u8, b: u8) -> Color {
         Color { r, g, b }
-    }
-}
-
-pub struct Character {
-    pub width: usize,
-    pub height: usize,
-    pub data: &'static [u8],
-}
-
-impl Character {
-    pub fn from_raw(raw: &'static [u8]) -> Character {
-        let width = usize::from(raw[0]);
-        let height = usize::from(raw[1]);
-        let data = &raw[2..];
-
-        Self {
-            width,
-            height,
-            data,
-        }
     }
 }

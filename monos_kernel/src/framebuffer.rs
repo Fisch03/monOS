@@ -74,7 +74,7 @@ impl KernelFramebuffer {
             front_buffer,
             framebuffer: Framebuffer::new(
                 back_buffer,
-                Dimension::new(info.width, info.height),
+                Dimension::new(info.width as u32, info.height as u32),
                 info.stride as usize,
                 info.bytes_per_pixel as usize,
             ),
@@ -149,9 +149,9 @@ impl KernelFramebuffer {
                 unsafe {
                     slice::from_raw_parts_mut(start.as_mut_ptr(), self.framebuffer.buffer().len())
                 },
-                self.framebuffer.dimensions(),
-                self.framebuffer.stride(),
-                self.framebuffer.bytes_per_pixel(),
+                self.framebuffer.actual_dimensions(),
+                self.framebuffer.stride() as usize,
+                self.framebuffer.bytes_per_pixel() as usize,
             );
 
             *receiver = Some(framebuffer);

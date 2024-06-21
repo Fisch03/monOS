@@ -179,8 +179,12 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] ps2 keyboard input
     - [x] ps2 mouse input
 - [ ] gui
+  - [ ] image loading + cursor
   - [ ] decently usable immediate mode gui library
-    - [ ] ...
+    - [x] basic functionality
+    - [ ] better text wrapping
+    - [ ] buttons
+    - ... 
   - [x] boot screen 
   - [ ] desktop environment (`rooftop`)
   - [ ] terminal

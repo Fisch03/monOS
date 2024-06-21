@@ -6,9 +6,9 @@ extern crate alloc;
 pub mod types;
 pub use types::*;
 
-pub mod gui;
+pub mod ui;
 
-mod fonts;
+pub mod fonts;
 
 mod framebuffer;
 pub use framebuffer::Framebuffer;

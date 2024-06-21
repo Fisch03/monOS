@@ -1,17 +1,24 @@
-use crate::fonts;
 use crate::types::*;
-use alloc::{boxed::Box, vec, vec::Vec};
 
-const CHAR_WIDTH: usize = 6;
-const CHAR_HEIGHT: usize = 13;
-
-#[derive(Debug)]
 pub struct Framebuffer {
     buffer: &'static mut [u8],
-    dimensions: Dimension,
 
-    stride: usize,
-    bytes_per_pixel: usize,
+    actual_dimensions: Dimension,
+    scaled_dimensions: Dimension,
+
+    stride: i64,
+    bytes_per_pixel: i64,
+}
+
+impl core::fmt::Debug for Framebuffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Framebuffer")
+            .field("actual_dimensions", &self.actual_dimensions)
+            .field("scaled_dimensions", &self.scaled_dimensions)
+            .field("stride", &self.stride)
+            .field("bytes_per_pixel", &self.bytes_per_pixel)
+            .finish()
+    }
 }
 
 impl Framebuffer {
@@ -23,9 +30,13 @@ impl Framebuffer {
     ) -> Self {
         Self {
             buffer,
-            dimensions,
-            stride,
-            bytes_per_pixel,
+            actual_dimensions: dimensions,
+            scaled_dimensions: Dimension {
+                width: dimensions.width / 2,
+                height: dimensions.height / 2,
+            },
+            stride: stride as i64,
+            bytes_per_pixel: bytes_per_pixel as i64,
         }
     }
 
@@ -35,18 +46,23 @@ impl Framebuffer {
     }
 
     #[inline(always)]
-    pub fn dimensions(&self) -> Dimension {
-        self.dimensions
+    pub fn actual_dimensions(&self) -> Dimension {
+        self.actual_dimensions
     }
 
     #[inline(always)]
-    pub fn stride(&self) -> usize {
-        self.stride
+    pub fn scaled_dimensions(&self) -> Dimension {
+        self.scaled_dimensions
     }
 
     #[inline(always)]
-    pub fn bytes_per_pixel(&self) -> usize {
-        self.bytes_per_pixel
+    pub fn stride(&self) -> u64 {
+        self.stride as u64
+    }
+
+    #[inline(always)]
+    pub fn bytes_per_pixel(&self) -> u64 {
+        self.bytes_per_pixel as u64
     }
 
     #[inline(always)]
@@ -62,40 +78,25 @@ impl Framebuffer {
         unsafe { core::ptr::write_bytes(self.buffer.as_mut_ptr(), 0, self.buffer.len()) };
     }
 
-    fn draw_char(&mut self, color: &Color, character: char, position: &Position, overdraw: bool) {
-        let position_x = position.x as usize;
-        let position_y = position.y as usize;
-
-        if let Some(char) = fonts::cozette::get_char(character) {
-            let char = Character::from_raw(char);
-
-            let base_x = position_x * CHAR_WIDTH;
-            let base_y = position_y * CHAR_HEIGHT;
-
-            if overdraw {
-                for y in 0..CHAR_HEIGHT {
-                    for x in 0..CHAR_WIDTH {
-                        self.draw_pixel(
-                            &Position {
-                                x: (base_x + x) as i64,
-                                y: (base_y + y) as i64,
-                            },
-                            &Color::new(0, 0, 0),
-                        );
-                    }
-                }
-            }
-
+    pub fn draw_char<Font: crate::fonts::Font>(
+        &mut self,
+        color: &Color,
+        character: char,
+        position: &Position,
+    ) {
+        if let Some(char) = Font::get_char(character) {
+            let char = crate::fonts::Character::from_raw(char);
             let mut bit_offset = 0;
             let mut byte_offset = 0;
+
             for y in 0..char.height {
                 for x in 0..char.width {
                     let byte = char.data.get(byte_offset).unwrap_or(&1);
                     if byte & (1 << bit_offset) == 0 {
                         self.draw_pixel(
                             &Position {
-                                x: (base_x + x) as i64,
-                                y: (base_y + y) as i64,
+                                x: position.x + x as i64,
+                                y: position.y + y as i64,
                             },
                             color,
                         );
@@ -110,22 +111,33 @@ impl Framebuffer {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
-        let position_x = position.x as usize;
-        let position_y = position.y as usize;
-
-        if position_x >= self.dimensions.width || position_y >= self.dimensions.height {
+        // TODO: remove this and instead optimize drawing functions
+        if position.x >= self.scaled_dimensions.width.into()
+            || position.y >= self.scaled_dimensions.height.into()
+        {
             return;
         }
 
-        let y_offset_lower = position_y * self.stride;
-        let offset = y_offset_lower + position_x;
+        let scaled_x = position.x * 2;
+        let scaled_y = position.y * 2;
 
-        self.draw_pixel_raw(offset * self.bytes_per_pixel, color);
+        let y_upper = scaled_y * self.stride;
+        let y_lower = y_upper + self.stride;
+
+        let offset_tl = y_upper + scaled_x;
+        let offset_tr = y_upper + scaled_x + 1;
+        let offset_bl = y_lower + scaled_x;
+        let offset_br = y_lower + scaled_x + 1;
+
+        self.draw_pixel_raw((offset_tl * self.bytes_per_pixel) as usize, color);
+        self.draw_pixel_raw((offset_tr * self.bytes_per_pixel) as usize, color);
+        self.draw_pixel_raw((offset_bl * self.bytes_per_pixel) as usize, color);
+        self.draw_pixel_raw((offset_br * self.bytes_per_pixel) as usize, color);
     }
 
-    #[inline]
+    #[inline(always)]
     fn draw_pixel_raw(&mut self, byte_offset: usize, color: &Color) {
         let pixel_bytes = &mut self.buffer[byte_offset..];
         // match self.info.pixel_format {
