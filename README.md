@@ -182,7 +182,7 @@ there is currently no safety in place for channels, meaning that a process can j
   - [ ] image loading + cursor
   - [ ] decently usable immediate mode gui library
     - [x] basic functionality
-    - [ ] better text wrapping
+    - [x] better text wrapping
     - [ ] buttons
     - ... 
   - [x] boot screen 

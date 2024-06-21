@@ -20,7 +20,7 @@ fn main() {
     let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
     println!("Keyboard channel: {:?}", mouse_channel);
 
-    let mut cursor_pos = Position::new(10, 10);
+    let mut cursor_pos = Position::new(fb_rect.max.x - 10, 10);
 
     let mut ui_frame = UIFrame::new(Direction::TopToBottom);
 
@@ -54,6 +54,8 @@ fn main() {
             ui.label("good mononing!!!\n");
             ui.label(
                 r#"big text: 
+big-long-hyphenated-word
+
 Scawy big no functionality at all UwU 
 
 Senpai,

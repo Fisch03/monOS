@@ -111,6 +111,65 @@ impl Framebuffer {
         }
     }
 
+    pub fn draw_str<Font: crate::fonts::Font>(
+        &mut self,
+        color: &Color,
+        string: &str,
+        position: &Position,
+    ) {
+        use crate::fonts::Character;
+
+        let chars = string
+            .chars()
+            .map(|c| Character::from_raw(Font::get_char(c).unwrap()))
+            .collect::<alloc::vec::Vec<_>>();
+
+        let start_position = Position {
+            x: position.x * 2,
+            y: position.y * 2,
+        };
+        let mut line_start =
+            ((start_position.y * self.stride + start_position.x) * self.bytes_per_pixel) as usize;
+        let mut line_pos = line_start;
+
+        let bytes_per_scaled_line = (self.stride * self.bytes_per_pixel) as usize;
+        let bytes_per_scaled_pixel = self.bytes_per_pixel as usize * 2;
+
+        for y in 0..Font::CHAR_HEIGHT as usize {
+            for _ys in 0..2 {
+                for c in &chars {
+                    let next_line_pos =
+                        line_pos + Font::CHAR_WIDTH as usize * 2 * self.bytes_per_pixel as usize;
+                    for x in 0..c.width {
+                        let c_bit_offset = (y * c.width + x) as usize;
+                        let c_byte_offset = c_bit_offset / 8;
+                        let c_bit_offset = c_bit_offset % 8;
+
+                        let byte = c.data.get(c_byte_offset).unwrap_or(&1);
+
+                        if byte & (1 << c_bit_offset) == 0 {
+                            let pixel_bytes = &mut self.buffer[line_pos..];
+                            pixel_bytes[0] = color.r;
+                            pixel_bytes[1] = color.g;
+                            pixel_bytes[2] = color.b;
+                            pixel_bytes[4] = color.r;
+                            pixel_bytes[5] = color.g;
+                            pixel_bytes[6] = color.b;
+                        }
+                        line_pos += bytes_per_scaled_pixel;
+                    }
+                    line_pos = next_line_pos;
+                }
+                line_start += bytes_per_scaled_line;
+
+                line_pos = line_start;
+                if line_pos + bytes_per_scaled_line >= self.buffer.len() {
+                    return;
+                }
+            }
+        }
+    }
+
     #[inline(always)]
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
         // TODO: remove this and instead optimize drawing functions
