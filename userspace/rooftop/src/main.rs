@@ -20,7 +20,7 @@ fn main() {
     let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
     println!("Keyboard channel: {:?}", mouse_channel);
 
-    let mut cursor_pos = Position::new(fb_rect.max.x - 10, 10);
+    let mut cursor_pos = Position::new(10, 10);
 
     let mut ui_frame = UIFrame::new(Direction::TopToBottom);
 
@@ -41,7 +41,7 @@ fn main() {
                     .max(0)
                     .min(fb.scaled_dimensions().height as i64);
 
-                fb_rect.max = cursor_pos;
+                // fb_rect.max = cursor_pos;
             } else if msg.sender == keyboard_channel {
                 let key = msg.data.0 as u8 as char;
                 println!("Key: {:?}", key);
@@ -52,33 +52,20 @@ fn main() {
 
         ui_frame.draw_frame(&mut fb, fb_rect, |ui| {
             ui.label("good mononing!!!\n");
-            ui.label(
-                r#"big text: 
-big-long-hyphenated-word
 
-Scawy big no functionality at all UwU 
+            // if ui.button("click me").clicked {
+            //     println!("button clicked!");
+            // }
 
-Senpai,
-
-your little kawaii pwintf impwementation is getting out of contwol.
-Pwease have a look at this:
-
-The pwintf function:
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => {{
-        use core::fmt::Write;
-
-        // TODO: figure out why format!() doesn't work
-        let mut s = $crate::prelude::String::new();
-        let _ = write!(s, $($arg)*);
-        $crate::syscall::print(&s);
-
-    }};
-}
-"#,
-            );
+            ui.button("margin minimum, padding gap 0");
+            ui.margin(MarginMode::AtLeast(250));
+            ui.button("margin least 250, padding gap 0");
+            ui.margin(MarginMode::Grow);
+            ui.button("margin grow, padding gap 0");
+            ui.padding(PaddingMode::Fill);
+            ui.button("margin grow, padding fill");
+            ui.padding(PaddingMode::Gap(20));
+            ui.button("margin grow, padding gap 20");
         });
         draw_cursor(&mut fb, cursor_pos);
 

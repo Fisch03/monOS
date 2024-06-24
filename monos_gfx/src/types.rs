@@ -10,12 +10,82 @@ impl Position {
     }
 }
 
-impl core::ops::Mul<i64> for &Position {
+impl core::ops::Add<i64> for Position {
+    type Output = Position;
+    fn add(self, rhs: i64) -> Position {
+        Position {
+            x: self.x + rhs,
+            y: self.y + rhs,
+        }
+    }
+}
+
+impl core::ops::Sub<i64> for Position {
+    type Output = Position;
+    fn sub(self, rhs: i64) -> Position {
+        Position {
+            x: self.x - rhs,
+            y: self.y - rhs,
+        }
+    }
+}
+
+impl core::ops::Mul<i64> for Position {
     type Output = Position;
     fn mul(self, rhs: i64) -> Position {
         Position {
             x: self.x * rhs,
             y: self.y * rhs,
+        }
+    }
+}
+
+impl core::ops::Div<i64> for Position {
+    type Output = Position;
+    fn div(self, rhs: i64) -> Position {
+        Position {
+            x: self.x / rhs,
+            y: self.y / rhs,
+        }
+    }
+}
+
+impl core::ops::Add<Position> for Position {
+    type Output = Position;
+    fn add(self, rhs: Position) -> Position {
+        Position {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl core::ops::Sub<Position> for Position {
+    type Output = Position;
+    fn sub(self, rhs: Position) -> Position {
+        Position {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl core::ops::Add<Dimension> for Position {
+    type Output = Position;
+    fn add(self, rhs: Dimension) -> Position {
+        Position {
+            x: self.x + rhs.width as i64,
+            y: self.y + rhs.height as i64,
+        }
+    }
+}
+
+impl core::ops::Sub<Dimension> for Position {
+    type Output = Position;
+    fn sub(self, rhs: Dimension) -> Position {
+        Position {
+            x: self.x - rhs.width as i64,
+            y: self.y - rhs.height as i64,
         }
     }
 }
@@ -45,11 +115,32 @@ impl Rect {
         }
     }
 
+    pub fn centered_in(parent: Rect, dimensions: Dimension) -> Rect {
+        let min = Position::new(
+            parent.min.x + (parent.width() as i64 - dimensions.width as i64) / 2,
+            parent.min.y + (parent.height() as i64 - dimensions.height as i64) / 2,
+        );
+        let max = min + dimensions;
+        Rect { min, max }
+    }
+
     pub fn dimensions(&self) -> Dimension {
-        Dimension::new(
-            (self.max.x - self.min.x) as u32,
-            (self.max.y - self.min.y) as u32,
-        )
+        Dimension::new(self.width(), self.height())
+    }
+
+    pub const fn width(&self) -> u32 {
+        (self.max.x - self.min.x) as u32
+    }
+
+    pub const fn height(&self) -> u32 {
+        (self.max.y - self.min.y) as u32
+    }
+
+    pub fn center(&self) -> Position {
+        Position {
+            x: (self.min.x + self.max.x) / 2,
+            y: (self.min.y + self.max.y) / 2,
+        }
     }
 }
 
@@ -68,6 +159,36 @@ impl Dimension {
         Dimension {
             width: 0,
             height: 0,
+        }
+    }
+}
+
+impl core::ops::Add<u32> for Dimension {
+    type Output = Dimension;
+    fn add(self, rhs: u32) -> Dimension {
+        Dimension {
+            width: self.width + rhs,
+            height: self.height + rhs,
+        }
+    }
+}
+
+impl core::ops::Mul<u32> for Dimension {
+    type Output = Dimension;
+    fn mul(self, rhs: u32) -> Dimension {
+        Dimension {
+            width: self.width * rhs,
+            height: self.height * rhs,
+        }
+    }
+}
+
+impl core::ops::Div<u32> for Dimension {
+    type Output = Dimension;
+    fn div(self, rhs: u32) -> Dimension {
+        Dimension {
+            width: self.width / rhs,
+            height: self.height / rhs,
         }
     }
 }

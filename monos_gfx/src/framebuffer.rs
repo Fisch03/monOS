@@ -78,6 +78,14 @@ impl Framebuffer {
         unsafe { core::ptr::write_bytes(self.buffer.as_mut_ptr(), 0, self.buffer.len()) };
     }
 
+    pub fn draw_rect(&mut self, rect: &Rect, color: &Color) {
+        for y in rect.min.y..rect.max.y {
+            for x in rect.min.x..rect.max.x {
+                self.draw_pixel(&Position { x, y }, color);
+            }
+        }
+    }
+
     pub fn draw_char<Font: crate::fonts::Font>(
         &mut self,
         color: &Color,
@@ -121,7 +129,7 @@ impl Framebuffer {
 
         let chars = string
             .chars()
-            .map(|c| Character::from_raw(Font::get_char(c).unwrap()))
+            .filter_map(|c| Font::get_char(c).map(|c| Character::from_raw(c)))
             .collect::<alloc::vec::Vec<_>>();
 
         let start_position = Position {
@@ -170,9 +178,7 @@ impl Framebuffer {
         }
     }
 
-    #[inline(always)]
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
-        // TODO: remove this and instead optimize drawing functions
         if position.x >= self.scaled_dimensions.width.into()
             || position.y >= self.scaled_dimensions.height.into()
         {
