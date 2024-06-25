@@ -1,4 +1,60 @@
 use crate::types::*;
+use monos_std::messaging::*;
+
+#[derive(Debug)]
+pub enum FramebufferRequest<'a> {
+    Open(&'a mut Option<Framebuffer>),
+    SubmitFrame(&'a Framebuffer),
+}
+
+#[derive(Debug)]
+pub enum FramebufferResponse {
+    OK,
+}
+
+impl MessageData for FramebufferRequest<'_> {
+    fn into_message(self) -> (u64, u64, u64, u64) {
+        match self {
+            FramebufferRequest::Open(fb) => {
+                let fb_ptr = fb as *mut _ as u64;
+                (0, 0, 0, fb_ptr)
+            }
+            FramebufferRequest::SubmitFrame(fb) => {
+                let fb_ptr = fb as *const _ as u64;
+                (1, 0, 0, fb_ptr)
+            }
+        }
+    }
+
+    unsafe fn from_message(message: &Message) -> Option<Self> {
+        match message.data {
+            (0, 0, 0, fb_ptr) => {
+                let fb = &mut *(fb_ptr as *mut Option<Framebuffer>);
+                Some(FramebufferRequest::Open(fb))
+            }
+            (1, 0, 0, fb_ptr) => {
+                let fb = &*(fb_ptr as *const Framebuffer);
+                Some(FramebufferRequest::SubmitFrame(fb))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl MessageData for FramebufferResponse {
+    fn into_message(self) -> (u64, u64, u64, u64) {
+        match self {
+            FramebufferResponse::OK => (0, 0, 0, 0),
+        }
+    }
+
+    unsafe fn from_message(_message: &Message) -> Option<Self> {
+        match _message.data {
+            (0, 0, 0, 0) => Some(FramebufferResponse::OK),
+            _ => None,
+        }
+    }
+}
 
 pub struct Framebuffer {
     buffer: &'static mut [u8],

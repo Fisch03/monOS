@@ -8,12 +8,21 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
-use monos_gfx::{ui::*, Framebuffer, Position, Rect};
+use monos_gfx::{
+    framebuffer::{FramebufferRequest, FramebufferResponse},
+    ui::*,
+    Framebuffer, Position, Rect,
+};
 
 #[no_mangle]
 fn main() {
-    let mut fb = syscall::open_fb().unwrap();
-    let mut fb_rect = Rect::from_dimensions(fb.scaled_dimensions());
+    let fb_channel = syscall::connect("sys.framebuffer").unwrap();
+    let mut fb: Option<Framebuffer> = None;
+    // TODO: send_sync
+    syscall::send(fb_channel, FramebufferRequest::Open(&mut fb));
+    let mut fb = fb.unwrap();
+
+    let fb_rect = Rect::from_dimensions(fb.scaled_dimensions());
 
     let mouse_channel = syscall::connect("sys.mouse").unwrap();
     println!("Mouse channel: {:?}", mouse_channel);
@@ -69,7 +78,7 @@ fn main() {
         });
         draw_cursor(&mut fb, cursor_pos);
 
-        syscall::submit_frame(&fb);
+        syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
     }
 }
 

@@ -12,8 +12,8 @@ mod memory;
 
 pub mod messaging;
 
+pub mod dev;
 pub mod syscall;
-pub use monos_gfx as gfx;
 
 pub use prelude::*;
 

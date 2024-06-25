@@ -1,8 +1,8 @@
-use super::LOWER_HALF_END;
+use crate::LOWER_HALF_END;
 
 use monos_std::messaging::*;
 
-use crate::process::messaging::connect;
+use crate::process::messaging::{connect, send};
 
 pub fn sys_connect(arg1: u64, arg2: u64, arg3: u64) {
     assert!(arg1 < LOWER_HALF_END);
@@ -25,14 +25,14 @@ pub fn sys_connect(arg1: u64, arg2: u64, arg3: u64) {
     *handle = connect(port, current_proc.as_mut()).ok();
 }
 
-pub fn sys_receive(handle: PartialReceiveChannelHandle, arg1: u64) {
+pub fn sys_receive(handle: ChannelHandle, arg1: u64) {
     let message_ptr = arg1 as *mut Option<Message>;
     let message = unsafe { &mut *message_ptr };
 
     let current_proc = crate::process::CURRENT_PROCESS.read();
     let current_proc = current_proc.as_ref().unwrap();
 
-    *message = current_proc.receive(handle);
+    *message = current_proc.receive(handle.recv_part());
 }
 
 pub fn sys_receive_any(arg1: u64) {
@@ -43,4 +43,23 @@ pub fn sys_receive_any(arg1: u64) {
     let current_proc = current_proc.as_ref().unwrap();
 
     *message = current_proc.receive_any();
+}
+
+pub fn sys_send(handle: ChannelHandle, arg1: u64, arg2: u64, arg3: u64, arg4: u64) {
+    let data = (arg1, arg2, arg3, arg4);
+
+    let message = {
+        let current_proc = crate::process::CURRENT_PROCESS.read();
+        let current_proc = current_proc.as_ref().unwrap();
+
+        Message {
+            sender: PartialSendChannelHandle {
+                target_thread: current_proc.id(),
+                target_channel: handle.own_channel,
+            },
+            data,
+        }
+    };
+
+    send(message, handle.send_part());
 }

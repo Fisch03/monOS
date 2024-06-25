@@ -1,5 +1,6 @@
 use crate::mem::{self, PageTableFlags, VirtualAddress};
 
+use crate::process::messaging::{add_system_port, Message, PartialSendChannelHandle};
 use bootloader_api::info::FrameBuffer as RawFrameBuffer;
 use core::slice;
 use spin::{Mutex, MutexGuard, Once};
@@ -16,13 +17,58 @@ pub fn get() -> Option<MutexGuard<'static, KernelFramebuffer>> {
     FRAMEBUFFER.get().map(|fb| fb.lock())
 }
 
+pub fn receive_message(message: Message) {
+    let mut current_proc_guard = crate::process::CURRENT_PROCESS.write();
+    let current_proc = current_proc_guard.as_mut().unwrap();
+
+    assert!(current_proc.id() == message.sender.target_thread); //sanity check in case i ever change the way messaging works
+
+    if let Some(mut fb_guard) = crate::framebuffer::get() {
+        if fb_guard.borrowed.is_none() || fb_guard.borrowed.unwrap() != message.sender {
+            crate::println!(
+                "thread {} tried to access framebuffer without borrowing it",
+                message.sender.target_thread
+            );
+            return;
+        }
+
+        use crate::process::messaging::{send, MessageData};
+        use monos_gfx::framebuffer::{FramebufferRequest, FramebufferResponse};
+
+        let request = unsafe { FramebufferRequest::from_message(&message).unwrap() };
+        match request {
+            FramebufferRequest::SubmitFrame(frame) => {
+                fb_guard.submit_frame(frame.buffer());
+            }
+            FramebufferRequest::Open(fb) => {
+                fb_guard.borrow(
+                    message.sender,
+                    fb,
+                    current_proc.mapper(),
+                    VirtualAddress::new(0x410000000000),
+                );
+
+                crate::println!("pid {} opened framebuffer", message.sender.target_thread);
+                let return_message = Message {
+                    sender: fb_guard.own_handle,
+                    data: FramebufferResponse::OK.into_message(),
+                };
+
+                drop(current_proc_guard); // drop the guard before sending the message, to avoid deadlock
+                                          //send(return_message, message.sender); // add this back once send_sync is implemented
+            }
+        }
+    }
+}
+
 pub struct KernelFramebuffer {
     front_buffer: &'static mut [u8],
     framebuffer: Framebuffer,
 
     back_buffer_start_frame: mem::Frame,
 
-    borrowed: Option<u32>,
+    own_handle: PartialSendChannelHandle,
+    borrowed: Option<PartialSendChannelHandle>,
 }
 
 impl KernelFramebuffer {
@@ -70,6 +116,19 @@ impl KernelFramebuffer {
             back_buffer_page = back_buffer_page.next();
         }
 
+        let own_handle = add_system_port(
+            "sys.framebuffer",
+            |borrower| {
+                let mut fb_guard = get().unwrap();
+                if fb_guard.borrowed.is_none() {
+                    crate::println!("thread {} borrowed framebuffer", borrower.target_thread);
+                    fb_guard.borrowed = Some(borrower);
+                }
+                fb_guard.own_handle
+            },
+            Some(receive_message),
+        );
+
         let framebuffer = Self {
             front_buffer,
             framebuffer: Framebuffer::new(
@@ -79,6 +138,7 @@ impl KernelFramebuffer {
                 info.bytes_per_pixel as usize,
             ),
             back_buffer_start_frame,
+            own_handle,
             borrowed: None,
         };
 
@@ -110,52 +170,47 @@ impl KernelFramebuffer {
 
     pub fn borrow(
         &mut self,
-        process_id: u32,
+        borrower: PartialSendChannelHandle,
         receiver: &mut Option<Framebuffer>,
         mapper: &mut mem::Mapper,
         start: VirtualAddress,
     ) {
-        if self.borrowed.is_some() {
-            receiver.take();
-        } else {
-            use mem::MapTo;
+        use mem::MapTo;
 
-            let flags = PageTableFlags::PRESENT
-                | PageTableFlags::WRITABLE
-                | PageTableFlags::WRITE_THROUGH
-                | PageTableFlags::CACHE_DISABLE
-                | PageTableFlags::USER_ACCESSIBLE;
+        let flags = PageTableFlags::PRESENT
+            | PageTableFlags::WRITABLE
+            | PageTableFlags::WRITE_THROUGH
+            | PageTableFlags::CACHE_DISABLE
+            | PageTableFlags::USER_ACCESSIBLE;
 
-            self.borrowed = Some(process_id);
+        self.borrowed = Some(borrower);
 
-            let mut frame = self.back_buffer_start_frame;
-            let mut page = mem::Page::around(start);
-            let end_page =
-                mem::Page::around(page.start_address() + self.framebuffer.buffer().len() as u64)
-                    .next();
+        let mut frame = self.back_buffer_start_frame;
+        let mut page = mem::Page::around(start);
+        let end_page =
+            mem::Page::around(page.start_address() + self.framebuffer.buffer().len() as u64).next();
 
-            loop {
-                unsafe { mapper.map_to(&page, &frame, flags) }.expect("failed to map framebuffer");
+        loop {
+            unsafe { mapper.map_to(&page, &frame, flags) }.expect("failed to map framebuffer");
 
-                if page == end_page {
-                    break;
-                }
-
-                frame = frame.next();
-                page = page.next();
+            if page == end_page {
+                break;
             }
 
-            let framebuffer = Framebuffer::new(
-                unsafe {
-                    slice::from_raw_parts_mut(start.as_mut_ptr(), self.framebuffer.buffer().len())
-                },
-                self.framebuffer.actual_dimensions(),
-                self.framebuffer.stride() as usize,
-                self.framebuffer.bytes_per_pixel() as usize,
-            );
-
-            *receiver = Some(framebuffer);
+            frame = frame.next();
+            page = page.next();
         }
+
+        let framebuffer = Framebuffer::new(
+            unsafe {
+                slice::from_raw_parts_mut(start.as_mut_ptr(), self.framebuffer.buffer().len())
+            },
+            self.framebuffer.actual_dimensions(),
+            self.framebuffer.stride() as usize,
+            self.framebuffer.bytes_per_pixel() as usize,
+        );
+
+        *receiver = Some(framebuffer);
     }
 
     pub fn as_mut(&mut self) -> Option<&mut Framebuffer> {

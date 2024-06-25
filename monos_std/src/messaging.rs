@@ -1,5 +1,13 @@
 use core::num::NonZeroU64;
 
+pub trait MessageData
+where
+    Self: Sized,
+{
+    unsafe fn from_message(message: &Message) -> Option<Self>;
+    fn into_message(self) -> (u64, u64, u64, u64);
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct ChannelHandle {
@@ -36,6 +44,19 @@ impl ChannelHandle {
             target_thread: send_part.target_thread,
             target_channel: send_part.target_channel,
             own_channel: recv_part.own_channel,
+        }
+    }
+
+    pub fn send_part(&self) -> PartialSendChannelHandle {
+        PartialSendChannelHandle {
+            target_thread: self.target_thread,
+            target_channel: self.target_channel,
+        }
+    }
+
+    pub fn recv_part(&self) -> PartialReceiveChannelHandle {
+        PartialReceiveChannelHandle {
+            own_channel: self.own_channel,
         }
     }
 }
@@ -106,4 +127,14 @@ impl From<ChannelLimit> for u64 {
 pub struct Message {
     pub sender: PartialSendChannelHandle,
     pub data: (u64, u64, u64, u64),
+}
+
+impl MessageData for Message {
+    unsafe fn from_message(message: &Message) -> Option<Self> {
+        Some(message.clone())
+    }
+
+    fn into_message(self) -> (u64, u64, u64, u64) {
+        self.data
+    }
 }

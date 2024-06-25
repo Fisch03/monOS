@@ -7,7 +7,7 @@ use crate::interrupts::{
     InterruptIndex, InterruptStackFrame,
 };
 use crate::mem::Mapping;
-use crate::process::messaging::{add_system_port, PartialSendChannelHandle};
+use crate::process::messaging::{add_system_port, PartialSendChannelHandle, SYS_PORT_NO_RECEIVE};
 
 use alloc::vec::Vec;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
@@ -56,7 +56,7 @@ pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
     entry.set_destination(processor_local_apic);
     io_apic.set_ioredtbl(global_system_interrupt_val, entry);
 
-    CHANNEL_HANDLE.call_once(|| add_system_port("sys.keyboard", add_listener));
+    CHANNEL_HANDLE.call_once(|| add_system_port("sys.keyboard", add_listener, SYS_PORT_NO_RECEIVE));
 }
 
 pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFrame) {

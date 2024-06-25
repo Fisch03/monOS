@@ -7,8 +7,9 @@ use crate::interrupts::{
     InterruptIndex, InterruptStackFrame,
 };
 use crate::mem::Mapping;
-use crate::process::messaging::{add_system_port, PartialSendChannelHandle};
+use crate::process::messaging::{add_system_port, PartialSendChannelHandle, SYS_PORT_NO_RECEIVE};
 use crate::utils::BitField;
+use monos_std::dev::mouse::{MouseFlags, MouseState};
 
 use alloc::vec::Vec;
 use spin::{Lazy, Mutex, Once};
@@ -52,7 +53,7 @@ pub fn init(madt: &Mapping<tables::MADT>, io_apic: &mut Mapping<IOAPIC>) {
 
     MOUSE.lock().init().expect("failed to initialize mouse");
 
-    CHANNEL_HANDLE.call_once(|| add_system_port("sys.mouse", add_listener));
+    CHANNEL_HANDLE.call_once(|| add_system_port("sys.mouse", add_listener, SYS_PORT_NO_RECEIVE));
 }
 
 pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFrame) {
@@ -63,7 +64,12 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
         use crate::process::messaging::{send, Message};
         let message = Message {
             sender: *CHANNEL_HANDLE.get().expect("mouse channel not initialized"),
-            data: (state.x as u64, state.y as u64, state.flags.0 as u64, 0),
+            data: (
+                state.x as u64,
+                state.y as u64,
+                state.flags.as_u8() as u64,
+                0,
+            ),
         };
         for listener in LISTENERS.lock().iter() {
             send(message.clone(), *listener);
@@ -104,7 +110,7 @@ impl Mouse {
             state: MouseState {
                 x: 0,
                 y: 0,
-                flags: MouseFlags(0),
+                flags: MouseFlags::new(0),
             },
         }
     }
@@ -133,7 +139,7 @@ impl Mouse {
     pub fn handle_packet(&mut self, packet: u8) -> Option<MouseState> {
         match self.packet_type {
             0 => {
-                let flags = MouseFlags(packet);
+                let flags = MouseFlags::new(packet);
                 if !flags.is_valid() {
                     return None;
                 }
@@ -212,75 +218,5 @@ impl Mouse {
         }
 
         Err(MouseError::WaitTimeout)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct MouseState {
-    pub x: i16,
-    pub y: i16,
-    pub flags: MouseFlags,
-}
-#[derive(Clone)]
-struct MouseFlags(u8);
-
-impl MouseFlags {
-    const LEFT_BUTTON: usize = 0;
-    const RIGHT_BUTTON: usize = 1;
-    const MIDDLE_BUTTON: usize = 2;
-    const ALWAYS_1: usize = 3;
-    const X_SIGN: usize = 4;
-    const Y_SIGN: usize = 5;
-    const X_OVERFLOW: usize = 6;
-    const Y_OVERFLOW: usize = 7;
-
-    #[inline]
-    pub fn is_valid(&self) -> bool {
-        self.0.get_bit(Self::ALWAYS_1) == true
-    }
-
-    #[inline]
-    pub fn left_button(&self) -> bool {
-        self.0.get_bit(Self::LEFT_BUTTON)
-    }
-    #[inline]
-    pub fn right_button(&self) -> bool {
-        self.0.get_bit(Self::RIGHT_BUTTON)
-    }
-    #[inline]
-    pub fn middle_button(&self) -> bool {
-        self.0.get_bit(Self::MIDDLE_BUTTON)
-    }
-
-    #[inline]
-    pub fn x_sign(&self) -> bool {
-        self.0.get_bit(Self::X_SIGN)
-    }
-    #[inline]
-    pub fn y_sign(&self) -> bool {
-        self.0.get_bit(Self::Y_SIGN)
-    }
-
-    #[inline]
-    pub fn x_overflow(&self) -> bool {
-        self.0.get_bit(Self::X_OVERFLOW)
-    }
-    #[inline]
-    pub fn y_overflow(&self) -> bool {
-        self.0.get_bit(Self::Y_OVERFLOW)
-    }
-}
-
-impl core::fmt::Debug for MouseFlags {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        f.debug_struct("MouseFlags")
-            .field("left_button", &self.left_button())
-            .field("right_button", &self.right_button())
-            .field("middle_button", &self.middle_button())
-            .field("x_sign", &self.x_sign())
-            .field("y_sign", &self.y_sign())
-            .field("x_overflow", &self.x_overflow())
-            .field("y_overflow", &self.y_overflow())
-            .finish()
     }
 }

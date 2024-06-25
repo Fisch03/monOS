@@ -1,5 +1,5 @@
 pub mod messaging;
-use messaging::{Mailbox, Message, PartialReceiveChannelHandle};
+use messaging::{Mailbox, Message, PartialReceiveChannelHandle, PartialSendChannelHandle};
 
 use crate::arch::registers::CR3;
 use crate::gdt::{self, GDT};

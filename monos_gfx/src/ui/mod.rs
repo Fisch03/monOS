@@ -1,4 +1,4 @@
-use crate::{Dimension, Framebuffer, Position, Rect};
+use crate::{input::Input, Dimension, Framebuffer, Position, Rect};
 pub mod widgets;
 
 pub trait UIElement {

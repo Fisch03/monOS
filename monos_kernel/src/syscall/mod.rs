@@ -5,15 +5,12 @@ use monos_std::syscall::{Syscall, SyscallType};
 
 use core::arch::asm;
 
-mod gfx;
 mod io;
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
 const IA32_STAR_MSR: u32 = 0xC0000081;
 const IA32_LSTAR_MSR: u32 = 0xC0000082;
 const IA32_FMASK_MSR: u32 = 0xC0000084;
-
-const LOWER_HALF_END: u64 = 0x0000_8000_0000_0000;
 
 pub fn init() {
     // disable interrupts during syscall
@@ -115,8 +112,8 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
     if let Ok(syscall) = Syscall::try_from(syscall_id) {
         match syscall.ty {
             SyscallType::Print => {
-                assert!(arg1 < LOWER_HALF_END);
-                assert!(arg1 + arg2 < LOWER_HALF_END);
+                assert!(arg1 < crate::LOWER_HALF_END);
+                assert!(arg1 + arg2 < crate::LOWER_HALF_END);
 
                 let s = unsafe {
                     core::str::from_utf8(core::slice::from_raw_parts(
@@ -128,11 +125,10 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
 
                 crate::print!("{}", s);
             }
-            SyscallType::OpenFramebuffer => gfx::sys_open_fb(arg1),
-            SyscallType::SubmitFrame => gfx::sys_submit_frame(arg1, arg2),
             SyscallType::Connect => io::sys_connect(arg1, arg2, arg3),
-            SyscallType::Receive => io::sys_receive(syscall.get_handle_recv(), arg1),
+            SyscallType::Receive => io::sys_receive(syscall.get_handle(), arg1),
             SyscallType::ReceiveAny => io::sys_receive_any(arg1),
+            SyscallType::Send => io::sys_send(syscall.get_handle(), arg1, arg2, arg3, arg4),
             _ => crate::println!("unimplemented syscall {:?}", syscall),
         }
     } else {

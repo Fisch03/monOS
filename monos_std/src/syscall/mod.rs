@@ -3,12 +3,9 @@ use core::arch::asm;
 mod io;
 pub use io::*;
 
-mod gfx;
-pub use gfx::*;
-
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::messaging::{ChannelHandle, PartialReceiveChannelHandle, PartialSendChannelHandle};
+use crate::messaging::ChannelHandle;
 
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
@@ -22,17 +19,15 @@ pub enum SyscallType {
     ReceiveAny,
 
     Print,
-
-    OpenFramebuffer,
-    SubmitFrame,
 }
 
 #[repr(C, packed)]
 pub struct Syscall {
     pub ty: SyscallType,
     flags: u8,
-    channel_pid: u32,
-    channel_number: u16,
+    receiver_pid: u32,
+    receiver_channel: u8,
+    sender_channel: u8,
 }
 
 impl Syscall {
@@ -40,30 +35,32 @@ impl Syscall {
         Self {
             ty,
             flags: 0,
-            channel_pid: 0,
-            channel_number: 0,
+            receiver_pid: 0,
+            receiver_channel: 0,
+            sender_channel: 0,
         }
     }
 
     #[inline(always)]
-    pub fn get_handle_recv(&self) -> PartialReceiveChannelHandle {
-        PartialReceiveChannelHandle::new(self.channel_number)
+    pub fn get_handle(&self) -> ChannelHandle {
+        ChannelHandle::new(
+            self.receiver_pid,
+            self.receiver_channel.into(),
+            self.sender_channel.into(),
+        )
     }
 
-    #[inline(always)]
-    pub fn get_handle_send(&self) -> PartialSendChannelHandle {
-        PartialSendChannelHandle::new(self.channel_pid, self.channel_number)
-    }
-
-    pub fn with_handle_send(mut self, channel: ChannelHandle) -> Self {
-        self.channel_pid = channel.target_thread;
-        self.channel_number = channel.target_channel;
-        self
-    }
-
-    pub fn with_handle_recv(mut self, channel: ChannelHandle) -> Self {
-        self.channel_pid = 0;
-        self.channel_number = channel.own_channel;
+    pub fn with_handle(mut self, channel: ChannelHandle) -> Self {
+        // TODO: raise channel id limit to 12 bits
+        self.receiver_pid = channel.target_thread;
+        self.receiver_channel = channel
+            .target_channel
+            .try_into()
+            .expect("channel id too large (fixme pls)");
+        self.sender_channel = channel
+            .own_channel
+            .try_into()
+            .expect("channel id too large (fixme pls)");
         self
     }
 }
@@ -89,14 +86,16 @@ impl TryFrom<u64> for Syscall {
 
 impl core::fmt::Debug for Syscall {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let pid = self.channel_pid;
-        let channel = self.channel_number;
+        let receiver_pid = self.receiver_pid;
+        let receiver_channel = self.receiver_channel;
+        let sender_channel = self.sender_channel;
 
         f.debug_struct("Syscall")
             .field("type", &self.ty)
             .field("flags", &self.flags)
-            .field("channel_pid", &pid)
-            .field("channel_number", &channel)
+            .field("receiver_pid", &receiver_pid)
+            .field("receiver_channel", &receiver_channel)
+            .field("sender_channel", &sender_channel)
             .finish()
     }
 }

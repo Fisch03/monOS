@@ -1,15 +1,16 @@
 use super::{Process, CURRENT_PROCESS, PROCESS_QUEUE};
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::sync::atomic::{AtomicU16, Ordering};
 use crossbeam_queue::SegQueue;
 pub use monos_std::messaging::{
-    ChannelHandle, Message, PartialReceiveChannelHandle, PartialSendChannelHandle,
+    ChannelHandle, Message, MessageData, PartialReceiveChannelHandle, PartialSendChannelHandle,
 };
 use spin::{Lazy, RwLock};
 
 const MAX_QUEUE_SIZE: usize = 100;
 
 static PORTS: Lazy<RwLock<Vec<Port>>> = Lazy::new(|| RwLock::new(Vec::new()));
+static SYS_CHANNELS: Lazy<RwLock<Vec<Option<Box<SystemPortReceiveFn>>>>> =
+    Lazy::new(|| RwLock::new(Vec::new()));
 
 #[derive(Debug)]
 struct Port {
@@ -26,6 +27,7 @@ impl Port {
 
 type SystemPortRegisterFn =
     dyn Fn(PartialSendChannelHandle) -> PartialSendChannelHandle + Sync + Send;
+type SystemPortReceiveFn = dyn Fn(Message) + Sync + Send;
 enum PortType {
     System(Box<SystemPortRegisterFn>),
     Process(usize),
@@ -34,18 +36,28 @@ enum PortType {
 impl core::fmt::Debug for PortType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            PortType::System(_) => write!(f, "System"),
+            PortType::System(_) => f.debug_tuple("System").finish(),
             PortType::Process(pid) => f.debug_tuple("Process").field(pid).finish(),
         }
     }
 }
 
-static NEXT_SYS_HANDLE: AtomicU16 = AtomicU16::new(0);
-pub fn add_system_port<F>(name: &str, register_fn: F) -> PartialSendChannelHandle
+//static NEXT_SYS_HANDLE: AtomicU16 = AtomicU16::new(0);
+pub const SYS_PORT_NO_RECEIVE: Option<fn(Message)> = None; // helper for system ports without receive function to avoid type system shenanigans
+
+pub fn add_system_port<F, G>(
+    name: &str,
+    register_fn: F,
+    receive_fn: Option<G>,
+) -> PartialSendChannelHandle
 where
     F: Fn(PartialSendChannelHandle) -> PartialSendChannelHandle + Sync + Send + 'static,
+    G: Fn(Message) + Sync + Send + 'static,
 {
-    let handle = PartialSendChannelHandle::new(0, NEXT_SYS_HANDLE.fetch_add(1, Ordering::Relaxed));
+    let mut sys_channels = SYS_CHANNELS.write();
+    let handle = PartialSendChannelHandle::new(0, sys_channels.len() as u16);
+    let receive_fn = receive_fn.map(|f| Box::new(f) as Box<SystemPortReceiveFn>);
+    sys_channels.push(receive_fn);
 
     PORTS
         .write()
@@ -109,8 +121,10 @@ pub fn connect(
     };
 
     crate::println!(
-        "connected pid {} -> pid {} on port '{}'",
+        "connected pid {} chan {} <-> pid {} chan {} on port '{}'",
         from_handle.target_thread,
+        from_handle.target_channel,
+        to_handle.target_thread,
         to_handle.target_channel,
         port.name
     );
@@ -123,6 +137,24 @@ pub fn connect(
 
 pub fn send(message: Message, receiver_handle: PartialSendChannelHandle) {
     let receiver = receiver_handle.target_thread;
+
+    if receiver == 0 {
+        let sys_channels = SYS_CHANNELS.read();
+        if let Some(Some(receive_fn)) = sys_channels
+            .get(receiver_handle.target_channel as usize)
+            .as_ref()
+        {
+            receive_fn(message);
+        } else {
+            crate::println!(
+                "process {} tried to send to system channel no. {} without receive function",
+                receiver,
+                receiver_handle.target_channel
+            )
+        }
+
+        return;
+    }
 
     let current_process = CURRENT_PROCESS.read();
     let process_queue = PROCESS_QUEUE.read();

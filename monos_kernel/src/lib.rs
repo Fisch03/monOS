@@ -21,6 +21,8 @@ mod utils;
 
 use bootloader_api::BootInfo;
 
+const LOWER_HALF_END: u64 = 0x0000_8000_0000_0000;
+
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
     gdt::init();
     interrupts::init_idt();

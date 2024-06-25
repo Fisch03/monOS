@@ -124,8 +124,6 @@ the following syscalls currently exist:
 | 5* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
 | 6  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
 | 7  | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
-| 8  | open_fb      | ptr to `Option<Framebuffer>` |                |                                 |         | opens the framebuffer. only one thread can do this and its always the `rooftop` thread |
-| 9  | submit_frame | ptr to `[u8]`                | size of `[u8]` |                                 |         | submit a frame to be displayed. can only be done by the thread that opened the fb      |
 
 *it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 
@@ -133,7 +131,6 @@ the following syscalls currently exist:
 inter-process communication in monOS happens over channels. a thread can provide a channel on a port (basically just a unique string) using the `serve` sycall. 
 other threads can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving thread (using the `wait_conn` syscall) with a channel handle. 
 both processes can then send and receive messages over the channel using the `send`, `send_sync`, `receive` and `receive_any` syscalls.
-
 
 a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
 some messaging related syscalls are a bit special since they use the syscall id to pass some additional parameters:

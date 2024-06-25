@@ -1317,6 +1317,9 @@ dependencies = [
 [[package]]
 name = "monos_gfx"
 version = "0.1.0"
+dependencies = [
+ "monos_std",
+]
 
 [[package]]
 name = "monos_kernel"
@@ -1339,7 +1342,6 @@ name = "monos_std"
 version = "0.1.0"
 dependencies = [
  "linked_list_allocator",
- "monos_gfx",
  "num_enum",
 ]
 
