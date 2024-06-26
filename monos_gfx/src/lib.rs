@@ -1,12 +1,17 @@
 #![no_std]
 #![no_main]
+#![allow(internal_features)]
+#![feature(prelude_import)]
 
-extern crate alloc;
+#[prelude_import]
+#[allow(unused_imports)]
+use monos_std::prelude::*;
 
 pub mod types;
 pub use types::*;
 
 pub mod fonts;
+pub mod image;
 pub mod input;
 pub mod ui;
 

@@ -26,8 +26,8 @@ fn main() {
     unsafe { syscall::receive_as::<FramebufferResponse>(fb_channel).unwrap() };
 
     let mut fb = fb.unwrap();
-    //TODO: uhhhhhhhh for some reason removing this print breaks the framebuffer dimensions. i
-    //really should look into that
+    //TODO: uhhhhhhhh for some reason removing this print breaks the framebuffer dimensions.
+    //i really should look into that
     println!(
         "initializing desktop environment with a resolution of {}x{}",
         fb.scaled_dimensions().width,
