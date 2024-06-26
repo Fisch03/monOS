@@ -21,13 +21,13 @@ pub fn receive_message(message: Message) {
     let mut current_proc_guard = crate::process::CURRENT_PROCESS.write();
     let current_proc = current_proc_guard.as_mut().unwrap();
 
-    assert!(current_proc.id() == message.sender.target_thread); //sanity check in case i ever change the way messaging works
+    assert!(current_proc.id() == message.sender.target_process); //sanity check in case i ever change the way messaging works
 
     if let Some(mut fb_guard) = crate::framebuffer::get() {
         if fb_guard.borrowed.is_none() || fb_guard.borrowed.unwrap() != message.sender {
             crate::println!(
-                "thread {} tried to access framebuffer without borrowing it",
-                message.sender.target_thread
+                "process {} tried to access framebuffer without borrowing it",
+                message.sender.target_process
             );
             return;
         }
@@ -48,14 +48,13 @@ pub fn receive_message(message: Message) {
                     VirtualAddress::new(0x410000000000),
                 );
 
-                crate::println!("pid {} opened framebuffer", message.sender.target_thread);
                 let return_message = Message {
                     sender: fb_guard.own_handle,
                     data: FramebufferResponse::OK.into_message(),
                 };
 
                 drop(current_proc_guard); // drop the guard before sending the message, to avoid deadlock
-                                          //send(return_message, message.sender); // add this back once send_sync is implemented
+                send(return_message, message.sender);
             }
         }
     }
@@ -121,7 +120,7 @@ impl KernelFramebuffer {
             |borrower| {
                 let mut fb_guard = get().unwrap();
                 if fb_guard.borrowed.is_none() {
-                    crate::println!("thread {} borrowed framebuffer", borrower.target_thread);
+                    crate::println!("process {} borrowed framebuffer", borrower.target_process);
                     fb_guard.borrowed = Some(borrower);
                 }
                 fb_guard.own_handle

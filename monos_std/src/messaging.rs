@@ -11,14 +11,14 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct ChannelHandle {
-    pub target_thread: u32,
+    pub target_process: u32,
     pub target_channel: u16,
     pub own_channel: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PartialSendChannelHandle {
-    pub target_thread: u32,
+    pub target_process: u32,
     pub target_channel: u16,
 }
 
@@ -28,9 +28,9 @@ pub struct PartialReceiveChannelHandle {
 }
 
 impl ChannelHandle {
-    pub fn new(other_thread: u32, other_channel: u16, own_channel: u16) -> Self {
+    pub fn new(other_process: u32, other_channel: u16, own_channel: u16) -> Self {
         Self {
-            target_thread: other_thread,
+            target_process: other_process,
             target_channel: other_channel,
             own_channel,
         }
@@ -41,7 +41,7 @@ impl ChannelHandle {
         recv_part: PartialReceiveChannelHandle,
     ) -> Self {
         Self {
-            target_thread: send_part.target_thread,
+            target_process: send_part.target_process,
             target_channel: send_part.target_channel,
             own_channel: recv_part.own_channel,
         }
@@ -49,7 +49,7 @@ impl ChannelHandle {
 
     pub fn send_part(&self) -> PartialSendChannelHandle {
         PartialSendChannelHandle {
-            target_thread: self.target_thread,
+            target_process: self.target_process,
             target_channel: self.target_channel,
         }
     }
@@ -62,9 +62,9 @@ impl ChannelHandle {
 }
 
 impl PartialSendChannelHandle {
-    pub fn new(other_thread: u32, other_channel: u16) -> Self {
+    pub fn new(other_process: u32, other_channel: u16) -> Self {
         Self {
-            target_thread: other_thread,
+            target_process: other_process,
             target_channel: other_channel,
         }
     }
@@ -72,14 +72,14 @@ impl PartialSendChannelHandle {
 
 impl PartialEq<ChannelHandle> for PartialSendChannelHandle {
     fn eq(&self, other: &ChannelHandle) -> bool {
-        self.target_thread == other.target_thread && self.target_channel == other.target_channel
+        self.target_process == other.target_process && self.target_channel == other.target_channel
     }
 }
 
 impl From<ChannelHandle> for PartialSendChannelHandle {
     fn from(handle: ChannelHandle) -> Self {
         Self {
-            target_thread: handle.target_thread,
+            target_process: handle.target_process,
             target_channel: handle.target_channel,
         }
     }

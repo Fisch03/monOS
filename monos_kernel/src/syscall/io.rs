@@ -54,7 +54,7 @@ pub fn sys_send(handle: ChannelHandle, arg1: u64, arg2: u64, arg3: u64, arg4: u6
 
         Message {
             sender: PartialSendChannelHandle {
-                target_thread: current_proc.id(),
+                target_process: current_proc.id(),
                 target_channel: handle.own_channel,
             },
             data,

@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Position {
     pub x: i64,
     pub y: i64,
@@ -144,7 +144,7 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dimension {
     pub width: u32,
     pub height: u32,

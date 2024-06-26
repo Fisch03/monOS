@@ -43,7 +43,7 @@ impl UIFrame {
         UIFrame { direction }
     }
 
-    pub fn draw_frame<F>(&mut self, fb: &mut Framebuffer, area: Rect, f: F)
+    pub fn draw_frame<F>(&mut self, fb: &mut Framebuffer, area: Rect, input: &Input, f: F)
     where
         F: FnOnce(&mut UIContext),
     {
@@ -79,7 +79,7 @@ pub struct Placer {
 pub enum MarginMode {
     Minimum,
     Grow,
-    AtLeast(u32),
+    // AtLeast(u32), // sorta broken right now, i'll fix it once i actually need this
 }
 
 /// affects how much of the allocated space (determined by the margin mode) will be filled with the widget.
@@ -121,7 +121,26 @@ impl Placer {
     }
 
     pub fn max_width(&self) -> u32 {
-        (self.max_rect.max.x - self.max_rect.min.x).abs() as u32
+        let max_incl_gap = match self.direction {
+            Direction::LeftToRight | Direction::TopToBottom => self.max_rect.max.x - self.cursor.x,
+            Direction::RightToLeft => self.cursor.x - self.max_rect.min.x,
+        } - match self.margin_mode {
+            // MarginMode::AtLeast(min_width) => min_width as i64 / 2,
+            _ => 0,
+        };
+
+        let total_gap = self.gap * 2
+            + match self.padding_mode {
+                PaddingMode::Gap(gap) => gap * 2,
+                PaddingMode::Fill => 0,
+            };
+
+        let max = max_incl_gap - total_gap as i64;
+
+        if max < 0 {
+            return 0;
+        }
+        return max as u32;
     }
 
     /// allocate a rect of the desired space.
@@ -151,10 +170,10 @@ impl Placer {
                         self.cursor.x + desired_space.width as i64,
                         self.cursor.y + self.max_rect.height() as i64,
                     ),
-                    MarginMode::AtLeast(min_height) => Position::new(
-                        self.cursor.x + desired_space.width as i64,
-                        (min_height as i64).max(self.cursor.y + desired_space.height as i64),
-                    ),
+                    // MarginMode::AtLeast(min_height) => Position::new(
+                    //     self.cursor.x + desired_space.width as i64,
+                    //     (min_height as i64).max(self.cursor.y + desired_space.height as i64),
+                    // ),
                 };
                 self.cursor.x += desired_space.width as i64;
                 if self.cursor.x >= self.max_rect.max.x {
@@ -172,11 +191,10 @@ impl Placer {
                     }
                     MarginMode::Grow => {
                         Position::new(self.cursor.x, self.cursor.y + desired_space.height as i64)
-                    }
-                    MarginMode::AtLeast(min_height) => Position::new(
-                        self.cursor.x,
-                        (min_height as i64).max(self.cursor.y + desired_space.height as i64),
-                    ),
+                    } // MarginMode::AtLeast(min_height) => Position::new(
+                      //     self.cursor.x,
+                      //     (min_height as i64).max(self.cursor.y + desired_space.height as i64),
+                      // ),
                 };
                 self.cursor.x -= desired_space.width as i64;
                 if self.cursor.x <= self.max_rect.min.x {
@@ -196,10 +214,10 @@ impl Placer {
                         self.max_rect.max.x,
                         self.cursor.y + desired_space.height as i64,
                     ),
-                    MarginMode::AtLeast(min_width) => Position::new(
-                        (min_width as i64).max(self.cursor.x + desired_space.width as i64),
-                        self.cursor.y + desired_space.height as i64,
-                    ),
+                    // MarginMode::AtLeast(min_width) => Position::new(
+                    //     (min_width as i64).max(self.cursor.x + desired_space.width as i64),
+                    //     self.cursor.y + desired_space.height as i64,
+                    // ),
                 };
                 self.cursor.y += desired_space.height as i64;
                 if self.cursor.y >= self.max_rect.max.y {
@@ -258,6 +276,15 @@ pub struct UIResult {
 }
 
 impl UIResult {
+    pub const fn empty() -> Self {
+        Self {
+            rect: Rect::zero(),
+            full_rect: Rect::zero(),
+            clicked: false,
+            hovered: false,
+        }
+    }
+
     pub fn set_clicked(&mut self, clicked: bool) {
         self.clicked = clicked;
     }

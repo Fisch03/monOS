@@ -59,6 +59,7 @@ BIOS boot is currently utterly broken and will not be supported going forward, s
 ### project structure
 - [`monos_kernel`](https://github.com/Fisch03/monOS/tree/master/monos_kernel) contains the kernel code (aka the main thing)
 - [`monos_std`](https://github.com/Fisch03/monOS/tree/master/monos_std) is the library that userspace programs link against.
+- [`monos_gfx`](https://github.com/Fisch03/monOS/tree/master/monos_gfx) is the ui library used by graphical applications
 - the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) contains the included userspace programs that get shipped together with the kernel. these currently include:
   - [`hello_world`](https://github.com/Fisch03/monOS/tree/master/userspace/hello_world) basic template application
   - [`rooftop`](https://github.com/Fisch03/monOS/tree/master/userspace/rooftop) monOS's desktop environment

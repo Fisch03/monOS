@@ -125,11 +125,13 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
 
                 crate::print!("{}", s);
             }
+            SyscallType::Serve => panic!("unimplemented syscall {:?}", syscall),
             SyscallType::Connect => io::sys_connect(arg1, arg2, arg3),
+            SyscallType::WaitConnect => panic!("unimplemented syscall {:?}", syscall),
             SyscallType::Receive => io::sys_receive(syscall.get_handle(), arg1),
             SyscallType::ReceiveAny => io::sys_receive_any(arg1),
             SyscallType::Send => io::sys_send(syscall.get_handle(), arg1, arg2, arg3, arg4),
-            _ => crate::println!("unimplemented syscall {:?}", syscall),
+            SyscallType::SendSync => panic!("unimplemented syscall {:?}", syscall),
         }
     } else {
         crate::println!(

@@ -52,7 +52,7 @@ impl Syscall {
 
     pub fn with_handle(mut self, channel: ChannelHandle) -> Self {
         // TODO: raise channel id limit to 12 bits
-        self.receiver_pid = channel.target_thread;
+        self.receiver_pid = channel.target_process;
         self.receiver_channel = channel
             .target_channel
             .try_into()

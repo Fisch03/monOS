@@ -122,9 +122,9 @@ pub fn connect(
 
     crate::println!(
         "connected pid {} chan {} <-> pid {} chan {} on port '{}'",
-        from_handle.target_thread,
+        from_handle.target_process,
         from_handle.target_channel,
-        to_handle.target_thread,
+        to_handle.target_process,
         to_handle.target_channel,
         port.name
     );
@@ -136,7 +136,7 @@ pub fn connect(
 }
 
 pub fn send(message: Message, receiver_handle: PartialSendChannelHandle) {
-    let receiver = receiver_handle.target_thread;
+    let receiver = receiver_handle.target_process;
 
     if receiver == 0 {
         let sys_channels = SYS_CHANNELS.read();

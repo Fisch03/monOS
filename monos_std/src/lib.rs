@@ -18,7 +18,7 @@ pub mod syscall;
 pub use prelude::*;
 
 pub mod prelude {
-    pub use crate::{dbg, print, println, syscall};
+    pub use crate::{dbg, messaging::MessageData, print, println, syscall};
     pub use alloc::{
         boxed::Box,
         //format, // format!() causes a page fault for some reason

@@ -5,9 +5,9 @@ use linked_list_allocator::LockedHeap;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-const HEAP_SIZE: u64 = 4096 * 1024; // 4 MiB
+// const HEAP_SIZE: u64 = 4096 * 1024; // 4 MiB
 
-// const HEAP_SIZE: u64 = 4096 * 4096; // 16 MiB
+const HEAP_SIZE: u64 = 4096 * 4096; // 16 MiB
 
 pub fn init() {
     let heap_start = alloc_vmem(HEAP_SIZE);

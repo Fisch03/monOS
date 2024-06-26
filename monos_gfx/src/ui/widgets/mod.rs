@@ -33,6 +33,12 @@ impl<'a> Lines<'a> {
     }
 
     pub fn layout_single_line(text: &'a str, max_width: u32) -> Self {
+        if max_width < Cozette::CHAR_WIDTH {
+            return Self {
+                lines: Vec::new(),
+                dimensions: Dimension::new(0, 0),
+            };
+        }
         let chars_per_line = (max_width / Cozette::CHAR_WIDTH) as usize;
 
         let text = &text[..chars_per_line.min(text.len())];

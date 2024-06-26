@@ -3,8 +3,15 @@ use uart_16550::SerialPort;
 
 #[allow(dead_code)]
 pub static SERIAL1: Lazy<Mutex<SerialPort>> = Lazy::new(|| {
+    use core::fmt::Write;
+
     let mut serial_port = unsafe { SerialPort::new(0x3F8) };
     serial_port.init();
+    serial_port
+        .write_str(
+            "------------------------------ welcome to monOS! ------------------------------ \n",
+        )
+        .unwrap();
     Mutex::new(serial_port)
 });
 
@@ -51,7 +58,7 @@ macro_rules! print {
 #[macro_export]
 macro_rules! println {
     () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::print!("SYS: {}\n", format_args!($($arg)*)));
 }
 
 #[macro_export]
@@ -64,5 +71,5 @@ macro_rules! eprint {
 #[macro_export]
 macro_rules! eprintln {
     () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::eprint!("{}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::eprint!("SYS: {}\n", format_args!($($arg)*)));
 }

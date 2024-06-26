@@ -1,4 +1,3 @@
-use crate::fonts::Cozette;
 use crate::types::*;
 use crate::ui::*;
 use widgets::Lines;
@@ -17,9 +16,11 @@ impl UIElement for Button<'_> {
     fn draw(self, context: &mut UIContext) -> UIResult {
         let max_width = context.placer.max_width();
 
-        let text_max_width = max_width * 2;
+        let lines = Lines::layout_single_line(self.text, max_width);
+        if lines.dimensions == Dimension::zero() {
+            return UIResult::empty();
+        }
 
-        let lines = Lines::layout_single_line(self.text, text_max_width);
         let line_dimensions = lines.dimensions();
 
         let result = context.placer.alloc_space(line_dimensions);
@@ -29,11 +30,6 @@ impl UIElement for Button<'_> {
             .fb
             .draw_rect(&result.rect, &Color::new(255, 255, 255));
         lines.draw(context.fb, lines_rect.min, Color::new(0, 0, 0));
-        // context.fb.draw_str::<Cozette>(
-        //     &Color::new(0, 0, 0),
-        //     self.text,
-        //     &Position::new(lines_rect.min.x, lines_rect.min.y),
-        // );
 
         result
     }
