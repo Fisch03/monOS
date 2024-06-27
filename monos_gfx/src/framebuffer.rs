@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::{types::*, Image};
 use monos_std::messaging::*;
 
 #[derive(Debug)]
@@ -142,6 +142,56 @@ impl Framebuffer {
         }
     }
 
+    pub fn draw_img(&mut self, image: &Image, position: &Position) {
+        println!("Drawing image at {:?}", position);
+
+        let mut image_data = image.data.iter();
+
+        let mut line_start =
+            ((position.y * 2 * self.stride + position.x * 2) * self.bytes_per_pixel) as usize;
+        let mut line_pos = line_start;
+
+        let bytes_per_scaled_line = (self.stride * self.bytes_per_pixel) as usize;
+        let bytes_per_scaled_pixel = self.bytes_per_pixel as usize * 2;
+
+        for _y in 0..image.dimensions().height {
+            for _ys in 0..2 {
+                for _x in 0..image.dimensions().width {
+                    let b = *image_data.next().unwrap_or(&0);
+                    let g = *image_data.next().unwrap_or(&0);
+                    let r = *image_data.next().unwrap_or(&0);
+
+                    {
+                        let pixel_bytes_lower =
+                            &mut self.buffer[line_pos + bytes_per_scaled_line..];
+                        pixel_bytes_lower[0] = r;
+                        pixel_bytes_lower[1] = g;
+                        pixel_bytes_lower[2] = b;
+                        pixel_bytes_lower[4] = r;
+                        pixel_bytes_lower[5] = g;
+                        pixel_bytes_lower[6] = b;
+                    }
+                    {
+                        let pixel_bytes_upper = &mut self.buffer[line_pos..];
+                        pixel_bytes_upper[0] = r;
+                        pixel_bytes_upper[1] = g;
+                        pixel_bytes_upper[2] = b;
+                        pixel_bytes_upper[4] = r;
+                        pixel_bytes_upper[5] = g;
+                        pixel_bytes_upper[6] = b;
+                    }
+
+                    line_pos += bytes_per_scaled_pixel;
+                }
+                line_start += bytes_per_scaled_line * 2;
+                if line_pos + bytes_per_scaled_line * 2 >= self.buffer.len() {
+                    return;
+                }
+                line_pos = line_start;
+            }
+        }
+    }
+
     pub fn draw_char<Font: crate::fonts::Font>(
         &mut self,
         color: &Color,
@@ -186,7 +236,7 @@ impl Framebuffer {
         let chars = string
             .chars()
             .filter_map(|c| Font::get_char(c).map(|c| Character::from_raw(c)))
-            .collect::<alloc::vec::Vec<_>>();
+            .collect::<Vec<_>>();
 
         let start_position = Position {
             x: position.x * 2,

@@ -9,11 +9,23 @@ pub trait UIElement {
 pub struct UIContext<'a> {
     placer: Placer,
     fb: &'a mut Framebuffer,
+    input: &'a Input,
 }
 
 impl UIContext<'_> {
     pub fn add(&mut self, element: impl UIElement) -> UIResult {
         element.draw(self)
+    }
+    pub fn alloc_space(&mut self, desired_space: Dimension) -> UIResult {
+        let mut result = self.placer.alloc_space(desired_space);
+        if result.rect.contains(self.input.mouse.position) {
+            result.set_hovered(true);
+            if self.input.mouse.left_button.clicked {
+                result.set_clicked(true);
+            }
+        }
+
+        result
     }
 
     pub fn label(&mut self, text: &str) -> UIResult {
@@ -21,6 +33,9 @@ impl UIContext<'_> {
     }
     pub fn button(&mut self, text: &str) -> UIResult {
         self.add(widgets::Button::new(text))
+    }
+    pub fn img_button(&mut self, image: &crate::Image) -> UIResult {
+        self.add(widgets::ImageButton::new(image))
     }
 
     pub fn margin(&mut self, mode: MarginMode) {
@@ -50,6 +65,7 @@ impl UIFrame {
         let mut context = UIContext {
             placer: Placer::new(area, self.direction),
             fb,
+            input,
         };
 
         f(&mut context);

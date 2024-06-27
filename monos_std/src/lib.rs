@@ -23,6 +23,7 @@ pub mod prelude {
         boxed::Box,
         //format, // format!() causes a page fault for some reason
         string::{String, ToString},
+        vec,
         vec::Vec,
     };
     pub use core::prelude::rust_2021::*;
@@ -70,7 +71,8 @@ use core::panic::PanicInfo;
 #[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("oh noes! the program {}", info);
+    syscall::print("oh noes! the program");
+    println!(" {}", info);
 
     // TODO: exit syscall
 

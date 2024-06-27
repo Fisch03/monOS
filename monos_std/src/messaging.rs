@@ -123,7 +123,7 @@ impl From<ChannelLimit> for u64 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Message {
     pub sender: PartialSendChannelHandle,
     pub data: (u64, u64, u64, u64),

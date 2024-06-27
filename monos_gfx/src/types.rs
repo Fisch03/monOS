@@ -142,6 +142,10 @@ impl Rect {
             y: (self.min.y + self.max.y) / 2,
         }
     }
+
+    pub fn contains(&self, pos: Position) -> bool {
+        pos.x >= self.min.x && pos.x < self.max.x && pos.y >= self.min.y && pos.y < self.max.y
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

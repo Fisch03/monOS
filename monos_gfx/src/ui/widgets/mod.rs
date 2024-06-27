@@ -2,12 +2,11 @@ mod label;
 pub use label::Label;
 
 mod button;
-pub use button::Button;
+pub use button::{Button, ImageButton};
 
 use crate::fonts::{Cozette, Font};
 use crate::types::*;
 use crate::Framebuffer;
-use alloc::{vec, vec::Vec};
 
 pub enum TextWrap {
     Disabled,

@@ -18,6 +18,7 @@ pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const TIMER_IST_INDEX: u16 = 1;
 pub const KEYBOARD_IST_INDEX: u16 = 1;
 pub const MOUSE_IST_INDEX: u16 = 1;
+pub const TEMP_IST_INDEX: u16 = 2;
 
 pub static TSS: Lazy<Mutex<TaskStateSegment>> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();
@@ -77,6 +78,10 @@ pub fn init() {
 
     let mut gs_base = registers::MSR::new(KERNEL_GS_BASE);
     unsafe { gs_base.write(tss_address().as_u64()) };
+}
+
+pub fn user_segments() -> (SegmentSelector, SegmentSelector) {
+    (GDT.1.user_code, GDT.1.user_data)
 }
 
 pub fn tss_address() -> VirtualAddress {

@@ -1,34 +1,43 @@
+use crate::Dimension;
+
 mod pbm;
 
 trait ImageLoader {
     fn is_supported(&self, data: &[u8]) -> bool;
-    fn load_image(&self, data: &[u8]) -> Image;
+    fn load_image(&self, data: &[u8]) -> Option<Image>;
 }
 
 pub struct Image {
-    pub width: u32,
-    pub height: u32,
+    dimensions: Dimension,
     pub data: Vec<u8>,
 }
 
 impl Image {
-    pub fn new(width: u32, height: u32, data: Vec<u8>) -> Self {
-        Self {
-            width,
-            height,
-            data,
-        }
+    pub const fn new(dimensions: Dimension, data: Vec<u8>) -> Self {
+        Self { dimensions, data }
     }
 
-    pub fn from_pbm(data: &[u8]) -> Self {
-        pbm::PBMLoader.load_image(data)
+    #[inline]
+    pub fn dimensions(&self) -> Dimension {
+        self.dimensions
     }
 
-    pub fn detect_format(data: &[u8]) -> Option<&'static dyn ImageLoader> {
-        if pbm::PBMLoader.is_supported(data) {
-            Some(&pbm::PBMLoader)
-        } else {
-            None
+    pub fn from_ppm(data: &[u8]) -> Option<Self> {
+        pbm::PPMLoader.load_image(data)
+    }
+
+    pub fn detect_format(data: &[u8]) -> Option<Image> {
+        if let Some(image) = Image::from_ppm(data) {
+            return Some(image);
         }
+        None
+    }
+}
+
+impl core::fmt::Debug for Image {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Image")
+            .field("dimensions", &self.dimensions)
+            .finish()
     }
 }

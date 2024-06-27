@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 linked_list_allocator = "0.10.5"
 num_enum = { version = "0.7.2", default-features = false }
+volatile = "0.6.1"
 
 
 [features]

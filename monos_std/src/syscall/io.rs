@@ -1,3 +1,6 @@
+use core::ptr::NonNull;
+use volatile::VolatilePtr;
+
 #[allow(unused_imports)]
 use super::*;
 use crate::messaging::*;
@@ -13,25 +16,26 @@ pub fn serve(port: &str, limit: ChannelLimit) {
 pub fn receive_any() -> Option<Message> {
     let mut message: Option<Message> = None;
 
-    unsafe {
-        syscall_1(
-            Syscall::new(SyscallType::ReceiveAny),
-            &mut message as *mut _ as u64,
-        )
-    };
-    message
+    let message_ptr = &mut message as *mut _;
+    unsafe { syscall_1(Syscall::new(SyscallType::ReceiveAny), message_ptr as u64) };
+
+    let message_ptr = unsafe { VolatilePtr::new(NonNull::new(message_ptr).unwrap()) };
+    message_ptr.read()
 }
 
 pub fn receive(handle: ChannelHandle) -> Option<Message> {
     let mut message: Option<Message> = None;
 
+    let message_ptr = &mut message as *mut _;
     unsafe {
         syscall_1(
             Syscall::new(SyscallType::Receive).with_handle(handle),
-            &mut message as *mut _ as u64,
+            message_ptr as u64,
         )
     };
-    message
+
+    let message_ptr = unsafe { VolatilePtr::new(NonNull::new(message_ptr).unwrap()) };
+    message_ptr.read()
 }
 
 pub unsafe fn receive_as<T: MessageData>(handle: ChannelHandle) -> Option<T> {

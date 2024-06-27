@@ -62,6 +62,7 @@ extern "C" fn handle_syscall() {
             "swapgs",
             "mov rcx, rsp", // back up current rsp
             "mov rsp, gs:{kernel_stack}",
+            "sub rsp, {kernel_stack_offset}",
             "push rcx",
 
             // convert syscall args to c abi
@@ -103,7 +104,8 @@ extern "C" fn handle_syscall() {
             "sysretq", // back to userland
 
             kernel_stack = const(0x24 + gdt::TIMER_IST_INDEX * 8),
-            dispatch_syscall= sym dispatch_syscall,
+            kernel_stack_offset = const(1024),
+            dispatch_syscall = sym dispatch_syscall,
             options(noreturn));
     }
 }
