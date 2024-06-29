@@ -367,6 +367,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a35ba5100c2431e20b924c8103c2cf8adb919ed9880f625e8770c3cb9d1b06aa"
 
 [[package]]
+name = "buddy_system_allocator"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d44d578cadd17312c75e7d0ef489361f160ace58f7139aa32001fee1a51b89b5"
+dependencies = [
+ "spin",
+]
+
+[[package]]
 name = "built"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1326,8 +1335,8 @@ name = "monos_kernel"
 version = "0.1.0"
 dependencies = [
  "bootloader_api",
+ "buddy_system_allocator",
  "crossbeam-queue",
- "linked_list_allocator",
  "monos_gfx",
  "monos_std",
  "object",
@@ -1341,6 +1350,7 @@ dependencies = [
 name = "monos_std"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "linked_list_allocator",
  "num_enum",
  "volatile 0.6.1",

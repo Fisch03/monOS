@@ -71,8 +71,12 @@ use core::panic::PanicInfo;
 #[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    syscall::print("oh noes! the program");
-    println!(" {}", info);
+    use arrayvec::ArrayString;
+    use core::fmt::Write;
+
+    let mut message = ArrayString::<128>::new();
+    write!(message, "oh noes! the program {}", info).unwrap();
+    println!("{}", message);
 
     // TODO: exit syscall
 

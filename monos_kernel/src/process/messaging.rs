@@ -1,12 +1,12 @@
 use super::{Process, CURRENT_PROCESS, PROCESS_QUEUE};
 use alloc::{boxed::Box, string::String, vec::Vec};
-use crossbeam_queue::SegQueue;
+use crossbeam_queue::ArrayQueue;
 pub use monos_std::messaging::{
     ChannelHandle, Message, MessageData, PartialReceiveChannelHandle, PartialSendChannelHandle,
 };
 use spin::{Lazy, RwLock};
 
-const MAX_QUEUE_SIZE: usize = 100;
+const MAX_QUEUE_SIZE: usize = 10;
 
 static PORTS: Lazy<RwLock<Vec<Port>>> = Lazy::new(|| RwLock::new(Vec::new()));
 static SYS_CHANNELS: Lazy<RwLock<Vec<Option<Box<SystemPortReceiveFn>>>>> =
@@ -68,20 +68,18 @@ where
 
 #[derive(Debug)]
 pub struct Mailbox {
-    queue: SegQueue<Message>, //TODO: figure out why ArrayQueue doesn't work
+    queue: ArrayQueue<Message>, //TODO: figure out why ArrayQueue doesn't work
 }
 
 impl Mailbox {
     pub fn new() -> Mailbox {
         Mailbox {
-            queue: SegQueue::new(),
+            queue: ArrayQueue::new(MAX_QUEUE_SIZE),
         }
     }
 
     pub fn send(&self, message: Message) {
-        if self.queue.len() < MAX_QUEUE_SIZE {
-            self.queue.push(message);
-        } else {
+        if let Err(_message) = self.queue.push(message) {
             todo!("block sender until there is space in the queue")
         }
     }

@@ -52,8 +52,6 @@ impl ImageButton<'_> {
 
 impl UIElement for ImageButton<'_> {
     fn draw(self, context: &mut UIContext) -> UIResult {
-        let max_width = context.placer.max_width();
-
         let result = context.alloc_space(self.image.dimensions());
         let image_rect = Rect::centered_in(result.rect, self.image.dimensions());
 

@@ -6,13 +6,13 @@ pub trait UIElement {
 }
 
 #[derive(Debug)]
-pub struct UIContext<'a> {
+pub struct UIContext<'a, 'fb> {
     placer: Placer,
-    fb: &'a mut Framebuffer,
+    fb: &'a mut Framebuffer<'fb>,
     input: &'a Input,
 }
 
-impl UIContext<'_> {
+impl UIContext<'_, '_> {
     pub fn add(&mut self, element: impl UIElement) -> UIResult {
         element.draw(self)
     }
@@ -58,7 +58,7 @@ impl UIFrame {
         UIFrame { direction }
     }
 
-    pub fn draw_frame<F>(&mut self, fb: &mut Framebuffer, area: Rect, input: &Input, f: F)
+    pub fn draw_frame<F>(&mut self, fb: &mut Framebuffer<'_>, area: Rect, input: &Input, f: F)
     where
         F: FnOnce(&mut UIContext),
     {

@@ -1,6 +1,6 @@
 use crate::Dimension;
 
-mod pbm;
+mod ppm;
 
 trait ImageLoader {
     fn is_supported(&self, data: &[u8]) -> bool;
@@ -23,7 +23,7 @@ impl Image {
     }
 
     pub fn from_ppm(data: &[u8]) -> Option<Self> {
-        pbm::PPMLoader.load_image(data)
+        ppm::PPMLoader.load_image(data)
     }
 
     pub fn detect_format(data: &[u8]) -> Option<Image> {

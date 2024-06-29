@@ -2,10 +2,11 @@ use crate::mem::{self, PageTableFlags, VirtualAddress};
 
 use crate::process::messaging::{add_system_port, Message, PartialSendChannelHandle};
 use bootloader_api::info::FrameBuffer as RawFrameBuffer;
+use bootloader_api::info::PixelFormat;
 use core::slice;
 use spin::{Mutex, MutexGuard, Once};
 
-use monos_gfx::{types::*, Framebuffer};
+use monos_gfx::{types::*, Framebuffer, FramebufferFormat};
 
 static FRAMEBUFFER: Once<Mutex<KernelFramebuffer>> = Once::new();
 
@@ -13,7 +14,7 @@ pub fn init(fb: RawFrameBuffer) {
     FRAMEBUFFER.call_once(|| Mutex::new(KernelFramebuffer::new(fb)));
 }
 
-pub fn get() -> Option<MutexGuard<'static, KernelFramebuffer>> {
+pub fn get() -> Option<MutexGuard<'static, KernelFramebuffer<'static>>> {
     FRAMEBUFFER.get().map(|fb| fb.lock())
 }
 
@@ -60,9 +61,9 @@ pub fn receive_message(message: Message) {
     }
 }
 
-pub struct KernelFramebuffer {
+pub struct KernelFramebuffer<'a> {
     front_buffer: &'static mut [u8],
-    framebuffer: Framebuffer,
+    framebuffer: Framebuffer<'a>,
 
     back_buffer_start_frame: mem::Frame,
 
@@ -70,7 +71,7 @@ pub struct KernelFramebuffer {
     borrowed: Option<PartialSendChannelHandle>,
 }
 
-impl KernelFramebuffer {
+impl<'a> KernelFramebuffer<'a> {
     fn new(fb: RawFrameBuffer) -> Self {
         let info = fb.info();
 
@@ -128,13 +129,35 @@ impl KernelFramebuffer {
             Some(receive_message),
         );
 
+        let (r_position, g_position, b_position) = match info.pixel_format {
+            PixelFormat::U8 => (0, 0, 0),
+            PixelFormat::Rgb => (0, 1, 2),
+            PixelFormat::Bgr => (2, 1, 0),
+            PixelFormat::Unknown {
+                red_position,
+                green_position,
+                blue_position,
+            } => (
+                red_position as usize,
+                green_position as usize,
+                blue_position as usize,
+            ),
+            _ => panic!("unsupported pixel format"),
+        };
+
         let framebuffer = Self {
             front_buffer,
             framebuffer: Framebuffer::new(
                 back_buffer,
                 Dimension::new(info.width as u32, info.height as u32),
-                info.stride as usize,
-                info.bytes_per_pixel as usize,
+                FramebufferFormat {
+                    bytes_per_pixel: info.bytes_per_pixel as u64,
+                    stride: info.stride as u64,
+
+                    r_position,
+                    g_position,
+                    b_position,
+                },
             ),
             back_buffer_start_frame,
             own_handle,
@@ -205,14 +228,13 @@ impl KernelFramebuffer {
                 slice::from_raw_parts_mut(start.as_mut_ptr(), self.framebuffer.buffer().len())
             },
             self.framebuffer.actual_dimensions(),
-            self.framebuffer.stride() as usize,
-            self.framebuffer.bytes_per_pixel() as usize,
+            self.framebuffer.format().clone(),
         );
 
         *receiver = Some(framebuffer);
     }
 
-    pub fn as_mut(&mut self) -> Option<&mut Framebuffer> {
+    pub fn as_mut(&mut self) -> Option<&mut Framebuffer<'a>> {
         if self.borrowed.is_some() {
             None
         } else {
@@ -223,7 +245,7 @@ impl KernelFramebuffer {
     /// borrows the framebuffer mutably, even if it may lead to undefined behavior.
     ///
     ///  this is intended as a last resort in kernel panics, where we want to print the panic message to the framebuffer.
-    pub unsafe fn now_or_never(&mut self) -> &mut Framebuffer {
+    pub unsafe fn now_or_never(&mut self) -> &mut Framebuffer<'a> {
         &mut self.framebuffer
     }
 }

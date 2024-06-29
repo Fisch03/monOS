@@ -3,8 +3,8 @@ use monos_std::messaging::*;
 
 #[derive(Debug)]
 pub enum FramebufferRequest<'a> {
-    Open(&'a mut Option<Framebuffer>),
-    SubmitFrame(&'a Framebuffer),
+    Open(&'a mut Option<Framebuffer<'static>>),
+    SubmitFrame(&'a Framebuffer<'a>),
 }
 
 #[derive(Debug)]
@@ -56,34 +56,37 @@ impl MessageData for FramebufferResponse {
     }
 }
 
-pub struct Framebuffer {
-    buffer: &'static mut [u8],
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FramebufferFormat {
+    pub bytes_per_pixel: u64,
+    pub stride: u64,
+
+    pub r_position: usize,
+    pub g_position: usize,
+    pub b_position: usize,
+}
+
+pub struct Framebuffer<'a> {
+    buffer: &'a mut [u8],
 
     actual_dimensions: Dimension,
     scaled_dimensions: Dimension,
 
-    stride: i64,
-    bytes_per_pixel: i64,
+    format: FramebufferFormat,
 }
 
-impl core::fmt::Debug for Framebuffer {
+impl core::fmt::Debug for Framebuffer<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Framebuffer")
             .field("actual_dimensions", &self.actual_dimensions)
             .field("scaled_dimensions", &self.scaled_dimensions)
-            .field("stride", &self.stride)
-            .field("bytes_per_pixel", &self.bytes_per_pixel)
+            .field("format", &self.format)
             .finish()
     }
 }
 
-impl Framebuffer {
-    pub fn new(
-        buffer: &'static mut [u8],
-        dimensions: Dimension,
-        stride: usize,
-        bytes_per_pixel: usize,
-    ) -> Self {
+impl<'a> Framebuffer<'a> {
+    pub fn new(buffer: &'a mut [u8], dimensions: Dimension, format: FramebufferFormat) -> Self {
         Self {
             buffer,
             actual_dimensions: dimensions,
@@ -91,9 +94,13 @@ impl Framebuffer {
                 width: dimensions.width / 2,
                 height: dimensions.height / 2,
             },
-            stride: stride as i64,
-            bytes_per_pixel: bytes_per_pixel as i64,
+            format,
         }
+    }
+
+    #[inline(always)]
+    pub fn format(&self) -> &FramebufferFormat {
+        &self.format
     }
 
     #[inline(always)]
@@ -112,16 +119,6 @@ impl Framebuffer {
     }
 
     #[inline(always)]
-    pub fn stride(&self) -> u64 {
-        self.stride as u64
-    }
-
-    #[inline(always)]
-    pub fn bytes_per_pixel(&self) -> u64 {
-        self.bytes_per_pixel as u64
-    }
-
-    #[inline(always)]
     pub fn byte_len(&self) -> usize {
         self.buffer.len()
     }
@@ -134,6 +131,20 @@ impl Framebuffer {
         unsafe { core::ptr::write_bytes(self.buffer.as_mut_ptr(), 0, self.buffer.len()) };
     }
 
+    #[inline(always)]
+    pub fn clear_with(&mut self, fb: &Framebuffer) {
+        assert!(self.buffer.len() == fb.buffer.len());
+        assert!(self.format == fb.format);
+
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                fb.buffer.as_ptr(),
+                self.buffer.as_mut_ptr(),
+                self.buffer.len(),
+            )
+        };
+    }
+
     pub fn draw_rect(&mut self, rect: &Rect, color: &Color) {
         for y in rect.min.y..rect.max.y {
             for x in rect.min.x..rect.max.x {
@@ -143,52 +154,51 @@ impl Framebuffer {
     }
 
     pub fn draw_img(&mut self, image: &Image, position: &Position) {
-        println!("Drawing image at {:?}", position);
-
         let mut image_data = image.data.iter();
 
-        let mut line_start =
-            ((position.y * 2 * self.stride + position.x * 2) * self.bytes_per_pixel) as usize;
+        let mut line_start = ((position.y * 2 * self.format.stride as i64 + position.x * 2)
+            * self.format.bytes_per_pixel as i64) as usize;
         let mut line_pos = line_start;
 
-        let bytes_per_scaled_line = (self.stride * self.bytes_per_pixel) as usize;
-        let bytes_per_scaled_pixel = self.bytes_per_pixel as usize * 2;
+        let bytes_per_scaled_line = (self.format.stride * self.format.bytes_per_pixel) as usize;
+        let bytes_per_scaled_pixel = self.format.bytes_per_pixel as usize * 2;
 
         for _y in 0..image.dimensions().height {
-            for _ys in 0..2 {
-                for _x in 0..image.dimensions().width {
-                    let b = *image_data.next().unwrap_or(&0);
-                    let g = *image_data.next().unwrap_or(&0);
-                    let r = *image_data.next().unwrap_or(&0);
+            for _x in 0..image.dimensions().width {
+                let b = *image_data.next().unwrap_or(&0);
+                let g = *image_data.next().unwrap_or(&0);
+                let r = *image_data.next().unwrap_or(&0);
 
-                    {
-                        let pixel_bytes_lower =
-                            &mut self.buffer[line_pos + bytes_per_scaled_line..];
-                        pixel_bytes_lower[0] = r;
-                        pixel_bytes_lower[1] = g;
-                        pixel_bytes_lower[2] = b;
-                        pixel_bytes_lower[4] = r;
-                        pixel_bytes_lower[5] = g;
-                        pixel_bytes_lower[6] = b;
-                    }
-                    {
-                        let pixel_bytes_upper = &mut self.buffer[line_pos..];
-                        pixel_bytes_upper[0] = r;
-                        pixel_bytes_upper[1] = g;
-                        pixel_bytes_upper[2] = b;
-                        pixel_bytes_upper[4] = r;
-                        pixel_bytes_upper[5] = g;
-                        pixel_bytes_upper[6] = b;
-                    }
+                {
+                    let pixel_bytes_lower = &mut self.buffer[line_pos + bytes_per_scaled_line..];
+                    pixel_bytes_lower[self.format.r_position] = r;
+                    pixel_bytes_lower[self.format.g_position] = g;
+                    pixel_bytes_lower[self.format.b_position] = b;
+                    let pixel_bytes_lower = &mut self.buffer
+                        [line_pos + bytes_per_scaled_line + self.format.bytes_per_pixel as usize..];
+                    pixel_bytes_lower[self.format.r_position] = r;
+                    pixel_bytes_lower[self.format.g_position] = g;
+                    pixel_bytes_lower[self.format.b_position] = b;
+                }
+                {
+                    let pixel_bytes_lower = &mut self.buffer[line_pos..];
+                    pixel_bytes_lower[self.format.r_position] = r;
+                    pixel_bytes_lower[self.format.g_position] = g;
+                    pixel_bytes_lower[self.format.b_position] = b;
+                    let pixel_bytes_lower =
+                        &mut self.buffer[line_pos + self.format.bytes_per_pixel as usize..];
+                    pixel_bytes_lower[self.format.r_position] = r;
+                    pixel_bytes_lower[self.format.g_position] = g;
+                    pixel_bytes_lower[self.format.b_position] = b;
+                }
 
-                    line_pos += bytes_per_scaled_pixel;
-                }
-                line_start += bytes_per_scaled_line * 2;
-                if line_pos + bytes_per_scaled_line * 2 >= self.buffer.len() {
-                    return;
-                }
-                line_pos = line_start;
+                line_pos += bytes_per_scaled_pixel;
             }
+            line_start += bytes_per_scaled_line * 2;
+            if line_pos + bytes_per_scaled_line * 2 >= self.buffer.len() {
+                return;
+            }
+            line_pos = line_start;
         }
     }
 
@@ -242,18 +252,18 @@ impl Framebuffer {
             x: position.x * 2,
             y: position.y * 2,
         };
-        let mut line_start =
-            ((start_position.y * self.stride + start_position.x) * self.bytes_per_pixel) as usize;
+        let mut line_start = ((start_position.y * self.format.stride as i64 + start_position.x)
+            * self.format.bytes_per_pixel as i64) as usize;
         let mut line_pos = line_start;
 
-        let bytes_per_scaled_line = (self.stride * self.bytes_per_pixel) as usize;
-        let bytes_per_scaled_pixel = self.bytes_per_pixel as usize * 2;
+        let bytes_per_scaled_line = (self.format.stride * self.format.bytes_per_pixel) as usize;
+        let bytes_per_scaled_pixel = self.format.bytes_per_pixel as usize * 2;
 
         for y in 0..Font::CHAR_HEIGHT as usize {
             for _ys in 0..2 {
                 for c in &chars {
-                    let next_line_pos =
-                        line_pos + Font::CHAR_WIDTH as usize * 2 * self.bytes_per_pixel as usize;
+                    let next_line_pos = line_pos
+                        + Font::CHAR_WIDTH as usize * 2 * self.format.bytes_per_pixel as usize;
                     for x in 0..c.width {
                         let c_bit_offset = (y * c.width + x) as usize;
                         let c_byte_offset = c_bit_offset / 8;
@@ -263,12 +273,14 @@ impl Framebuffer {
 
                         if byte & (1 << c_bit_offset) == 0 {
                             let pixel_bytes = &mut self.buffer[line_pos..];
-                            pixel_bytes[0] = color.r;
-                            pixel_bytes[1] = color.g;
-                            pixel_bytes[2] = color.b;
-                            pixel_bytes[4] = color.r;
-                            pixel_bytes[5] = color.g;
-                            pixel_bytes[6] = color.b;
+                            pixel_bytes[self.format.r_position] = color.r;
+                            pixel_bytes[self.format.g_position] = color.g;
+                            pixel_bytes[self.format.b_position] = color.b;
+                            let pixel_bytes =
+                                &mut self.buffer[line_pos + self.format.bytes_per_pixel as usize..];
+                            pixel_bytes[self.format.r_position] = color.r;
+                            pixel_bytes[self.format.g_position] = color.g;
+                            pixel_bytes[self.format.b_position] = color.b;
                         }
                         line_pos += bytes_per_scaled_pixel;
                     }
@@ -291,21 +303,21 @@ impl Framebuffer {
             return;
         }
 
-        let scaled_x = position.x * 2;
-        let scaled_y = position.y * 2;
+        let scaled_x = position.x as u64 * 2;
+        let scaled_y = position.y as u64 * 2;
 
-        let y_upper = scaled_y * self.stride;
-        let y_lower = y_upper + self.stride;
+        let y_upper = scaled_y as u64 * self.format.stride;
+        let y_lower = y_upper as u64 + self.format.stride;
 
         let offset_tl = y_upper + scaled_x;
         let offset_tr = y_upper + scaled_x + 1;
         let offset_bl = y_lower + scaled_x;
         let offset_br = y_lower + scaled_x + 1;
 
-        self.draw_pixel_raw((offset_tl * self.bytes_per_pixel) as usize, color);
-        self.draw_pixel_raw((offset_tr * self.bytes_per_pixel) as usize, color);
-        self.draw_pixel_raw((offset_bl * self.bytes_per_pixel) as usize, color);
-        self.draw_pixel_raw((offset_br * self.bytes_per_pixel) as usize, color);
+        self.draw_pixel_raw((offset_tl * self.format.bytes_per_pixel) as usize, color);
+        self.draw_pixel_raw((offset_tr * self.format.bytes_per_pixel) as usize, color);
+        self.draw_pixel_raw((offset_bl * self.format.bytes_per_pixel) as usize, color);
+        self.draw_pixel_raw((offset_br * self.format.bytes_per_pixel) as usize, color);
     }
 
     #[inline(always)]

@@ -92,15 +92,15 @@ monOS currently uses the following algorithms for allocating memory:
 | type of memory    | allocation algorithm  |
 | ----------------- | --------------------- |
 | pages             | bitmap allocator      | 
-| heap memory       | linked list allocator |
+| heap memory       | buddy system          |
 | virtual addresses | bump allocator        |
-| userspace heap    | linked list allocator |
+| userspace heap    | buddy system          |
 
 these were basically all just chosen because they were the easiest to implement. memory performance really isn't a big concern for this OS. 
 as for virtual addresses, i would like to switch over to something more robust at some point. since monOS is strictly 64-bit with the kernel mapped into the higher half,
 there is around 256TiB of virtual memory available for allocation. i just dont see that being reached over the time a single boot with the current scope of the project.
 
-the heap allocator is using the [linked_list_allocator](https://github.com/rust-osdev/linked-list-allocator) crate right now, because i couldn't be bothered to write my own.
+the heap allocator is using the [buddy_system_allocator](https://github.com/rcore-os/buddy_system_allocator) crate right now, because i couldn't be bothered to write my own.
 its something i still want to do at some point though.
 
 
@@ -149,7 +149,6 @@ there is currently no safety in place for channels, meaning that a process can j
 - [x] working framebuffer
   - [x] text drawing
   - [x] double buffering
-  - [ ] shapes
 - [ ] exception handling
   - [x] basic handlers 
   - [ ] better panic handling
@@ -164,6 +163,7 @@ there is currently no safety in place for channels, meaning that a process can j
       - [ ] use a better allocator (maybe)
   - [ ] heap allocation
     - [x] basic implementation
+    - [ ] !!! figure out why the allocator breaks when compiling with `-g`
     - [ ] implement own allocator
   - [x] virtual address allocation
 - [ ] ACPI
@@ -177,14 +177,21 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] ps2 keyboard input
     - [x] ps2 mouse input
 - [ ] gui
-  - [ ] image loading + cursor
+  - [x] image loading
+    - [x] .ppm loading
+    - [ ] scale image on load for faster drawing
+    - [ ] turn fb into image for fast screen clearing
   - [ ] decently usable immediate mode gui library
     - [x] basic functionality
     - [x] better text wrapping
-    - [ ] buttons
-    - ... 
+    - [x] buttons
+    - [ ] "drawing" functionality
+    - [ ] only rerender if necessary
   - [x] boot screen 
   - [ ] desktop environment (`rooftop`)
+    - [ ] basic ui
+    - [ ] only rerender necessary parts
+    - [ ] spawning windows
   - [ ] terminal
 - [ ] task management
   - [ ] async executor
@@ -204,9 +211,12 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] heap
     - [x] sensible memory structure
     - [x] ondemand paging
+    - [ ] figure out why allocation on the heap fails at a certain point
+    - [ ] memory chunks
     - [ ] free on process exit
   - [ ] ipc
     - [x] kernel <-> process
+    - [ ] sending memory chunks
     - [ ] block waiting processes
     - [ ] process <-> process
     - [ ] mpsc (?)

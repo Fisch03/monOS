@@ -1,9 +1,10 @@
 use crate::mem::{alloc_frame, alloc_vmem, map_to, Page, PageTableFlags};
 
-use linked_list_allocator::LockedHeap;
+// use linked_list_allocator::LockedHeap;
+use buddy_system_allocator::LockedHeap;
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: LockedHeap<32> = LockedHeap::empty();
 
 // const HEAP_SIZE: u64 = 4096 * 1024; // 4 MiB
 
@@ -26,6 +27,7 @@ pub fn init() {
     unsafe {
         ALLOCATOR
             .lock()
-            .init(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
+            .init(heap_start.as_u64() as usize, HEAP_SIZE as usize);
+        // .init(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
     }
 }

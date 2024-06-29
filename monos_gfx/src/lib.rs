@@ -18,4 +18,4 @@ pub mod input;
 pub mod ui;
 
 pub mod framebuffer;
-pub use framebuffer::Framebuffer;
+pub use framebuffer::{Framebuffer, FramebufferFormat};
