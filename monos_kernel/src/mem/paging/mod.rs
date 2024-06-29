@@ -176,7 +176,6 @@ pub fn create_user_demand_pages(
     // map the rest to the same frame, but with only read permissions. they will trigger a page
     // fault when written which allows us to allocate the frame lazily.
     loop {
-        crate::println!("{:?}", page.start_address());
         unsafe {
             mapper.map_to_with_parent_flags(
                 &page,

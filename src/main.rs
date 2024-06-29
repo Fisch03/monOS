@@ -10,6 +10,7 @@ fn main() {
     // if uefi {
     cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
     cmd.arg("-serial").arg("stdio");
+    cmd.arg("-vga").arg("std");
     // cmd.arg("-d").arg("int");
     // cmd.arg("-s").arg("-S");
     // cmd.arg("-monitor").arg("stdio");

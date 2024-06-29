@@ -33,10 +33,8 @@ impl<'a> Label<'a> {
 
 impl UIElement for Label<'_> {
     fn draw(self, context: &mut UIContext) -> UIResult {
-        let max_dimensions = Dimension::new(
-            context.placer.max_width(),
-            context.fb.scaled_dimensions().height,
-        );
+        let max_dimensions =
+            Dimension::new(context.placer.max_width(), context.fb.dimensions().height);
 
         let lines = self.layout(max_dimensions);
         let line_dimensions = lines.dimensions();

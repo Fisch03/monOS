@@ -138,7 +138,7 @@ impl<'a> Lines<'a> {
             if line.hyphenated {
                 fb.draw_char::<Cozette>(&color, '-', &position);
             }
-            position.x = position.x.min(fb.scaled_dimensions().width as i64);
+            position.x = position.x.min(fb.dimensions().width as i64);
             position.y += Cozette::CHAR_HEIGHT as i64;
         }
     }

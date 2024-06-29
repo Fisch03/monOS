@@ -227,7 +227,7 @@ impl<'a> KernelFramebuffer<'a> {
             unsafe {
                 slice::from_raw_parts_mut(start.as_mut_ptr(), self.framebuffer.buffer().len())
             },
-            self.framebuffer.actual_dimensions(),
+            self.framebuffer.dimensions(),
             self.framebuffer.format().clone(),
         );
 

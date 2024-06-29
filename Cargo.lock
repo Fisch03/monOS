@@ -335,12 +335,11 @@ dependencies = [
 [[package]]
 name = "bootloader"
 version = "0.11.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "870f24755a97b8a8b436b243465eb7d4e1aa191369eeab062172eedd74493bcb"
+source = "git+https://github.com/Fisch03/monOS-bootloader#3f18e0165e4053d4429422cf339b08bcb0512032"
 dependencies = [
  "anyhow",
  "async-process",
- "bootloader-boot-config",
+ "bootloader-boot-config 0.11.7 (git+https://github.com/Fisch03/monOS-bootloader)",
  "fatfs",
  "futures",
  "futures-concurrency",
@@ -356,6 +355,14 @@ name = "bootloader-boot-config"
 version = "0.11.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4946b6c83b3e9bd91864531025a9719ed0d8c6e7c5db13f694152b5df7deea15"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "bootloader-boot-config"
+version = "0.11.7"
+source = "git+https://github.com/Fisch03/monOS-bootloader#3f18e0165e4053d4429422cf339b08bcb0512032"
 dependencies = [
  "serde",
 ]
@@ -1315,7 +1322,7 @@ name = "monos"
 version = "0.1.0"
 dependencies = [
  "bootloader",
- "bootloader-boot-config",
+ "bootloader-boot-config 0.11.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "fatfs",
  "glob",
  "monos_kernel",

@@ -160,7 +160,7 @@ extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, e
             );
         }
 
-        crate::print!("allocated demand page at {:#x}\n", cr2.as_u64());
+        // crate::print!("allocated demand page at {:#x}\n", cr2.as_u64());
     } else {
         panic!(
             "page fault\nerror code: {:#?}\ntried accessing memory address: {:#x}\n{:#?}",

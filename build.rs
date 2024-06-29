@@ -20,6 +20,8 @@ fn main() {
     let mut config = BootConfig::default();
     // config.log_level = LevelFilter::Off;
     config.frame_buffer_logging = false;
+    config.frame_buffer.wanted_framebuffer_width = Some(640);
+    config.frame_buffer.wanted_framebuffer_height = Some(480);
 
     let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     let kernel =
