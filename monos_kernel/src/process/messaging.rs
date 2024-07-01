@@ -6,7 +6,7 @@ pub use monos_std::messaging::{
 };
 use spin::{Lazy, RwLock};
 
-const MAX_QUEUE_SIZE: usize = 10;
+const MAX_QUEUE_SIZE: usize = 64;
 
 static PORTS: Lazy<RwLock<Vec<Port>>> = Lazy::new(|| RwLock::new(Vec::new()));
 static SYS_CHANNELS: Lazy<RwLock<Vec<Option<Box<SystemPortReceiveFn>>>>> =

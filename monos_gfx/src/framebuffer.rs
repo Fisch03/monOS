@@ -134,6 +134,32 @@ impl<'a> Framebuffer<'a> {
         };
     }
 
+    #[inline(always)]
+    pub fn clear_region(&mut self, rect: &Rect, fb: &Framebuffer) {
+        assert!(self.format == fb.format);
+
+        let mut line_start = ((rect.min.y * self.format.stride as i64 + rect.min.x)
+            * self.format.bytes_per_pixel as i64) as usize;
+        let mut line_pos = line_start;
+        let len = rect.dimensions().width as usize * self.format.bytes_per_pixel as usize;
+
+        for _y in rect.min.y..rect.max.y {
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    fb.buffer[line_pos..line_pos + len].as_ptr(),
+                    self.buffer[line_pos..line_pos + len].as_mut_ptr(),
+                    len,
+                )
+            };
+
+            line_start += (self.format.stride * self.format.bytes_per_pixel) as usize;
+            if line_start >= self.buffer.len() {
+                return;
+            }
+            line_pos = line_start;
+        }
+    }
+
     pub fn draw_rect(&mut self, rect: &Rect, color: &Color) {
         for y in rect.min.y..rect.max.y {
             for x in rect.min.x..rect.max.x {

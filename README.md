@@ -119,7 +119,7 @@ the following syscalls currently exist:
 | -- | ------------ | ---------------------------- | -------------- | ------------------------------- | ------- | -------------------------------------------------------------------------------------- |
 | 0  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
 | 1  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
-| 2  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a thread to connect to a channel on the given port                            |
+| 2  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                            |
 | 3* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
 | 4* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
 | 5* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
@@ -129,8 +129,8 @@ the following syscalls currently exist:
 *it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 
 #### messaging
-inter-process communication in monOS happens over channels. a thread can provide a channel on a port (basically just a unique string) using the `serve` sycall. 
-other threads can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving thread (using the `wait_conn` syscall) with a channel handle. 
+inter-process communication in monOS happens over channels. a process can provide a channel on a port (basically just a unique string) using the `serve` sycall. 
+other processes can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving process (using the `wait_conn` syscall) with a channel handle. 
 both processes can then send and receive messages over the channel using the `send`, `send_sync`, `receive` and `receive_any` syscalls.
 
 a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
@@ -141,7 +141,7 @@ some messaging related syscalls are a bit special since they use the syscall id 
 |  8-15 | nothing... for now :) |
 | 16-63 | channel handle        |
 
-a channel handle is a 48-bit value consisting of 32 bits target process id and 16 bit channel id.
+a channel handle is a 48-bit value consisting of 32 bits target process id, 8 bit target channel id and 8 bit sender channel id.
 there is currently no safety in place for channels, meaning that a process can just send to any channel knowing its channel handle without `connect`ing to it first. i should probably fix that at some point...
 
 # the big todo list
@@ -265,5 +265,4 @@ there is currently no safety in place for channels, meaning that a process can j
 # credits
 please contact me if you want your work removed. i wasn't able to find decent licensing information for all of these and am using them under the assumption that using for non-profit fan content is fine.
 - [woofycakes](https://x.com/woofycakes) for the mono emotes in this file
-- [NOiiRE ❖](https://noiire.carrd.co/) for the [mono cursor](https://x.com/noiireism/status/1736755359308792252)
 - [slavfox](https://github.com/slavfox) for [Cozette](https://github.com/slavfox/Cozette), the system font

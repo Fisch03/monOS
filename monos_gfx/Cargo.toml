@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 monos_std = { path = "../monos_std" }
+spin = "0.9.8"

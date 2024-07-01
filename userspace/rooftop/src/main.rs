@@ -34,10 +34,17 @@ fn main() {
         fb.dimensions().width,
         fb.dimensions().height
     );
-    let fb_rect = Rect::from_dimensions(fb.dimensions());
 
-    // let mut clear_fb_buffer = vec![0; fb.buffer().len()];
-    // let clear_fb = create_clear_fb(&fb, &mut clear_fb_buffer);
+    let mouse_rect = Rect::new(
+        Position::new(0, 0),
+        Position::new(
+            fb.dimensions().width as i64 - 6,
+            fb.dimensions().height as i64 - 9,
+        ),
+    );
+
+    let mut clear_fb_buffer = vec![0; fb.buffer().len()];
+    let clear_fb = create_clear_fb(&fb, &mut clear_fb_buffer);
 
     let mouse_channel = syscall::connect("sys.mouse").unwrap();
     let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
@@ -49,7 +56,7 @@ fn main() {
     );
     let mut taskbar_ui = UIFrame::new(Direction::LeftToRight);
 
-    let test_icon = monos_gfx::Image::from_ppm(include_bytes!("../assets/test_icon.ppm"))
+    let test_icon = monos_gfx::Image::from_ppm(inclde_bytes!("../assets/test_icon.ppm"))
         .expect("failed to load image");
     //println!("test_icon: {:?}", test_icon);
 
@@ -57,12 +64,16 @@ fn main() {
         .expect("failed to load image");
     println!("taskbar: {:?}", taskbar);
 
+    fb.clear_with(&clear_fb);
     loop {
+        let old_mouse_pos = input.mouse.position;
+        let mut mouse_moved = false;
         input.mouse.update();
         while let Some(msg) = syscall::receive_any() {
             if msg.sender == mouse_channel {
                 if let Some(mouse_state) = unsafe { MouseState::from_message(&msg) } {
-                    input.mouse.update_new(mouse_state, fb_rect);
+                    input.mouse.update_new(mouse_state, mouse_rect);
+                    mouse_moved = true;
                 }
             } else if msg.sender == keyboard_channel {
                 let key = msg.data.0 as u8 as char;
@@ -70,15 +81,12 @@ fn main() {
             }
         }
 
-        // fb.clear_with(&clear_fb);
-        fb.clear();
-        fb.draw_img(
-            &taskbar,
-            &Position::new(
-                0,
-                (fb.dimensions().height - taskbar.dimensions().height) as i64,
-            ),
-        );
+        if mouse_moved {
+            fb.clear_region(
+                &Rect::new(old_mouse_pos, old_mouse_pos + Position::new(6, 9)),
+                &clear_fb,
+            );
+        }
 
         taskbar_ui.draw_frame(&mut fb, taskbar_ui_rect, &input, |ui| {
             ui.margin(MarginMode::Grow);

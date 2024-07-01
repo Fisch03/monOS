@@ -17,5 +17,7 @@ pub use image::Image;
 pub mod input;
 pub mod ui;
 
+pub mod paint;
+
 pub mod framebuffer;
 pub use framebuffer::{Framebuffer, FramebufferFormat};
