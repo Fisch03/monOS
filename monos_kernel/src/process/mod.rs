@@ -1,7 +1,8 @@
 pub mod messaging;
-use messaging::{Mailbox, Message, PartialReceiveChannelHandle, PartialSendChannelHandle};
+use messaging::{Mailbox, Message, PartialReceiveChannelHandle};
 
 use crate::arch::registers::CR3;
+use crate::fs::File;
 use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
@@ -26,6 +27,7 @@ pub struct Process {
     memory: ProcessMemory,
     context_addr: VirtualAddress,
     channels: Vec<Mailbox>,
+    files: Vec<Box<dyn File>>,
 }
 
 #[allow(dead_code)]
@@ -309,6 +311,7 @@ impl Process {
             },
             context_addr,
             channels: Vec::new(),
+            files: Vec::new(),
         };
 
         crate::println!(

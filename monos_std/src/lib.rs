@@ -10,6 +10,7 @@ use core::arch::asm;
 #[cfg(not(feature = "lib_only"))]
 mod memory;
 
+pub mod filesystem;
 pub mod messaging;
 
 pub mod dev;
@@ -52,10 +53,11 @@ pub unsafe extern "sysv64" fn _start() -> ! {
 }
 
 #[inline(never)]
-extern "C" fn start_inner(heap_start: usize, heap_size: usize) {
+#[allow(dead_code)]
+extern "C" fn start_inner(_heap_start: usize, _heap_size: usize) {
     #[cfg(not(feature = "lib_only"))]
     unsafe {
-        memory::init(heap_start, heap_size)
+        memory::init(_heap_start, _heap_size)
     };
 
     unsafe { main() };

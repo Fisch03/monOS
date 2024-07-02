@@ -113,11 +113,11 @@ impl<'fs> Fat16DirEntry<'fs> {
     }
 
     fn continue_from_lfn(
-        fs: &'fs Fat16Fs,
-        sector: u32,
-        offset: u32,
-        name: impl Iterator<Item = char>,
-        bytes_read: usize,
+        _fs: &'fs Fat16Fs,
+        _sector: u32,
+        _offset: u32,
+        _name: impl Iterator<Item = char>,
+        _bytes_read: usize,
     ) -> Result<(Self, usize), DirEntryError> {
         todo!("lfn entries spanning multiple fat entries")
     }

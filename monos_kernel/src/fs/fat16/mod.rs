@@ -80,7 +80,7 @@ impl Fat16Fs {
         self.ramdisk.read(buf);
     }
 
-    pub fn iter_root_dir(&mut self) -> Fat16DirIter<'_> {
+    pub fn iter_root_dir(&self) -> Fat16DirIter<'_> {
         Fat16DirIter::new(self, self.first_root_sector)
     }
 }

@@ -119,12 +119,16 @@ the following syscalls currently exist:
 | -- | ------------ | ---------------------------- | -------------- | ------------------------------- | ------- | -------------------------------------------------------------------------------------- |
 | 0  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
 | 1  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
-| 2  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                            |
+| 2  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                           |
 | 3* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
 | 4* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
 | 5* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
 | 6  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
-| 7  | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 7  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
+| 8  | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
+| 9  | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
+| 10 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
+| 11 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
 
 *it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 
@@ -242,6 +246,7 @@ there is currently no safety in place for channels, meaning that a process can j
 - [x] filesystem support
   - [x] ramdisk reading
   - [x] fat16 drivers
+  - [ ] keep track of opened files to avoid conflicts
   - [ ] block device drivers
 - [ ] multiprocessor support (maybe)
 - [ ] USB support (maybe)

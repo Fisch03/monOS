@@ -1,7 +1,6 @@
 use core::ptr::NonNull;
 use volatile::VolatilePtr;
 
-#[allow(unused_imports)]
 use super::*;
 use crate::messaging::*;
 

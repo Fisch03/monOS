@@ -32,8 +32,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     // start the desktop environment
     let rooftop = {
-        let mut fs = fs().lock();
-        let file = fs
+        let file = fs()
             .iter_root_dir()
             .get_entry("bin/rooftop")
             .unwrap()

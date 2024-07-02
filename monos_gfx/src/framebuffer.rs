@@ -1,4 +1,4 @@
-use crate::{types::*, Image};
+use crate::{types::*, Image, ImageFormat};
 use monos_std::messaging::*;
 
 #[derive(Debug)]
@@ -169,7 +169,10 @@ impl<'a> Framebuffer<'a> {
     }
 
     pub fn draw_img(&mut self, image: &Image, position: &Position) {
-        let mut image_data = image.data.iter();
+        let mut image_data = match &image.data {
+            ImageFormat::RGB(data) => data.iter(),
+            _ => return,
+        };
 
         let mut line_start = ((position.y * self.format.stride as i64 + position.x)
             * self.format.bytes_per_pixel as i64) as usize;

@@ -1,7 +1,10 @@
 use core::arch::asm;
 
-mod io;
-pub use io::*;
+mod ipc;
+pub use ipc::*;
+
+mod fs;
+pub use fs::*;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -17,6 +20,11 @@ pub enum SyscallType {
     SendSync,
     Receive,
     ReceiveAny,
+
+    Open,
+    Seek,
+    Read,
+    Write,
 
     Print,
 }

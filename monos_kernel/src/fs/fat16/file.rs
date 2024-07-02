@@ -77,13 +77,13 @@ impl<'fs> Read for Fat16File<'fs> {
 }
 
 impl<'fs> Write for Fat16File<'fs> {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        unimplemented!()
+    fn write(&mut self, _buf: &[u8]) -> usize {
+        todo!()
     }
 }
 
 impl<'fs> Seek for Fat16File<'fs> {
-    fn seek(&self, pos: usize) {
-        unimplemented!()
+    fn seek(&self, _pos: usize) {
+        todo!()
     }
 }

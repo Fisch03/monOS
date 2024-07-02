@@ -12,7 +12,7 @@ pub use types::*;
 
 pub mod fonts;
 pub mod image;
-pub use image::Image;
+pub use image::{Image, ImageFormat};
 
 pub mod input;
 pub mod ui;

@@ -24,16 +24,9 @@ fn main() {
 
     // TODO: send_sync
     syscall::send(fb_channel, FramebufferRequest::Open(&mut fb));
-    //unsafe { syscall::receive_as::<FramebufferResponse>(fb_channel).unwrap() };
+    unsafe { syscall::receive_as::<FramebufferResponse>(fb_channel).unwrap() };
 
     let mut fb = fb.unwrap();
-    //TODO: uhhhhhhhh for some reason removing this print breaks the framebuffer dimensions.
-    //i really should look into that
-    println!(
-        "initializing desktop environment with a resolution of {}x{}",
-        fb.dimensions().width,
-        fb.dimensions().height
-    );
 
     let mouse_rect = Rect::new(
         Position::new(0, 0),
@@ -56,13 +49,8 @@ fn main() {
     );
     let mut taskbar_ui = UIFrame::new(Direction::LeftToRight);
 
-    let test_icon = monos_gfx::Image::from_ppm(inclde_bytes!("../assets/test_icon.ppm"))
+    let test_icon = monos_gfx::Image::from_ppm(include_bytes!("../assets/test_icon.ppm"))
         .expect("failed to load image");
-    //println!("test_icon: {:?}", test_icon);
-
-    let taskbar = monos_gfx::Image::from_ppm(include_bytes!("../assets/taskbar.ppm"))
-        .expect("failed to load image");
-    println!("taskbar: {:?}", taskbar);
 
     fb.clear_with(&clear_fb);
     loop {
@@ -105,7 +93,6 @@ fn create_clear_fb<'a>(main_fb: &Framebuffer, buffer: &'a mut Vec<u8>) -> Frameb
 
     let taskbar = monos_gfx::Image::from_ppm(include_bytes!("../assets/taskbar.ppm"))
         .expect("failed to load image");
-    println!("taskbar: {:?}", taskbar);
 
     clear_fb.draw_img(
         &taskbar,

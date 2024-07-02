@@ -1,5 +1,4 @@
-mod path;
-pub use path::*;
+pub use monos_std::filesystem::{Path, PathBuf};
 
 pub mod fat16;
 use fat16::Fat16Fs;
@@ -10,9 +9,11 @@ use ramdisk::RamDisk;
 use crate::mem::VirtualAddress;
 use bootloader_api::BootInfo;
 
-use spin::{Mutex, Once};
+use spin::Once;
 
-static FILESYSTEM: Once<Mutex<Fat16Fs>> = Once::new();
+// TODO: the fs impl currently has no safety at all in regards to opening the same file multiple times. that should definitely be added at some point but for now we ball
+
+static FILESYSTEM: Once<Fat16Fs> = Once::new();
 
 pub fn init(boot_info: &BootInfo) {
     FILESYSTEM.call_once(|| {
@@ -27,12 +28,12 @@ pub fn init(boot_info: &BootInfo) {
         let ram_disk = unsafe { RamDisk::new(ramdisk_start, ramdisk_size as usize) };
         let fs = Fat16Fs::new(ram_disk).expect("failed to initialize FAT16 filesystem");
 
-        Mutex::new(fs)
+        fs
     });
 }
 
 #[inline]
-pub fn fs() -> &'static Mutex<Fat16Fs> {
+pub fn fs() -> &'static Fat16Fs {
     FILESYSTEM.get().expect("filesystem not initialized")
 }
 
@@ -43,9 +44,18 @@ pub enum GetFileError {
     NotADirectory,
 }
 
-pub trait File: Read + Write + Seek {
+pub trait File: Read + Write + Seek + Send + Sync {
     fn name(&self) -> &str;
     fn size(&self) -> usize;
+}
+
+impl core::fmt::Debug for dyn File {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("File")
+            .field("name", &self.name())
+            .field("size", &self.size())
+            .finish()
+    }
 }
 
 pub trait DirEntry: Sized {
