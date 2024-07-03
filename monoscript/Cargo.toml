@@ -7,9 +7,6 @@ edition = "2021"
 name = "mono"
 path = "src/main.rs"
 
-[dev-dependencies]
-monoscript_emu = {path = "../monoscript_emu" }
-
 [dependencies]
 hashbrown = "0.14.5"
 nom = { version = "7.1.3", default-features = false, features = ["alloc"] }

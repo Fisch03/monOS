@@ -5,4 +5,9 @@ edition = "2021"
 
 [dependencies]
 monos_std = { path = "../monos_std" }
+#monos_std = { path = "../monos_std", features = ["lib_only"] }
 spin = "0.9.8"
+
+[features]
+default = []
+lib_only = ["monos_std/lib_only"]
