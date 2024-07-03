@@ -1,6 +1,7 @@
 [package]
 name = "monos"
 version = "0.1.0"
+edition = "2021"
 
 [build-dependencies]
 bootloader = { git = "https://github.com/Fisch03/monOS-bootloader" }

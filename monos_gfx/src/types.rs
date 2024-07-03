@@ -1,4 +1,8 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Position {
     pub x: i64,
     pub y: i64,
@@ -91,6 +95,7 @@ impl core::ops::Sub<Dimension> for Position {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Rect {
     pub min: Position,
     pub max: Position,
@@ -149,6 +154,7 @@ impl Rect {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Dimension {
     pub width: u32,
     pub height: u32,
@@ -198,6 +204,7 @@ impl core::ops::Div<u32> for Dimension {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Color {
     pub r: u8,
     pub g: u8,

@@ -64,6 +64,7 @@ pub struct FramebufferFormat {
     pub r_position: usize,
     pub g_position: usize,
     pub b_position: usize,
+    pub a_position: Option<usize>,
 }
 
 pub struct Framebuffer<'a> {
@@ -118,6 +119,15 @@ impl<'a> Framebuffer<'a> {
         // self.back_buffer.fill(0);
 
         unsafe { core::ptr::write_bytes(self.buffer.as_mut_ptr(), 0, self.buffer.len()) };
+    }
+
+    #[inline(always)]
+    pub fn clear_alpha(&mut self) {
+        if let Some(a_position) = self.format.a_position {
+            for i in (0..self.buffer.len()).step_by(self.format.bytes_per_pixel as usize) {
+                self.buffer[i + a_position] = 255;
+            }
+        }
     }
 
     #[inline(always)]

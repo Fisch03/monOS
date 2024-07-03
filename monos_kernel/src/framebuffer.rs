@@ -157,6 +157,7 @@ impl<'a> KernelFramebuffer<'a> {
                     r_position,
                     g_position,
                     b_position,
+                    a_position: None,
                 },
             ),
             back_buffer_start_frame,

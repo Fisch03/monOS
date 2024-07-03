@@ -1147,6 +1147,7 @@ name = "monos_gfx"
 version = "0.1.0"
 dependencies = [
  "monos_std",
+ "serde",
  "spin",
 ]
 
