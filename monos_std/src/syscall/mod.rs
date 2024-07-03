@@ -1,11 +1,3 @@
-use core::arch::asm;
-
-mod ipc;
-pub use ipc::*;
-
-mod fs;
-pub use fs::*;
-
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::messaging::ChannelHandle;
@@ -108,79 +100,95 @@ impl core::fmt::Debug for Syscall {
     }
 }
 
-#[inline(always)]
-#[allow(dead_code)]
-unsafe fn syscall_1(syscall: Syscall, arg1: u64) -> u64 {
-    let syscall: u64 = syscall.into();
-    let ret: u64;
-    unsafe {
-        asm!(
-            "syscall",
-            in("rax") syscall,
-            in("rdi") arg1,
-            lateout("rax") ret,
-            out("rcx") _, out("r11") _, out("r9") _
-        );
+#[cfg(not(feature = "lib_only"))]
+pub use calls::*;
+
+#[cfg(not(feature = "lib_only"))]
+mod calls {
+    use super::*;
+
+    use core::arch::asm;
+
+    mod fs;
+    mod ipc;
+
+    pub use fs::*;
+    pub use ipc::*;
+
+    #[inline(always)]
+    #[allow(dead_code)]
+    unsafe fn syscall_1(syscall: Syscall, arg1: u64) -> u64 {
+        let syscall: u64 = syscall.into();
+        let ret: u64;
+        unsafe {
+            asm!(
+                "syscall",
+                in("rax") syscall,
+                in("rdi") arg1,
+                lateout("rax") ret,
+                out("rcx") _, out("r11") _, out("r9") _
+            );
+        }
+        ret
     }
-    ret
-}
 
-#[inline(always)]
-#[allow(dead_code)]
-unsafe fn syscall_2(syscall: Syscall, arg1: u64, arg2: u64) -> u64 {
-    let syscall: u64 = syscall.into();
-    let ret: u64;
-    unsafe {
-        asm!(
-            "syscall",
-            in("rax") syscall,
-            in("rdi") arg1,
-            in("rsi") arg2,
-            lateout("rax") ret,
-            out("rcx") _, out("r11") _, out("r9") _
+    #[inline(always)]
+    #[allow(dead_code)]
+    unsafe fn syscall_2(syscall: Syscall, arg1: u64, arg2: u64) -> u64 {
+        let syscall: u64 = syscall.into();
+        let ret: u64;
+        unsafe {
+            asm!(
+                "syscall",
+                in("rax") syscall,
+                in("rdi") arg1,
+                in("rsi") arg2,
+                lateout("rax") ret,
+                out("rcx") _, out("r11") _, out("r9") _
 
-        );
+            );
+        }
+        ret
     }
-    ret
-}
 
-#[inline(always)]
-#[allow(dead_code)]
-unsafe fn syscall_3(syscall: Syscall, arg1: u64, arg2: u64, arg3: u64) -> u64 {
-    let syscall: u64 = syscall.into();
-    let ret: u64;
-    unsafe {
-        asm!(
-            "syscall",
-            in("rax") syscall,
-            in("rdi") arg1,
-            in("rsi") arg2,
-            in("rdx") arg3,
-            lateout("rax") ret,
-            out("rcx") _, out("r11") _, out("r9") _
+    #[inline(always)]
+    #[allow(dead_code)]
+    unsafe fn syscall_3(syscall: Syscall, arg1: u64, arg2: u64, arg3: u64) -> u64 {
+        let syscall: u64 = syscall.into();
+        let ret: u64;
+        unsafe {
+            asm!(
+                "syscall",
+                in("rax") syscall,
+                in("rdi") arg1,
+                in("rsi") arg2,
+                in("rdx") arg3,
+                lateout("rax") ret,
+                out("rcx") _, out("r11") _, out("r9") _
 
-        );
+            );
+        }
+        ret
     }
-    ret
-}
 
-#[inline(always)]
-#[allow(dead_code)]
-unsafe fn syscall_4(syscall: Syscall, arg1: u64, arg2: u64, arg3: u64, arg4: u64) -> u64 {
-    let syscall: u64 = syscall.into();
-    let ret: u64;
-    unsafe {
-        asm!(
-            "syscall",
-            in("rax") syscall,
-            in("rdi") arg1,
-            in("rsi") arg2,
-            in("rdx") arg3,
-            in("r10") arg4,
-            lateout("rax") ret,
-            out("rcx") _, out("r11") _, out("r9") _
+    #[inline(always)]
+    #[allow(dead_code)]
+    unsafe fn syscall_4(syscall: Syscall, arg1: u64, arg2: u64, arg3: u64, arg4: u64) -> u64 {
+        let syscall: u64 = syscall.into();
+        let ret: u64;
+        unsafe {
+            asm!(
+                "syscall",
+                in("rax") syscall,
+                in("rdi") arg1,
+                in("rsi") arg2,
+                in("rdx") arg3,
+                in("r10") arg4,
+                lateout("rax") ret,
+                out("rcx") _, out("r11") _, out("r9") _
 
-        );
+            );
+        }
+        ret
     }
-    ret
 }

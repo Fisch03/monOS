@@ -16,6 +16,7 @@ impl FileHandle {
         Self(fd)
     }
 
+    #[cfg(not(feature = "lib_only"))]
     pub fn open<'p, P: Into<Path<'p>>>(path: P) -> Option<Self> {
         syscall::open(path.into(), FileFlags)
     }
@@ -24,23 +25,27 @@ impl FileHandle {
         self.0
     }
 
+    #[cfg(not(feature = "lib_only"))]
     pub fn stat(&self) -> Option<FileInfo> {
         syscall::stat(&self)
     }
 }
 
+#[cfg(not(feature = "lib_only"))]
 impl Read for FileHandle {
     fn read(&self, buf: &mut [u8]) -> usize {
         syscall::read(&self, buf)
     }
 }
 
+#[cfg(not(feature = "lib_only"))]
 impl Write for FileHandle {
     fn write(&mut self, buf: &[u8]) -> usize {
         todo!()
     }
 }
 
+#[cfg(not(feature = "lib_only"))]
 impl Seek for FileHandle {
     fn seek(&self, pos: usize) {
         todo!()

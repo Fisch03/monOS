@@ -20,7 +20,11 @@ pub use prelude::*;
 
 pub mod prelude {
     pub use crate::filesystem::{FileHandle, Read, Seek, Write};
-    pub use crate::{dbg, messaging::MessageData, print, println, syscall};
+    pub use crate::{messaging::MessageData, syscall};
+
+    #[cfg(not(feature = "lib_only"))]
+    pub use crate::{dbg, print, println};
+
     pub use alloc::{
         boxed::Box,
         //format, // format!() causes a page fault for some reason
