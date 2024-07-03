@@ -57,7 +57,9 @@ extern "C" fn handle_syscall() {
             "push rdx",
             "push rsi",
             "push rdi",
-            "push rax",
+            // "push rax",
+            "push 0", // push dummy return value (will be popped into rax)
+
             
             // get access to kernel stack
             "swapgs",
@@ -67,8 +69,9 @@ extern "C" fn handle_syscall() {
             "push rcx",
 
             // convert syscall args to c abi
-            // c abi:   rdi, rsi, rdx, rcx, r8
-            // syscall: rax, rdi, rsi, rdx, r10
+            // c abi:   rdi, rsi, rdx, rcx, r8, r9
+            // syscall: rax, rdi, rsi, rdx, r10, return
+            "mov r9, rcx", // rcx still points to the top of the user stack
             "mov r8, r10",
             "mov rcx, rdx",
             "mov rdx, rsi",
@@ -111,7 +114,14 @@ extern "C" fn handle_syscall() {
     }
 }
 
-extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64, arg4: u64) {
+extern "C" fn dispatch_syscall(
+    syscall_id: u64,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+    arg4: u64,
+    ret: &mut u64,
+) {
     if let Ok(syscall) = Syscall::try_from(syscall_id) {
         match syscall.ty {
             SyscallType::Print => {
@@ -138,7 +148,7 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
 
             SyscallType::Open => fs::sys_open(arg1, arg2, arg3),
             SyscallType::Seek => panic!("unimplemented syscall {:?}", syscall),
-            SyscallType::Read => fs::sys_read(arg1, arg2, arg3),
+            SyscallType::Read => *ret = fs::sys_read(arg1, arg2, arg3),
             SyscallType::Write => panic!("unimplemented syscall {:?}", syscall),
         }
     } else {

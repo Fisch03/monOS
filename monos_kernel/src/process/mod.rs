@@ -12,6 +12,7 @@ use crate::mem::{
 
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
 use core::sync::atomic::{AtomicU32, Ordering};
+use monos_std::filesystem::FileHandle;
 use object::{Object, ObjectSegment};
 use spin::RwLock;
 
@@ -142,6 +143,17 @@ impl Process {
         }
 
         None
+    }
+
+    pub fn open_file(&mut self, file: Box<dyn File>) -> FileHandle {
+        self.files.push(file);
+        FileHandle::new(self.files.len() as u64 - 1)
+    }
+
+    pub fn read_file(&self, handle: FileHandle, buf: &mut [u8]) -> Option<usize> {
+        let file = self.files.get(handle.as_u64() as usize)?;
+
+        Some(file.read_all(buf))
     }
 
     fn new(elf: &[u8]) -> u32 {

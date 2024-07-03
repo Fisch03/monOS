@@ -208,9 +208,9 @@ there is currently no safety in place for channels, meaning that a process can j
     - [ ] using own implementation
   - [ ] syscalls
     - [x] it works!
-    - [ ] framebuffer access
+    - [x] framebuffer access
     - [ ] spawning/killing processes 
-    - [ ] filesystem access
+    - [x] filesystem access
   - [ ] userspace memory
     - [x] heap
     - [x] sensible memory structure
@@ -246,6 +246,7 @@ there is currently no safety in place for channels, meaning that a process can j
 - [x] filesystem support
   - [x] ramdisk reading
   - [x] fat16 drivers
+    - [ ] multi-lfn file names
   - [ ] keep track of opened files to avoid conflicts
   - [ ] block device drivers
 - [ ] multiprocessor support (maybe)

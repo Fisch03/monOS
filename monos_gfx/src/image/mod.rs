@@ -3,8 +3,7 @@ use crate::{Color, Dimension};
 mod netpbm;
 
 trait ImageLoader {
-    fn is_supported(&self, data: &[u8]) -> bool;
-    fn load_image(&self, data: &[u8]) -> Option<Image>;
+    fn load_image<T: Read>(&self, data: &T) -> Option<Image>;
 }
 
 pub enum ImageFormat {
@@ -27,18 +26,22 @@ impl Image {
         self.dimensions
     }
 
-    pub fn from_ppm(data: &[u8]) -> Option<Self> {
+    pub fn from_ppm<T: Read>(data: &T) -> Option<Self> {
         netpbm::PPMLoader.load_image(data)
     }
 
-    pub fn from_pbm(data: &[u8]) -> Option<Self> {
+    pub fn from_pbm<T: Read>(data: &T) -> Option<Self> {
         netpbm::PBMLoader.load_image(data)
     }
 
-    pub fn detect_format(data: &[u8]) -> Option<Image> {
-        if let Some(image) = Image::from_ppm(data) {
+    pub fn detect_format<T: Read + Seek>(data: T) -> Option<Image> {
+        data.seek(0);
+        if let Some(image) = Image::from_ppm(&data) {
             return Some(image);
-        } else if let Some(image) = Image::from_pbm(data) {
+        }
+
+        data.seek(0);
+        if let Some(image) = Image::from_pbm(&data) {
             return Some(image);
         }
         None

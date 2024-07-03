@@ -19,6 +19,7 @@ pub mod syscall;
 pub use prelude::*;
 
 pub mod prelude {
+    pub use crate::filesystem::{FileHandle, Read, Seek, Write};
     pub use crate::{dbg, messaging::MessageData, print, println, syscall};
     pub use alloc::{
         boxed::Box,
@@ -76,7 +77,7 @@ fn panic(info: &PanicInfo) -> ! {
     use arrayvec::ArrayString;
     use core::fmt::Write;
 
-    let mut message = ArrayString::<128>::new();
+    let mut message = ArrayString::<256>::new();
     write!(message, "oh noes! the program {}", info).unwrap();
     println!("{}", message);
 

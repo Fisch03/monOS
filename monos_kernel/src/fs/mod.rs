@@ -1,4 +1,4 @@
-pub use monos_std::filesystem::{Path, PathBuf};
+pub use monos_std::filesystem::{Path, PathBuf, Read, Seek, Write};
 
 pub mod fat16;
 use fat16::Fat16Fs;
@@ -97,40 +97,4 @@ where
             Err(GetFileError::NotFound)
         }
     }
-}
-
-pub trait Read {
-    fn read(&self, buf: &mut [u8]) -> usize;
-
-    fn read_all(&self, buf: &mut [u8]) -> usize {
-        let mut total_read = 0;
-        while total_read < buf.len() {
-            let read = self.read(&mut buf[total_read..]);
-            if read == 0 {
-                break;
-            }
-            total_read += read;
-        }
-        total_read
-    }
-}
-
-pub trait Write {
-    fn write(&mut self, buf: &[u8]) -> usize;
-
-    fn write_all(&mut self, buf: &[u8]) -> usize {
-        let mut total_written = 0;
-        while total_written < buf.len() {
-            let written = self.write(&buf[total_written..]);
-            if written == 0 {
-                break;
-            }
-            total_written += written;
-        }
-        total_written
-    }
-}
-
-pub trait Seek {
-    fn seek(&self, pos: usize);
 }
