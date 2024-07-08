@@ -1,6 +1,11 @@
 use crate::{input::Input, Dimension, Framebuffer, Position, Rect};
 pub mod widgets;
 
+use core::any::TypeId;
+use hashbrown::hash_map::HashMap;
+use rustc_hash::FxBuildHasher;
+use serde::{Deserialize, Serialize};
+
 pub trait UIElement {
     fn draw(self, context: &mut UIContext) -> UIResult;
 }
@@ -9,13 +14,16 @@ pub trait UIElement {
 pub struct UIContext<'a, 'fb> {
     placer: Placer,
     fb: &'a mut Framebuffer<'fb>,
-    input: &'a Input,
+    input: &'a mut Input,
+    state: &'a mut UIStateMap,
+    auto_id_source: u32,
 }
 
 impl UIContext<'_, '_> {
     pub fn add(&mut self, element: impl UIElement) -> UIResult {
         element.draw(self)
     }
+
     pub fn alloc_space(&mut self, desired_space: Dimension) -> UIResult {
         let mut result = self.placer.alloc_space(desired_space);
         if result.rect.contains(self.input.mouse.position) {
@@ -28,8 +36,20 @@ impl UIContext<'_, '_> {
         result
     }
 
+    pub fn next_id(&mut self) -> u64 {
+        use core::hash::BuildHasher;
+
+        let hasher = FxBuildHasher::default();
+        hasher.hash_one(self.auto_id_source)
+    }
+
+    // widget shortcuts
     pub fn label(&mut self, text: &str) -> UIResult {
         self.add(widgets::Label::new(text))
+    }
+    pub fn textbox(&mut self, text: &mut String) -> UIResult {
+        let textbox = widgets::Textbox::new(text, self);
+        self.add(textbox)
     }
     pub fn button(&mut self, text: &str) -> UIResult {
         self.add(widgets::Button::new(text))
@@ -38,6 +58,7 @@ impl UIContext<'_, '_> {
         self.add(widgets::ImageButton::new(image))
     }
 
+    // layout
     pub fn margin(&mut self, mode: MarginMode) {
         self.placer.margin_mode = mode;
     }
@@ -49,16 +70,58 @@ impl UIContext<'_, '_> {
     }
 }
 
+pub trait UIState
+where
+    Self: core::fmt::Debug + Clone + Serialize + for<'de> Deserialize<'de> + 'static,
+{
+}
+
+impl<T> UIState for T where
+    T: core::fmt::Debug + Clone + Serialize + for<'de> Deserialize<'de> + 'static
+{
+}
+
+#[derive(Debug, Clone)]
+pub struct UIStateMap {
+    content: HashMap<(u64, TypeId), Vec<u8>, FxBuildHasher>,
+}
+
+impl UIStateMap {
+    pub fn new() -> Self {
+        Self {
+            content: HashMap::with_hasher(FxBuildHasher::default()),
+        }
+    }
+
+    pub fn insert<T: UIState>(&mut self, key: u64, state: T) {
+        self.content.insert(
+            (key, TypeId::of::<T>()),
+            postcard::to_allocvec(&state).unwrap(),
+        );
+    }
+
+    pub fn get<T: UIState>(&self, key: u64) -> Option<T> {
+        self.content
+            .get(&(key, TypeId::of::<T>()))
+            .map(|data| postcard::from_bytes(data).unwrap())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct UIFrame {
     direction: Direction,
+    state: UIStateMap,
 }
 
 impl UIFrame {
     pub fn new(direction: Direction) -> UIFrame {
-        UIFrame { direction }
+        UIFrame {
+            direction,
+            state: UIStateMap::new(),
+        }
     }
 
-    pub fn draw_frame<F>(&mut self, fb: &mut Framebuffer<'_>, area: Rect, input: &Input, f: F)
+    pub fn draw_frame<F>(&mut self, fb: &mut Framebuffer<'_>, area: Rect, input: &mut Input, f: F)
     where
         F: FnOnce(&mut UIContext),
     {
@@ -66,6 +129,8 @@ impl UIFrame {
             placer: Placer::new(area, self.direction),
             fb,
             input,
+            auto_id_source: 0,
+            state: &mut self.state,
         };
 
         f(&mut context);
@@ -272,14 +337,16 @@ impl Placer {
             rect: widget_space,
             full_rect: padded_space,
 
-            clicked: false,
-            hovered: false,
+            ..Default::default()
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct UIResult {
+    // unique id of the widget. this will only be set if the widget stored some state or is focusable
+    pub id: Option<u64>,
+
     // rect of the widget
     pub rect: Rect,
     // rect of the widget including its margin
@@ -289,18 +356,13 @@ pub struct UIResult {
     pub clicked: bool,
     // whether the mouse is hovering over the widget
     pub hovered: bool,
+    //
+    // the exact meaning of this field is up to the widget.
+    // a textbox might set this to true if the user pressed enter.
+    pub submitted: bool,
 }
 
 impl UIResult {
-    pub const fn empty() -> Self {
-        Self {
-            rect: Rect::zero(),
-            full_rect: Rect::zero(),
-            clicked: false,
-            hovered: false,
-        }
-    }
-
     pub fn set_clicked(&mut self, clicked: bool) {
         self.clicked = clicked;
     }

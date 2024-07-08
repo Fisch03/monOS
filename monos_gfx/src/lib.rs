@@ -7,6 +7,8 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
+extern crate alloc;
+
 pub mod types;
 pub use types::*;
 

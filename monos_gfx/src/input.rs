@@ -1,10 +1,22 @@
 use crate::types::*;
+
+use alloc::collections::VecDeque;
+pub use pc_keyboard::{DecodedKey as Key, KeyCode as RawKey, KeyState};
+
 use monos_std::dev::mouse::MouseState;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Input {
     pub mouse: MouseInput,
-    // pub keyboard: KeyboardState,
+
+    pub keyboard: VecDeque<KeyEvent>,
+}
+
+impl Input {
+    pub fn clear(&mut self) {
+        self.mouse.clear();
+        self.keyboard.clear();
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -27,7 +39,7 @@ impl MouseInput {
         self.middle_button.update(state.flags.middle_button());
     }
 
-    pub fn update(&mut self) {
+    pub fn clear(&mut self) {
         self.left_button.clicked = false;
         self.right_button.clicked = false;
         self.middle_button.clicked = false;
@@ -48,6 +60,7 @@ impl MouseButtonState {
 }
 
 #[derive(Debug, Clone)]
-pub struct KeyboardState {
-    //TODO
+pub struct KeyEvent {
+    pub key: Key,
+    pub state: KeyState,
 }

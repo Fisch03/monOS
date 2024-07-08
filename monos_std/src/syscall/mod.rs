@@ -100,10 +100,10 @@ impl core::fmt::Debug for Syscall {
     }
 }
 
-#[cfg(not(feature = "lib_only"))]
+#[cfg(feature = "userspace")]
 pub use calls::*;
 
-#[cfg(not(feature = "lib_only"))]
+#[cfg(feature = "userspace")]
 mod calls {
     use super::*;
 

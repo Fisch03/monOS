@@ -178,6 +178,30 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
+    pub fn draw_box(&mut self, rect: &Rect, color: &Color) {
+        // TODO: optimize this
+        for x in rect.min.x..rect.max.x {
+            self.draw_pixel(&Position { x, y: rect.min.y }, color);
+            self.draw_pixel(
+                &Position {
+                    x,
+                    y: rect.max.y - 1,
+                },
+                color,
+            );
+        }
+        for y in rect.min.y..rect.max.y {
+            self.draw_pixel(&Position { x: rect.min.x, y }, color);
+            self.draw_pixel(
+                &Position {
+                    x: rect.max.x - 1,
+                    y,
+                },
+                color,
+            );
+        }
+    }
+
     pub fn draw_img(&mut self, image: &Image, position: &Position) {
         let mut image_data = match &image.data {
             ImageFormat::RGB(data) => data.iter(),

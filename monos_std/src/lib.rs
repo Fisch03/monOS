@@ -4,10 +4,10 @@
 
 extern crate alloc;
 
-#[cfg(not(feature = "lib_only"))]
+#[cfg(feature = "userspace")]
 use core::arch::asm;
 
-#[cfg(not(feature = "lib_only"))]
+#[cfg(feature = "userspace")]
 mod memory;
 
 pub mod filesystem;
@@ -22,7 +22,7 @@ pub mod prelude {
     pub use crate::filesystem::{FileHandle, Read, Seek, Write};
     pub use crate::{messaging::MessageData, syscall};
 
-    #[cfg(not(feature = "lib_only"))]
+    #[cfg(feature = "userspace")]
     pub use crate::{dbg, print, println};
 
     pub use alloc::{
@@ -39,7 +39,7 @@ extern "C" {
     fn main();
 }
 
-#[cfg(not(feature = "lib_only"))]
+#[cfg(feature = "userspace")]
 #[no_mangle]
 #[naked]
 pub unsafe extern "sysv64" fn _start() -> ! {
@@ -60,7 +60,7 @@ pub unsafe extern "sysv64" fn _start() -> ! {
 #[inline(never)]
 #[allow(dead_code)]
 extern "C" fn start_inner(_heap_start: usize, _heap_size: usize) {
-    #[cfg(not(feature = "lib_only"))]
+    #[cfg(feature = "userspace")]
     unsafe {
         memory::init(_heap_start, _heap_size)
     };
@@ -70,11 +70,11 @@ extern "C" fn start_inner(_heap_start: usize, _heap_size: usize) {
     // TODO: exit syscall
 }
 
-#[cfg(not(feature = "lib_only"))]
+#[cfg(feature = "userspace")]
 #[cfg(not(test))]
 use core::panic::PanicInfo;
 
-#[cfg(not(feature = "lib_only"))]
+#[cfg(feature = "userspace")]
 #[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {

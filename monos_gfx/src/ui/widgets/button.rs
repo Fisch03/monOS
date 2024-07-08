@@ -19,7 +19,7 @@ impl UIElement for Button<'_> {
 
         let lines = Lines::layout_single_line(self.text, max_width);
         if lines.dimensions == Dimension::zero() {
-            return UIResult::empty();
+            return UIResult::default();
         }
 
         let line_dimensions = lines.dimensions();

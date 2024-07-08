@@ -4,13 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-monos_std = { path = "../monos_std" }
-#monos_std = { path = "../monos_std", features = ["lib_only"] }
+monos_std = { path = "../monos_std", default-features = false }
 spin = "0.9.8"
-serde = { version = "1", default-features = false, features = ["derive"], optional = true }
+serde = { version = "1", default-features = false, features = ["derive"] }
+rustc-hash = { version = "2", default-features = false }
+hashbrown = "0.14.5"
+postcard = { version = "1.0.8", features = ["alloc"] }
+pc-keyboard = "0.7.0"
 
 [features]
-default = []
-lib_only = ["monos_std/lib_only"]
-serde = ["dep:serde"]
+default = ["userspace"]
+
+# enables all monOS userspace specific features. without this flag set, the crate is cross-platform compatible (and usable from the kernel)
+userspace = ["monos_std/userspace"]
 

@@ -11,5 +11,7 @@ volatile = "0.6.1"
 
 
 [features]
-default = []
-lib_only = []
+default = ["userspace"]
+
+# enables all monOS userspace specific features (e.g. syscalls, allocator). without this flag set, the crate is cross-platform compatible (and usable from the kernel)
+userspace = [] 

@@ -1,6 +1,9 @@
 mod label;
 pub use label::Label;
 
+mod textbox;
+pub use textbox::Textbox;
+
 mod button;
 pub use button::{Button, ImageButton};
 
