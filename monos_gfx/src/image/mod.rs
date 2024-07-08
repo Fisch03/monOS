@@ -1,4 +1,5 @@
 use crate::{Color, Dimension};
+pub use monos_std::io::SliceReader;
 
 mod netpbm;
 
@@ -6,11 +7,19 @@ trait ImageLoader {
     fn load_image<T: Read>(&self, data: &T) -> Option<Image>;
 }
 
+#[derive(Clone)]
 pub enum ImageFormat {
-    RGB(Vec<u8>),                           // 3 bytes per pixel (r, g, b)
-    Bitmap { data: Vec<u8>, color: Color }, // 1 bit per pixel (0 = transparent, 1 = opaque)
+    RGB {
+        data: Vec<u8>,
+        alpha_val: Option<Color>,
+    }, // 3 bytes per pixel (r, g, b), optionally treat a certain color as transparent
+    Bitmap {
+        data: Vec<u8>,
+        color: Color,
+    }, // 1 bit per pixel (0 = transparent, 1 = opaque)
 }
 
+#[derive(Clone)]
 pub struct Image {
     dimensions: Dimension,
     pub data: ImageFormat,
@@ -45,6 +54,15 @@ impl Image {
             return Some(image);
         }
         None
+    }
+
+    pub fn set_transparent_color(&mut self, color: Color) {
+        match &mut self.data {
+            ImageFormat::RGB { alpha_val, .. } => {
+                *alpha_val = Some(color);
+            }
+            _ => (),
+        }
     }
 }
 

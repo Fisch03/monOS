@@ -56,7 +56,6 @@ fn main() {
     loop {
         let old_mouse_pos = input.mouse.position;
         let mut mouse_moved = false;
-        input.mouse.clear();
         while let Some(msg) = syscall::receive_any() {
             if msg.sender == mouse_channel {
                 if let Some(mouse_state) = unsafe { MouseState::from_message(&msg) } {
@@ -76,7 +75,7 @@ fn main() {
             );
         }
 
-        taskbar_ui.draw_frame(&mut fb, taskbar_ui_rect, &input, |ui| {
+        taskbar_ui.draw_frame(&mut fb, taskbar_ui_rect, &mut input, |ui| {
             ui.margin(MarginMode::Grow);
             ui.label("Hello, World!");
 
@@ -84,6 +83,7 @@ fn main() {
         });
         draw_cursor(&mut fb, input.mouse.position);
 
+        input.mouse.clear();
         syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
     }
 }

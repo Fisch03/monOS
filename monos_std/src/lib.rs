@@ -10,6 +10,8 @@ use core::arch::asm;
 #[cfg(feature = "userspace")]
 mod memory;
 
+pub mod io;
+
 pub mod filesystem;
 pub mod messaging;
 
@@ -19,7 +21,8 @@ pub mod syscall;
 pub use prelude::*;
 
 pub mod prelude {
-    pub use crate::filesystem::{FileHandle, Read, Seek, Write};
+    pub use crate::filesystem::FileHandle;
+    pub use crate::io::{Read, Seek, Write};
     pub use crate::{messaging::MessageData, syscall};
 
     #[cfg(feature = "userspace")]

@@ -60,9 +60,15 @@ impl ImageLoader for PPMLoader {
 
         let start_offset = pixel_data.len();
         pixel_data.resize(size_bytes, 0);
-        let read = data.read(&mut pixel_data[start_offset..]);
+        data.read(&mut pixel_data[start_offset..]);
 
-        Some(Image::new(dimensions, ImageFormat::RGB(pixel_data)))
+        Some(Image::new(
+            dimensions,
+            ImageFormat::RGB {
+                data: pixel_data,
+                alpha_val: Some(Color::new(0, 0, 0)),
+            },
+        ))
     }
 }
 

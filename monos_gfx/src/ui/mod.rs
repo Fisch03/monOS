@@ -15,7 +15,7 @@ pub struct UIContext<'a, 'fb> {
     placer: Placer,
     fb: &'a mut Framebuffer<'fb>,
     input: &'a mut Input,
-    state: &'a mut UIStateMap,
+    state: &'a mut Option<UIStateMap>,
     auto_id_source: u32,
 }
 
@@ -41,6 +41,20 @@ impl UIContext<'_, '_> {
 
         let hasher = FxBuildHasher::default();
         hasher.hash_one(self.auto_id_source)
+    }
+
+    pub fn state_get<T: UIState>(&mut self, key: u64) -> Option<T> {
+        match self.state {
+            Some(ref mut state) => state.get(key),
+            None => None,
+        }
+    }
+
+    pub fn state_insert<T: UIState>(&mut self, key: u64, value: T) {
+        match self.state {
+            Some(ref mut state) => state.insert(key, value),
+            None => (),
+        }
     }
 
     // widget shortcuts
@@ -110,14 +124,23 @@ impl UIStateMap {
 #[derive(Debug, Clone)]
 pub struct UIFrame {
     direction: Direction,
-    state: UIStateMap,
+    state: Option<UIStateMap>,
 }
 
 impl UIFrame {
     pub fn new(direction: Direction) -> UIFrame {
         UIFrame {
             direction,
-            state: UIStateMap::new(),
+            state: Some(UIStateMap::new()),
+        }
+    }
+
+    // if you already know you wont be storing any state and performance is a concern, you can use
+    // this (for example if you only need to render a single label)
+    pub fn new_stateless(direction: Direction) -> UIFrame {
+        UIFrame {
+            direction,
+            state: None,
         }
     }
 
@@ -155,11 +178,13 @@ pub struct Placer {
 ///
 /// minimum: the widget will be allocated the exact space it needs.
 /// grow: the widget will fill the entire cross axis.
+/// fixed: put the widget at a fixed position and size.
 /// at_least: the widget will be allocated at least the specified size on the cross axis.
 #[derive(Debug)]
 pub enum MarginMode {
     Minimum,
     Grow,
+    Fixed(Position, Dimension),
     // AtLeast(u32), // sorta broken right now, i'll fix it once i actually need this
 }
 
@@ -228,6 +253,14 @@ impl Placer {
     ///
     /// there is no guarantee that the returned rect will fit the desired space.
     pub fn alloc_space(&mut self, mut desired_space: Dimension) -> UIResult {
+        if let MarginMode::Fixed(position, dimension) = self.margin_mode {
+            return UIResult {
+                rect: Rect::new(position, position + dimension),
+                full_rect: Rect::new(position, position + dimension),
+                ..Default::default()
+            };
+        }
+
         let total_gap = self.gap * 2
             + match self.padding_mode {
                 PaddingMode::Gap(gap) => gap * 2,
@@ -251,10 +284,7 @@ impl Placer {
                         self.cursor.x + desired_space.width as i64,
                         self.cursor.y + self.max_rect.height() as i64,
                     ),
-                    // MarginMode::AtLeast(min_height) => Position::new(
-                    //     self.cursor.x + desired_space.width as i64,
-                    //     (min_height as i64).max(self.cursor.y + desired_space.height as i64),
-                    // ),
+                    MarginMode::Fixed(_, _) => unreachable!(),
                 };
                 self.cursor.x += desired_space.width as i64;
                 if self.cursor.x >= self.max_rect.max.x {
@@ -272,10 +302,8 @@ impl Placer {
                     }
                     MarginMode::Grow => {
                         Position::new(self.cursor.x, self.cursor.y + desired_space.height as i64)
-                    } // MarginMode::AtLeast(min_height) => Position::new(
-                      //     self.cursor.x,
-                      //     (min_height as i64).max(self.cursor.y + desired_space.height as i64),
-                      // ),
+                    }
+                    MarginMode::Fixed(_, _) => unreachable!(),
                 };
                 self.cursor.x -= desired_space.width as i64;
                 if self.cursor.x <= self.max_rect.min.x {
@@ -295,6 +323,7 @@ impl Placer {
                         self.max_rect.max.x,
                         self.cursor.y + desired_space.height as i64,
                     ),
+                    MarginMode::Fixed(_, _) => unreachable!(),
                     // MarginMode::AtLeast(min_width) => Position::new(
                     //     (min_width as i64).max(self.cursor.x + desired_space.width as i64),
                     //     self.cursor.y + desired_space.height as i64,

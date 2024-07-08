@@ -1,4 +1,7 @@
-pub use monos_std::filesystem::{Path, PathBuf, Read, Seek, Write};
+pub use monos_std::{
+    filesystem::{Path, PathBuf},
+    io::{Read, Seek, Write},
+};
 
 pub mod fat16;
 use fat16::Fat16Fs;

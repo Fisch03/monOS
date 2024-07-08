@@ -171,6 +171,13 @@ impl<'a> Framebuffer<'a> {
     }
 
     pub fn draw_rect(&mut self, rect: &Rect, color: &Color) {
+        let mut rect = rect.clone();
+        rect.min.x = rect.min.x.max(0).min(self.dimensions.width as i64);
+        rect.min.y = rect.min.y.max(0).min(self.dimensions.height as i64);
+        rect.max.x = rect.max.x.max(0).min(self.dimensions.width as i64);
+        rect.max.y = rect.max.y.max(0).min(self.dimensions.height as i64);
+
+        // TODO: optimize this
         for y in rect.min.y..rect.max.y {
             for x in rect.min.x..rect.max.x {
                 self.draw_pixel(&Position { x, y }, color);
@@ -203,36 +210,70 @@ impl<'a> Framebuffer<'a> {
     }
 
     pub fn draw_img(&mut self, image: &Image, position: &Position) {
-        let mut image_data = match &image.data {
-            ImageFormat::RGB(data) => data.iter(),
+        let (mut image_data, alpha_val) = match &image.data {
+            ImageFormat::RGB { data, alpha_val } => (data.iter(), alpha_val),
             _ => return,
         };
 
-        let mut line_start = ((position.y * self.format.stride as i64 + position.x)
+        let skip_y = (-position.y).max(0);
+        let skip_x = (-position.x).max(0);
+
+        if skip_y as u32 >= image.dimensions().height
+            || skip_x as u32 >= image.dimensions().width
+            || position.y >= self.dimensions.height as i64
+            || position.x >= self.dimensions.width as i64
+        {
+            return;
+        }
+
+        let mut line_start = (((position.y + skip_y) * self.format.stride as i64
+            + (position.x + skip_x))
             * self.format.bytes_per_pixel as i64) as usize;
         let mut line_pos = line_start;
+        let max_x = (self.dimensions.width - position.x as u32).min(image.dimensions().width);
+
+        let mut skip_y_current = skip_y;
 
         for _y in 0..image.dimensions().height {
-            for _x in 0..image.dimensions().width {
+            let mut skip_y = false;
+            if skip_y_current > 0 {
+                skip_y_current -= 1;
+                skip_y = true
+            }
+
+            let mut skip_x_current = skip_x;
+            for x in 0..image.dimensions().width {
                 let r = *image_data.next().unwrap_or(&0);
                 let g = *image_data.next().unwrap_or(&0);
                 let b = *image_data.next().unwrap_or(&0);
 
-                {
-                    let pixel_bytes = &mut self.buffer[line_pos..];
-                    pixel_bytes[self.format.r_position] = r;
-                    pixel_bytes[self.format.g_position] = g;
-                    pixel_bytes[self.format.b_position] = b;
+                if skip_x_current > 0 {
+                    skip_x_current -= 1;
+                } else if x < max_x {
+                    let mut skip_alpha = false;
+                    if let Some(alpha_val) = alpha_val {
+                        if r == alpha_val.r && g == alpha_val.g && b == alpha_val.b {
+                            skip_alpha = true;
+                        }
+                    }
+                    if !skip_alpha {
+                        let pixel_bytes = &mut self.buffer[line_pos..];
+                        pixel_bytes[self.format.r_position] = r;
+                        pixel_bytes[self.format.g_position] = g;
+                        pixel_bytes[self.format.b_position] = b;
+                    }
+
+                    line_pos += self.format.bytes_per_pixel as usize;
                 }
-
-                line_pos += self.format.bytes_per_pixel as usize;
             }
 
-            line_start += (self.format.stride * self.format.bytes_per_pixel) as usize;
-            if line_start >= self.buffer.len() {
-                return;
+            if !skip_y {
+                line_start += (self.format.stride * self.format.bytes_per_pixel) as usize;
+                if line_start >= self.buffer.len() {
+                    return;
+                }
+                line_pos = line_start;
             }
-            line_pos = line_start;
         }
     }
 

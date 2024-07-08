@@ -1,4 +1,5 @@
 use super::Lines;
+use crate::fonts::{Cozette, Font};
 use crate::input::*;
 use crate::types::*;
 use crate::ui::*;
@@ -18,7 +19,7 @@ pub(crate) struct TextboxState {
 impl<'a> Textbox<'a> {
     pub fn new(text: &'a mut String, context: &mut UIContext) -> Self {
         let id = context.next_id();
-        let state = if let Some(state) = context.state.get(id) {
+        let state = if let Some(state) = context.state_get(id) {
             state
         } else {
             TextboxState {
@@ -88,13 +89,18 @@ impl UIElement for Textbox<'_> {
         result.submitted = submitted;
 
         let lines_rect = Rect::centered_in(result.rect, line_dimensions);
-
-        context
-            .fb
-            .draw_box(&result.rect, &Color::new(255, 255, 255));
         line.draw(context.fb, lines_rect.min, Color::new(255, 255, 255));
 
-        context.state.insert(self.id, self.state);
+        let cursor_x = lines_rect.min.x + (self.state.cursor as i64 * Cozette::CHAR_WIDTH as i64);
+        let cursor_rect = Rect::new(
+            Position::new(cursor_x, lines_rect.min.y),
+            Position::new(cursor_x + 1, lines_rect.max.y),
+        );
+        context
+            .fb
+            .draw_rect(&cursor_rect, &Color::new(255, 255, 255));
+
+        context.state_insert(self.id, self.state);
 
         result
     }

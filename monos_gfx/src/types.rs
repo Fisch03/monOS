@@ -52,6 +52,16 @@ impl core::ops::Div<i64> for Position {
     }
 }
 
+impl core::ops::Rem<i64> for Position {
+    type Output = Position;
+    fn rem(self, rhs: i64) -> Position {
+        Position {
+            x: self.x % rhs,
+            y: self.y % rhs,
+        }
+    }
+}
+
 impl core::ops::Add<Position> for Position {
     type Output = Position;
     fn add(self, rhs: Position) -> Position {
@@ -147,6 +157,13 @@ impl Rect {
 
     pub fn contains(&self, pos: Position) -> bool {
         pos.x >= self.min.x && pos.x < self.max.x && pos.y >= self.min.y && pos.y < self.max.y
+    }
+
+    pub fn translate(&self, offset: Position) -> Rect {
+        Rect {
+            min: self.min + offset,
+            max: self.max + offset,
+        }
     }
 }
 
