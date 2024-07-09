@@ -7,24 +7,31 @@ pub use textbox::Textbox;
 mod button;
 pub use button::{Button, ImageButton};
 
-use crate::fonts::{Cozette, Font};
 use crate::types::*;
+use crate::Font;
 use crate::Framebuffer;
+use core::marker::PhantomData;
 
 pub enum TextWrap {
     Disabled,
     Enabled { hyphenate: bool },
+    Everywhere,
 }
 
 pub struct Line<'a> {
     pub text: &'a str,
     pub hyphenated: bool,
 }
-pub struct Lines<'a> {
+
+pub struct Lines<'a, F>
+where
+    F: Font,
+{
     lines: Vec<Line<'a>>,
     dimensions: Dimension,
+    font: PhantomData<F>,
 }
-impl<'a> Lines<'a> {
+impl<'a, F: Font> Lines<'a, F> {
     #[inline]
     pub fn dimensions(&self) -> Dimension {
         self.dimensions
@@ -34,14 +41,25 @@ impl<'a> Lines<'a> {
         self.lines.iter()
     }
 
+    pub fn layout(text: &'a str, wrap: TextWrap, max_dimensions: Dimension) -> Self {
+        match wrap {
+            TextWrap::Disabled => Lines::<F>::layout_single_line(text, max_dimensions.width),
+            TextWrap::Enabled { hyphenate } => {
+                Lines::<F>::layout_wrapped(text, hyphenate, max_dimensions)
+            }
+            TextWrap::Everywhere => Lines::<F>::layout_wrapped_everywhere(text, max_dimensions),
+        }
+    }
+
     pub fn layout_single_line(text: &'a str, max_width: u32) -> Self {
-        if max_width < Cozette::CHAR_WIDTH {
+        if max_width < F::CHAR_WIDTH {
             return Self {
                 lines: Vec::new(),
                 dimensions: Dimension::new(0, 0),
+                font: PhantomData,
             };
         }
-        let chars_per_line = (max_width / Cozette::CHAR_WIDTH) as usize;
+        let chars_per_line = (max_width / F::CHAR_WIDTH) as usize;
 
         let text = &text[..chars_per_line.min(text.len())];
 
@@ -51,23 +69,63 @@ impl<'a> Lines<'a> {
                 hyphenated: false,
             }],
             dimensions: Dimension {
-                width: Cozette::CHAR_WIDTH as u32 * text.len() as u32,
-                height: Cozette::CHAR_HEIGHT as u32,
+                width: F::CHAR_WIDTH as u32 * text.len() as u32,
+                height: F::CHAR_HEIGHT as u32,
             },
+            font: PhantomData,
         }
     }
 
+    pub fn layout_wrapped_everywhere(text: &'a str, max_dimensions: Dimension) -> Self {
+        let chars_per_line = (max_dimensions.width / F::CHAR_WIDTH) as usize;
+
+        text.lines().fold(
+            Self {
+                lines: Vec::new(),
+                dimensions: Dimension::new(0, F::CHAR_HEIGHT),
+                font: PhantomData,
+            },
+            |mut lines, mut orig_line| {
+                while orig_line.len() > chars_per_line {
+                    lines.lines.push(Line {
+                        text: &orig_line[..chars_per_line],
+                        hyphenated: false,
+                    });
+
+                    lines.dimensions.width = chars_per_line as u32 * F::CHAR_WIDTH;
+
+                    lines.dimensions.height += F::CHAR_HEIGHT;
+                    orig_line = &orig_line[chars_per_line..];
+                }
+
+                if orig_line.is_empty() {
+                    return lines;
+                }
+
+                let remaining_width = orig_line.len() as u32 * F::CHAR_WIDTH;
+                lines.lines.push(Line {
+                    text: orig_line,
+                    hyphenated: false,
+                });
+                lines.dimensions.width = lines.dimensions.width.max(remaining_width);
+
+                lines
+            },
+        )
+    }
+
     pub fn layout_wrapped(text: &'a str, hyphenate: bool, max_dimensions: Dimension) -> Self {
-        let chars_per_line = (max_dimensions.width / Cozette::CHAR_WIDTH) as usize;
+        let chars_per_line = (max_dimensions.width / F::CHAR_WIDTH) as usize;
         if chars_per_line == 0 {
             return Self {
                 lines: Vec::new(),
                 dimensions: Dimension::new(0, 0),
+                font: PhantomData,
             };
         }
 
         let lines_hint = text.len() / chars_per_line.max(1);
-        let max_visible_lines = max_dimensions.height / Cozette::CHAR_HEIGHT;
+        let max_visible_lines = max_dimensions.height / F::CHAR_HEIGHT;
 
         let mut lines = Vec::with_capacity(lines_hint.min(max_visible_lines as usize));
         let mut longest_line = 0;
@@ -127,22 +185,46 @@ impl<'a> Lines<'a> {
         }
 
         let dimensions = Dimension::new(
-            longest_line as u32 * Cozette::CHAR_WIDTH,
-            lines.len() as u32 * Cozette::CHAR_HEIGHT,
+            longest_line as u32 * F::CHAR_WIDTH,
+            lines.len() as u32 * F::CHAR_HEIGHT,
         );
-        Self { lines, dimensions }
+        Self {
+            lines,
+            dimensions,
+            font: PhantomData,
+        }
+    }
+
+    pub fn char_position(&self, index: usize) -> Position {
+        let mut curr_index = 0;
+
+        for (line_index, line) in self.lines.iter().enumerate() {
+            if curr_index + line.text.len() >= index {
+                let char_index = index - curr_index;
+                return Position {
+                    x: char_index as i64 * F::CHAR_WIDTH as i64,
+                    y: line_index as i64 * F::CHAR_HEIGHT as i64,
+                };
+            }
+            curr_index += line.text.len();
+        }
+
+        Position {
+            x: self.lines.last().map_or(0, |line| line.text.len()) as i64 * F::CHAR_WIDTH as i64,
+            y: self.lines.len() as i64 * F::CHAR_HEIGHT as i64,
+        }
     }
 
     pub fn draw(&self, fb: &mut Framebuffer, position: Position, color: Color) {
-        let mut position = position;
+        let mut curr_position = position;
         for line in self.iter() {
-            fb.draw_str::<Cozette>(&color, line.text, &position);
-            position.x += Cozette::CHAR_WIDTH as i64 * line.text.len() as i64;
+            fb.draw_str::<F>(&color, line.text, &curr_position);
+            curr_position.x += F::CHAR_WIDTH as i64 * line.text.len() as i64;
             if line.hyphenated {
-                fb.draw_char::<Cozette>(&color, '-', &position);
+                fb.draw_char::<F>(&color, '-', &curr_position);
             }
-            position.x = position.x.min(fb.dimensions().width as i64);
-            position.y += Cozette::CHAR_HEIGHT as i64;
+            curr_position.x = position.x;
+            curr_position.y += F::CHAR_HEIGHT as i64;
         }
     }
 }

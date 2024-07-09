@@ -1,23 +1,32 @@
 use crate::types::*;
 use crate::ui::*;
+use crate::Font;
 use crate::Image;
+use core::marker::PhantomData;
 use widgets::Lines;
 
-pub struct Button<'a> {
+pub struct Button<'a, F>
+where
+    F: Font,
+{
     text: &'a str,
+    font: PhantomData<F>,
 }
 
-impl Button<'_> {
-    pub fn new(text: &str) -> Button {
-        Button { text }
+impl<F: Font> Button<'_, F> {
+    pub fn new(text: &str) -> Button<F> {
+        Button {
+            text,
+            font: PhantomData,
+        }
     }
 }
 
-impl UIElement for Button<'_> {
+impl<F: Font> UIElement for Button<'_, F> {
     fn draw(self, context: &mut UIContext) -> UIResult {
         let max_width = context.placer.max_width();
 
-        let lines = Lines::layout_single_line(self.text, max_width);
+        let lines = Lines::<F>::layout_single_line(self.text, max_width);
         if lines.dimensions == Dimension::zero() {
             return UIResult::default();
         }

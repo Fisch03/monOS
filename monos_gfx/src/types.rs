@@ -155,6 +155,13 @@ impl Rect {
         }
     }
 
+    pub fn shrink(&self, padding: u32) -> Rect {
+        Rect {
+            min: self.min + padding as i64,
+            max: self.max - padding as i64,
+        }
+    }
+
     pub fn contains(&self, pos: Position) -> bool {
         pos.x >= self.min.x && pos.x < self.max.x && pos.y >= self.min.y && pos.y < self.max.y
     }

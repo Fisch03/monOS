@@ -6,7 +6,6 @@ impl Font for Cozette {
     const CHAR_WIDTH: u32 = 6;
     const CHAR_HEIGHT: u32 = 13;
 
-    #[inline]
     fn get_char(c: char) -> Option<&'static [u8]> {
         match c {
             ' ' => Some(&[

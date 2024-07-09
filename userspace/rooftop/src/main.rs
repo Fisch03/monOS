@@ -11,6 +11,7 @@ use monos_std::prelude::*;
 use monos_std::dev::mouse::MouseState;
 
 use monos_gfx::{
+    font::Cozette,
     framebuffer::{FramebufferRequest, FramebufferResponse},
     input::Input,
     ui::*,
@@ -77,7 +78,7 @@ fn main() {
 
         taskbar_ui.draw_frame(&mut fb, taskbar_ui_rect, &mut input, |ui| {
             ui.margin(MarginMode::Grow);
-            ui.label("Hello, World!");
+            ui.label::<Cozette>("Hello, World!");
 
             ui.img_button(&test_icon);
         });
@@ -106,9 +107,5 @@ fn create_clear_fb<'a>(main_fb: &Framebuffer, buffer: &'a mut Vec<u8>) -> Frameb
 }
 
 fn draw_cursor(fb: &mut Framebuffer, pos: Position) {
-    fb.draw_char::<monos_gfx::fonts::Cozette>(
-        &monos_gfx::Color::new(255, 255, 255),
-        '\u{F55A}',
-        &pos,
-    );
+    fb.draw_char::<Cozette>(&monos_gfx::Color::new(255, 255, 255), '\u{F55A}', &pos);
 }

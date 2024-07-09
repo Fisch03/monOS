@@ -1,42 +1,40 @@
+use super::Font;
 use super::TextWrap;
 use crate::types::*;
 use crate::ui::*;
+use core::marker::PhantomData;
 use widgets::Lines;
 
-pub struct Label<'a> {
+pub struct Label<'a, F>
+where
+    F: Font,
+{
     text: &'a str,
     wrap: TextWrap,
+    font: PhantomData<F>,
 }
 
-impl<'a> Label<'a> {
-    pub fn new(text: &str) -> Label {
-        Label {
+impl<'a, F: Font> Label<'a, F> {
+    pub fn new(text: &str) -> Label<F> {
+        Label::<F> {
             text,
             wrap: TextWrap::Disabled,
+            font: PhantomData,
         }
     }
 
-    pub fn wrap(mut self, wrap: TextWrap) -> Label<'a> {
+    pub fn wrap(mut self, wrap: TextWrap) -> Label<'a, F> {
         self.wrap = wrap;
         self
     }
-
-    pub fn layout(&self, max_dimensions: Dimension) -> Lines<'a> {
-        match self.wrap {
-            TextWrap::Disabled => Lines::layout_single_line(self.text, max_dimensions.width),
-            TextWrap::Enabled { hyphenate } => {
-                Lines::layout_wrapped(self.text, hyphenate, max_dimensions)
-            }
-        }
-    }
 }
 
-impl UIElement for Label<'_> {
+impl<F: Font> UIElement for Label<'_, F> {
     fn draw(self, context: &mut UIContext) -> UIResult {
         let max_dimensions =
             Dimension::new(context.placer.max_width(), context.fb.dimensions().height);
 
-        let lines = self.layout(max_dimensions);
+        let lines = Lines::<F>::layout(self.text, self.wrap, max_dimensions);
         let line_dimensions = lines.dimensions();
 
         let result = context.placer.alloc_space(line_dimensions);

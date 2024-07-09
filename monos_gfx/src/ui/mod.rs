@@ -1,10 +1,11 @@
-use crate::{input::Input, Dimension, Framebuffer, Position, Rect};
+use crate::{input::Input, Dimension, Font, Framebuffer, Position, Rect};
 pub mod widgets;
+pub use widgets::{Lines, TextWrap};
 
 use core::any::TypeId;
 use hashbrown::hash_map::HashMap;
-use rustc_hash::FxBuildHasher;
-use serde::{Deserialize, Serialize};
+use rustc_hash::{FxBuildHasher, FxHasher};
+pub use serde::{Deserialize, Serialize};
 
 pub trait UIElement {
     fn draw(self, context: &mut UIContext) -> UIResult;
@@ -12,9 +13,9 @@ pub trait UIElement {
 
 #[derive(Debug)]
 pub struct UIContext<'a, 'fb> {
-    placer: Placer,
-    fb: &'a mut Framebuffer<'fb>,
-    input: &'a mut Input,
+    pub placer: Placer,
+    pub fb: &'a mut Framebuffer<'fb>,
+    pub input: &'a mut Input,
     state: &'a mut Option<UIStateMap>,
     auto_id_source: u32,
 }
@@ -37,10 +38,22 @@ impl UIContext<'_, '_> {
     }
 
     pub fn next_id(&mut self) -> u64 {
-        use core::hash::BuildHasher;
+        use core::hash::Hasher;
 
-        let hasher = FxBuildHasher::default();
-        hasher.hash_one(self.auto_id_source)
+        let mut hasher = FxHasher::default();
+        self.auto_id_source += 1;
+        hasher.write_u64(self.auto_id_source as u64);
+        hasher.finish()
+    }
+
+    pub fn next_id_from_string(&mut self, string: &str) -> u64 {
+        use core::hash::Hasher;
+
+        let mut hasher = FxHasher::default();
+        hasher.write(string.as_bytes());
+        self.auto_id_source += 1;
+        // hasher.write_u64(self.auto_id_source as u64);
+        hasher.finish()
     }
 
     pub fn state_get<T: UIState>(&mut self, key: u64) -> Option<T> {
@@ -58,15 +71,15 @@ impl UIContext<'_, '_> {
     }
 
     // widget shortcuts
-    pub fn label(&mut self, text: &str) -> UIResult {
-        self.add(widgets::Label::new(text))
+    pub fn label<F: Font>(&mut self, text: &str) -> UIResult {
+        self.add(widgets::Label::<F>::new(text))
     }
-    pub fn textbox(&mut self, text: &mut String) -> UIResult {
-        let textbox = widgets::Textbox::new(text, self);
+    pub fn textbox<F: Font>(&mut self, text: &mut String) -> UIResult {
+        let textbox = widgets::Textbox::<F>::new(text, self);
         self.add(textbox)
     }
-    pub fn button(&mut self, text: &str) -> UIResult {
-        self.add(widgets::Button::new(text))
+    pub fn button<F: Font>(&mut self, text: &str) -> UIResult {
+        self.add(widgets::Button::<F>::new(text))
     }
     pub fn img_button(&mut self, image: &crate::Image) -> UIResult {
         self.add(widgets::ImageButton::new(image))
@@ -203,7 +216,7 @@ pub enum Direction {
     LeftToRight,
     RightToLeft,
     TopToBottom,
-    // BottomToTop, // too lazy. i dont think i'll need it anyway
+    BottomToTop,
 }
 
 impl Placer {
@@ -212,7 +225,7 @@ impl Placer {
             Direction::LeftToRight => Position::new(bounds.min.x, bounds.min.y),
             Direction::RightToLeft => Position::new(bounds.max.x, bounds.min.y),
             Direction::TopToBottom => Position::new(bounds.min.x, bounds.min.y),
-            // Direction::BottomToTop => Position::new(bounds.min.x, bounds.max.y),
+            Direction::BottomToTop => Position::new(bounds.min.x, bounds.max.y),
         };
 
         Self {
@@ -228,7 +241,9 @@ impl Placer {
 
     pub fn max_width(&self) -> u32 {
         let max_incl_gap = match self.direction {
-            Direction::LeftToRight | Direction::TopToBottom => self.max_rect.max.x - self.cursor.x,
+            Direction::LeftToRight | Direction::TopToBottom | Direction::BottomToTop => {
+                self.max_rect.max.x - self.cursor.x
+            }
             Direction::RightToLeft => self.cursor.x - self.max_rect.min.x,
         } - match self.margin_mode {
             // MarginMode::AtLeast(min_width) => min_width as i64 / 2,
@@ -324,14 +339,27 @@ impl Placer {
                         self.cursor.y + desired_space.height as i64,
                     ),
                     MarginMode::Fixed(_, _) => unreachable!(),
-                    // MarginMode::AtLeast(min_width) => Position::new(
-                    //     (min_width as i64).max(self.cursor.x + desired_space.width as i64),
-                    //     self.cursor.y + desired_space.height as i64,
-                    // ),
                 };
                 self.cursor.y += desired_space.height as i64;
                 if self.cursor.y >= self.max_rect.max.y {
                     self.cursor.y = self.max_rect.min.y;
+                    self.cursor.x += self.cross_size as i64;
+                    self.cross_size = 0;
+                }
+            }
+            Direction::BottomToTop => {
+                padded_space.min =
+                    Position::new(self.cursor.x, self.cursor.y - desired_space.height as i64);
+                padded_space.max = match self.margin_mode {
+                    MarginMode::Minimum => {
+                        Position::new(self.cursor.x + desired_space.width as i64, self.cursor.y)
+                    }
+                    MarginMode::Grow => Position::new(self.max_rect.max.x, self.cursor.y),
+                    MarginMode::Fixed(_, _) => unreachable!(),
+                };
+                self.cursor.y -= desired_space.height as i64;
+                if self.cursor.y <= self.max_rect.min.y {
+                    self.cursor.y = self.max_rect.max.y;
                     self.cursor.x += self.cross_size as i64;
                     self.cross_size = 0;
                 }
@@ -342,7 +370,7 @@ impl Placer {
             Direction::LeftToRight | Direction::RightToLeft => {
                 self.cross_size = self.cross_size.max(padded_space.height() as u32)
             }
-            Direction::TopToBottom => {
+            Direction::TopToBottom | Direction::BottomToTop => {
                 self.cross_size = self.cross_size.max(padded_space.width() as u32)
             }
         };

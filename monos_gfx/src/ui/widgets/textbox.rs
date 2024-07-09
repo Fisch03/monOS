@@ -1,13 +1,19 @@
 use super::Lines;
-use crate::fonts::{Cozette, Font};
 use crate::input::*;
 use crate::types::*;
 use crate::ui::*;
+use crate::Font;
+use core::marker::PhantomData;
 
-pub struct Textbox<'a> {
+pub struct Textbox<'a, F>
+where
+    F: Font,
+{
     id: u64,
     text: &'a mut String,
+    wrap: TextWrap,
     state: TextboxState,
+    font: PhantomData<F>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,7 +22,7 @@ pub(crate) struct TextboxState {
     selection: Option<usize>,
 }
 
-impl<'a> Textbox<'a> {
+impl<'a, F: Font> Textbox<'a, F> {
     pub fn new(text: &'a mut String, context: &mut UIContext) -> Self {
         let id = context.next_id();
         let state = if let Some(state) = context.state_get(id) {
@@ -28,11 +34,22 @@ impl<'a> Textbox<'a> {
             }
         };
 
-        Self { id, text, state }
+        Self {
+            id,
+            text,
+            state,
+            wrap: TextWrap::Disabled,
+            font: PhantomData,
+        }
+    }
+
+    pub fn wrap(mut self, wrap: TextWrap) -> Self {
+        self.wrap = wrap;
+        self
     }
 }
 
-impl UIElement for Textbox<'_> {
+impl<F: Font> UIElement for Textbox<'_, F> {
     fn draw(mut self, context: &mut UIContext) -> UIResult {
         let mut submitted = false;
 
@@ -81,20 +98,24 @@ impl UIElement for Textbox<'_> {
             }
         }
 
-        let line = Lines::layout_single_line(&self.text, context.placer.max_width());
+        let max_dimensions =
+            Dimension::new(context.placer.max_width(), context.fb.dimensions().height);
 
-        let line_dimensions = line.dimensions();
+        let lines = Lines::<F>::layout(self.text, self.wrap, max_dimensions);
+
+        let line_dimensions = lines.dimensions();
 
         let mut result = context.alloc_space(line_dimensions);
         result.submitted = submitted;
 
         let lines_rect = Rect::centered_in(result.rect, line_dimensions);
-        line.draw(context.fb, lines_rect.min, Color::new(255, 255, 255));
 
-        let cursor_x = lines_rect.min.x + (self.state.cursor as i64 * Cozette::CHAR_WIDTH as i64);
+        lines.draw(context.fb, lines_rect.min, Color::new(255, 255, 255));
+
+        let cursor_pos = lines_rect.min + lines.char_position(self.state.cursor);
         let cursor_rect = Rect::new(
-            Position::new(cursor_x, lines_rect.min.y),
-            Position::new(cursor_x + 1, lines_rect.max.y),
+            cursor_pos,
+            Position::new(cursor_pos.x + 1, cursor_pos.y + F::CHAR_HEIGHT as i64),
         );
         context
             .fb

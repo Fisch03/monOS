@@ -1,6 +1,9 @@
 mod cozette;
 pub use cozette::Cozette;
 
+mod glean;
+pub use glean::Glean;
+
 pub trait Font {
     const CHAR_WIDTH: u32;
     const CHAR_HEIGHT: u32;

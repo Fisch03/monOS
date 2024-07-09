@@ -1,4 +1,8 @@
-use crate::{types::*, Image, ImageFormat};
+use crate::{
+    font::{Character, Font},
+    types::*,
+    Image, ImageFormat,
+};
 use monos_std::messaging::*;
 
 #[derive(Debug)]
@@ -119,6 +123,11 @@ impl<'a> Framebuffer<'a> {
         // self.back_buffer.fill(0);
 
         unsafe { core::ptr::write_bytes(self.buffer.as_mut_ptr(), 0, self.buffer.len()) };
+    }
+
+    #[inline(always)]
+    fn pos_to_offset(&self, pos: &Position) -> i64 {
+        (pos.y * self.format.stride as i64 + pos.x) * self.format.bytes_per_pixel as i64
     }
 
     #[inline(always)]
@@ -249,7 +258,7 @@ impl<'a> Framebuffer<'a> {
 
                 if skip_x_current > 0 {
                     skip_x_current -= 1;
-                } else if x < max_x {
+                } else if x < max_x && !skip_y {
                     let mut skip_alpha = false;
                     if let Some(alpha_val) = alpha_val {
                         if r == alpha_val.r && g == alpha_val.g && b == alpha_val.b {
@@ -277,14 +286,9 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
-    pub fn draw_char<Font: crate::fonts::Font>(
-        &mut self,
-        color: &Color,
-        character: char,
-        position: &Position,
-    ) {
-        if let Some(char) = Font::get_char(character) {
-            let char = crate::fonts::Character::from_raw(char);
+    pub fn draw_char<F: Font>(&mut self, color: &Color, character: char, position: &Position) {
+        if let Some(char) = F::get_char(character) {
+            let char = Character::from_raw(char);
             let mut bit_offset = 0;
             let mut byte_offset = 0;
 
@@ -310,28 +314,29 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
-    pub fn draw_str<Font: crate::fonts::Font>(
-        &mut self,
-        color: &Color,
-        string: &str,
-        position: &Position,
-    ) {
-        use crate::fonts::Character;
+    pub fn draw_str<F: Font>(&mut self, color: &Color, string: &str, position: &Position) {
+        if position.y >= self.dimensions.height as i64 || position.x >= self.dimensions.width as i64
+        {
+            return;
+        }
 
         let chars = string
             .chars()
-            .filter_map(|c| Font::get_char(c).map(|c| Character::from_raw(c)))
+            .filter_map(|c| F::get_char(c).map(|c| Character::from_raw(c)))
             .collect::<Vec<_>>();
 
-        let mut line_start = ((position.y * self.format.stride as i64 + position.x)
-            * self.format.bytes_per_pixel as i64) as usize;
-        let mut line_pos = line_start;
+        let mut current_position = position.clone();
 
-        for y in 0..Font::CHAR_HEIGHT as usize {
-            for c in &chars {
-                let next_line_pos =
-                    line_pos + Font::CHAR_WIDTH as usize * self.format.bytes_per_pixel as usize;
+        for y in 0..F::CHAR_HEIGHT as usize {
+            if current_position.y >= self.dimensions.height as i64 {
+                return;
+            }
+            'inner: for c in &chars {
                 for x in 0..c.width {
+                    if current_position.x >= self.dimensions.width as i64 {
+                        break 'inner;
+                    }
+
                     let c_bit_offset = (y * c.width + x) as usize;
                     let c_byte_offset = c_bit_offset / 8;
                     let c_bit_offset = c_bit_offset % 8;
@@ -339,21 +344,21 @@ impl<'a> Framebuffer<'a> {
                     let byte = c.data.get(c_byte_offset).unwrap_or(&1);
 
                     if byte & (1 << c_bit_offset) == 0 {
-                        let pixel_bytes = &mut self.buffer[line_pos..];
-                        pixel_bytes[self.format.r_position] = color.r;
-                        pixel_bytes[self.format.g_position] = color.g;
-                        pixel_bytes[self.format.b_position] = color.b;
+                        if current_position.x > 0 && current_position.y > 0 {
+                            let line_pos = self.pos_to_offset(&current_position) as usize;
+                            let pixel_bytes = &mut self.buffer[line_pos..];
+                            pixel_bytes[self.format.r_position] = color.r;
+                            pixel_bytes[self.format.g_position] = color.g;
+                            pixel_bytes[self.format.b_position] = color.b;
+                        }
                     }
-                    line_pos += self.format.bytes_per_pixel as usize;
+
+                    current_position.x += 1;
                 }
-                line_pos = next_line_pos;
             }
 
-            line_start += (self.format.stride * self.format.bytes_per_pixel) as usize;
-            if line_start >= self.buffer.len() {
-                return;
-            }
-            line_pos = line_start;
+            current_position.x = position.x;
+            current_position.y += 1;
         }
     }
 
