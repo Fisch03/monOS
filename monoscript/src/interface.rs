@@ -1,5 +1,6 @@
-use crate::ast::Block;
+use crate::ast::{Block, Value};
 use crate::execute::{RuntimeError, ScriptContext};
+use alloc::vec::Vec;
 
 pub trait Interface<'a> {
     fn print(&self, message: &str);
@@ -13,6 +14,7 @@ pub trait Interface<'a> {
 #[derive(Debug)]
 pub struct ScriptHook<'a> {
     pub(crate) block: Block<'a>,
+    pub(crate) local_scope: Vec<(&'a str, Value<'a>)>,
 }
 
 impl<'a> ScriptHook<'a> {
@@ -21,7 +23,7 @@ impl<'a> ScriptHook<'a> {
         context: &mut ScriptContext<'a>,
         interface: &mut I,
     ) -> Result<(), RuntimeError> {
-        context.scope.enter_scope();
+        context.scope.enter_scope(self.local_scope.clone());
         self.block.run(&mut context.scope, interface)?;
         context.scope.exit_scope();
         Ok(())

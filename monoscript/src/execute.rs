@@ -103,18 +103,34 @@ impl<'a> ScopeStack<'a> {
         Self {
             root: Scope {
                 variables: HashMap::new(),
+                is_new_scope: false
             },
             stack: Vec::new(),
         }
     }
 
-    pub fn enter_scope(&mut self) {
+    pub fn enter_block(&mut self) {
         self.stack.push(Scope {
             variables: HashMap::new(),
+            is_new_scope: false
+        });
+    }
+    pub fn enter_scope(&mut self, scope: Vec<(&'a str, Value<'a>)>) {
+        self.stack.push(Scope {
+            variables: scope.into_iter().collect(),
+            is_new_scope: false
+        });
+    }
+    pub fn enter_function(&mut self, arg_names: Vec<&'a str>, arg_values: Vec<Value<'a>>) {
+        self.stack.last_mut().map(|scope| scope.is_new_scope = true);
+        self.stack.push(Scope {
+            variables: arg_names.into_iter().zip(arg_values).collect(),
+            is_new_scope: false
         });
     }
     pub fn exit_scope(&mut self) {
         self.stack.pop();
+        self.stack.last_mut().map(|scope| scope.is_new_scope = false);
     }
 
     #[inline]
@@ -130,6 +146,7 @@ impl<'a> ScopeStack<'a> {
             .stack
             .iter_mut()
             .rev()
+            .take_while(|scope| !scope.is_new_scope)
             .chain(core::iter::once(&mut self.root))
         {
             match scope.variables.entry(ident) {
@@ -151,15 +168,26 @@ impl<'a> ScopeStack<'a> {
         self.stack
             .iter()
             .rev()
+            .take_while(|scope| !scope.is_new_scope)
             .chain(core::iter::once(&self.root))
             .find_map(|scope| scope.variables.get(ident))
             .ok_or(RuntimeErrorKind::UndefinedVariable(ident))
+    }
+
+    pub fn get_local_scope(&self) -> Vec<(&'a str, Value<'a>)> {
+        self.stack
+            .iter()
+            .rev()
+            .take_while(|scope| !scope.is_new_scope)
+            .flat_map(|scope| scope.variables.iter().map(|(k, v)| (*k, v.clone())))
+            .collect()
     }
 }
 
 #[derive(Debug)]
 pub struct Scope<'a> {
     variables: HashMap<&'a str, Value<'a>>,
+    is_new_scope: bool,
 }
 
 impl<'a> ScriptContext<'a> {
@@ -170,18 +198,18 @@ impl<'a> ScriptContext<'a> {
         }
     }
 
-    pub fn run<I: Interface<'a>>(&mut self, interface: &mut I) -> Result<(), RuntimeError<'a>> {
+    pub fn run<I: Interface<'a>>(&mut self, interface: &mut I) -> Result<Value, RuntimeError<'a>> {
         self.script.0.run(&mut self.scope, interface)
     }
 }
 
 impl<'a> Expression<'a> {
-    pub fn evaluate(&self, scope: &ScopeStack<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+    pub fn evaluate<I: Interface<'a>>(&self, scope: &mut ScopeStack<'a>, interface: &mut I) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
         match self {
             Expression::Literal(value) => Ok(value.clone()),
             Expression::Identifier(ident) => Ok(scope.get(ident).cloned()?),
             Expression::Unary { op, expr } => {
-                let value = expr.evaluate(scope)?;
+                let value = expr.evaluate(scope, interface)?;
                 match op {
                     UnaryOp::Neg => match value {
                         Value::Number(n) => Ok(Value::Number(-n)),
@@ -200,8 +228,8 @@ impl<'a> Expression<'a> {
                 }
             }
             Expression::Binary { op, lhs, rhs } => {
-                let lhs = lhs.evaluate(scope)?;
-                let rhs = rhs.evaluate(scope)?;
+                let lhs = lhs.evaluate(scope, interface)?;
+                let rhs = rhs.evaluate(scope, interface)?;
                 match op {
                     BinaryOp::Add => lhs.add(&rhs),
                     BinaryOp::Sub => lhs.sub(&rhs),
@@ -209,6 +237,28 @@ impl<'a> Expression<'a> {
                     BinaryOp::Div => lhs.div(&rhs),
                     _ => todo!("BinaryOp::{:?} not implemented", op),
                 }
+            }
+            Expression::FunctionCall { ident, args } => {
+                let arg_values = args
+                        .iter()
+                        .map(|arg| arg.evaluate(scope, interface))
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    let function = scope.get(ident).cloned();
+                    match function {
+                        Ok(Value::Function { args, block }) => {
+                            scope.enter_function(args, arg_values);
+                            let ret = block.run(scope, interface);
+                            scope.exit_scope();
+                            ret.map_err(|err| err.kind)
+                        }
+                        Ok(_) => {
+                          Err(RuntimeErrorKind::UndefinedVariable(ident))
+                        }
+                        Err(_) => {
+                            inbuilt_function(ident, arg_values, interface)
+                        }
+                    }
             }
         }
     }
@@ -364,7 +414,7 @@ impl<'a> Block<'a> {
         &self,
         scope: &mut ScopeStack<'a>,
         interface: &mut I,
-    ) -> Result<(), RuntimeError<'a>> {
+    ) -> Result<Value<'a>, RuntimeError<'a>> {
         for statement in self.statements.iter() {
             match &statement.kind {
                 StatementKind::Assignment {
@@ -372,7 +422,7 @@ impl<'a> Block<'a> {
                     expression,
                     kind,
                 } => {
-                    let expr_value = expression.evaluate(&scope).with_span(statement.span)?;
+                    let expr_value = expression.evaluate(scope, interface).with_span(statement.span)?;
                     match kind {
                         AssignmentKind::Assign => scope.assign(ident, expr_value),
                         _ => {
@@ -396,51 +446,40 @@ impl<'a> Block<'a> {
                         }
                     };
                 }
-                StatementKind::FunctionCall { ident, args } => {
-                    let arg_values = args
-                        .iter()
-                        .map(|arg| arg.evaluate(&scope))
-                        .collect::<Result<Vec<_>, _>>()
-                        .with_span(statement.span)?;
-
-                    let function = scope.get(ident).cloned();
-                    match function {
-                        Ok(Value::Function { args, block }) => {
-                            scope.enter_scope();
-                            for (arg, value) in args.iter().zip(arg_values) {
-                                scope.assign(arg, value);
-                            }
-                            block.run(scope, interface)?; // TODO: function return value
-                            scope.exit_scope();
-                        }
-                        Ok(_) => {
-                            return Err(RuntimeErrorKind::UndefinedVariable(ident)
-                                .with_span(statement.span))
-                        }
-                        Err(_) => {
-                            inbuilt_function(ident, arg_values, interface)
-                                .with_span(statement.span)?;
-                        }
-                    }
-                }
                 StatementKind::Hook { kind, block } => match kind {
                     HookType::Window => {
                         interface.spawn_window(ScriptHook {
                             block: block.clone(),
+                            local_scope: scope.get_local_scope(),
                         });
                     }
                     HookType::Key(char) => interface.on_key(
                         *char,
                         ScriptHook {
                             block: block.clone(),
+                            local_scope: scope.get_local_scope(),
                         },
                     ),
                 },
-                a => todo!("{:?}", a),
+                StatementKind::Expression(expr) => {
+                    expr.evaluate(scope, interface).with_span(statement.span)?;
+                }
+                StatementKind::Return { expression } => {
+                    match expression {
+                        Some(expr) => {
+                            let value = expr.evaluate(scope, interface).with_span(statement.span)?;
+                            return Ok(value);
+                        }
+                        None => return Ok(Value::None),
+                    }
+                }
+                StatementKind::If {..} => {
+                    todo!("if statement")
+                }
             };
         }
 
-        Ok(())
+        Ok(Value::None)
     }
 }
 

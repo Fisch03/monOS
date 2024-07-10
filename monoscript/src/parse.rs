@@ -72,8 +72,10 @@ impl<'a> Statement<'a> {
     pub fn parse(input: Span<'a>) -> IResult<Span<'a>, Self> {
         ws(alt((
             Self::parse_assignment,
+            Self::parse_fn_assignment,
+            Self::parse_return,
             Self::parse_hook,
-            Self::parse_function_call,
+            Self::parse_expression,
         )))
         .parse(input)
     }
@@ -96,6 +98,45 @@ impl<'a> Statement<'a> {
         ))
     }
 
+    fn parse_fn_assignment(input: Span<'a>) -> IResult<Span<'a>, Self> {
+        let (rest, _) = tag("fn").parse(input)?;
+        let (rest, ident) = cut(ws(identifier)).parse(rest)?;
+        let (rest, args) = cut(delimited(
+            char('('),
+            separated_list0(char(','), ws(identifier)),
+            char(')'),
+        )).parse(rest)?;
+
+        let (rest, block) = Block::parse_scoped(rest)?;
+
+        let args: Vec<&'a str> = args.into_iter().map(|s| s.into_fragment()).collect();
+
+        Ok((
+            rest,
+            Statement {
+                span: input,
+                kind: StatementKind::Assignment { 
+                    ident: ident.fragment(), 
+                    expression: Expression::Literal(Value::Function { args, block }), 
+                    kind: AssignmentKind::Assign
+                },
+            },
+        ))
+    }
+
+    fn parse_return(input: Span<'a>) -> IResult<Span<'a>, Self> {
+        let (rest, _) = tag("return").parse(input)?;
+        let (rest, expr) = opt(ws(Expression::parse)).parse(rest)?;
+
+        Ok((
+            rest,
+            Statement {
+                span: input,
+                kind: StatementKind::Return { expression: expr },
+            },
+        ))
+    }
+
     fn parse_hook(input: Span<'a>) -> IResult<Span<'a>, Self> {
         let (rest, kind) = ws(HookType::parse).parse(input)?;
         let (rest, block) = Block::parse_scoped(rest)?;
@@ -109,31 +150,22 @@ impl<'a> Statement<'a> {
         ))
     }
 
-    fn parse_function_call(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, ident) = identifier(input)?;
-        let (rest, args) = cut(Expression::parse_args).parse(rest)?;
-
-        Ok((
-            rest,
-            Statement {
-                span: input,
-                kind: StatementKind::FunctionCall {
-                    ident: ident.fragment(),
-                    args,
-                },
-            },
-        ))
+    fn parse_expression(input: Span<'a>) -> IResult<Span<'a>, Self> {
+        let (rest, expr) = ws(Expression::parse).parse(input)?;
+        Ok((rest, Statement { span: input, kind: StatementKind::Expression(expr) }))
     }
+
 }
 
 impl<'a> Expression<'a> {
     pub fn parse(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, expr) = alt((
+        let (rest, expr) =alt((
+            Self::parse_function_call,
             Value::parse_literal.map(Expression::Literal),
             identifier.map(|s| Expression::Identifier(s.fragment())),
             Self::parse_unary,
         ))(input)?;
-
+        
         Ok(Self::parse_binary(rest, &expr).unwrap_or((rest, expr)))
     }
 
@@ -167,6 +199,16 @@ impl<'a> Expression<'a> {
                 lhs: Box::new(maybe_lhs.clone()),
                 rhs: Box::new(rhs),
             },
+        ))
+    }
+
+    fn parse_function_call(input: Span<'a>) -> IResult<Span<'a>, Self> {
+        let (rest, ident) = identifier(input)?;
+        let (rest, args) = Expression::parse_args.parse(rest)?;
+    
+        Ok((
+            rest,
+            Expression::FunctionCall { ident: ident.fragment(), args },
         ))
     }
 }

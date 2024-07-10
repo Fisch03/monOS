@@ -68,10 +68,6 @@ pub enum StatementKind<'a> {
         expression: Expression<'a>,
         kind: AssignmentKind,
     },
-    FunctionCall {
-        ident: &'a str,
-        args: Vec<Expression<'a>>,
-    },
     Hook {
         kind: HookType,
         block: Block<'a>,
@@ -81,6 +77,10 @@ pub enum StatementKind<'a> {
         block: Block<'a>,
         else_block: Option<Block<'a>>,
     },
+    Return {
+        expression: Option<Expression<'a>>,
+    },
+    Expression(Expression<'a>),
 }
 
 /// an expression is a piece of code that evaluates to a value
@@ -96,6 +96,10 @@ pub enum Expression<'a> {
         op: BinaryOp,
         lhs: Box<Expression<'a>>,
         rhs: Box<Expression<'a>>,
+    },
+    FunctionCall {
+        ident: &'a str,
+        args: Vec<Expression<'a>>,
     },
 }
 

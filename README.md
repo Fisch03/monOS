@@ -6,7 +6,11 @@
 # the what
 monOS is a 64-bit monolithic hobby OS written in Rust, inspired by the vtuber [Mono Monet](https://www.youtube.com/@MonoMonet) of V4Mirai (and TempleOS, sorta).
 
-### monoscript (WIP)
+this project is still very much in active development. dont expect anything usable (or working) at all. i would consider this usable once most of the points on the [big todo list](#the-big-todo-list) are done. if you want to try out the os regardless, check [here](#buildingrunning) for some more info
+
+below are some cool things monOS will ship with:
+
+### monoscript (work in progress)
 while monOS may not be written in its own programming language, it comes with one! 
 monoscript is monOS's very own scripting language, designed to be as simple as possible. you can use it to quickly write tools and even small games for monOS.
 writing a "game" where you move a box around is as simple as:
@@ -27,16 +31,14 @@ key(s) { y_pos += 1 }
 key(a) { x_pos -= 1 }
 key(d) { x_pos += 1 }
 ```
-you can find more info about monoscript [here](https://github.com/Fisch03/monOS/tree/master/monoscript). you can also view it's documentation from inside monOS (soon™).
+you can find the monoscript source [here](https://github.com/Fisch03/monOS/tree/master/monoscript). you can also view it's documentation from inside monOS (soon™). there is also the very basic [`monoscript_emu`](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) crate that lets you run monoscript on windows/mac/linux
 
-### monodoc (WIP)
-accompanying monoscript, there is monodoc. much like TempleOS's DolDoc, this is a file format for writing text files that can do more than just text!
-monodoc is a superset of markdown (and even shares its file extension - `.md`). this means its super simple to use, and you can read and edit monodoc files with all text editors and markdown viewers 
-while loosing out on some of the fancier features. these special features currently include:
+### monodoc (draft, implementation pending)
+accompanying monoscript, there is monodoc. much like TempleOS's DolDoc (if you are familiar with TempleOS, this is basically what every part of the ui except the top bar and window management consists of). monodoc this is a file format for writing text files that can do more than just text!
+it is a superset of markdown (and even shares its file extension - `.md`). this means its super simple to use, and you can read and edit monodoc files with basically all text editors and markdown viewers 
+while only loosing out on some of the fancier features. these special features include:
 - in-document monoscript execution and rendering - play animations or even entire games right inside monodoc documents
 - special links - various actions inside monOS can be executed by clicking one of these links. for example a link with the location (mo:exec/hello_world) will launch the `hello_world` program when clicking it.
-
-for more info about monodoc syntax, you can look [here](https://github.com/Fisch03/monOS/tree/master/monodoc). you can also view it's documentation from inside monOS (soon™)
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_hmm.png" />
 
@@ -44,7 +46,7 @@ for more info about monodoc syntax, you can look [here](https://github.com/Fisch
 making a hobby OS has been something i've wanted to do for quite a while, but never quite got around to.
 when i watched mono's [TempleOS stream](https://www.youtube.com/watch?v=xhbR5h6lw98), it sort of brought the idea back into my head - together with a quite obvious theme :P
 
-for the same reason, monOS has quite a lot of references to TempleOS.
+for the same reason, monOS has(/will have) quite a lot of references to TempleOS.
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_nerd.png" />
 
@@ -70,7 +72,6 @@ BIOS boot is currently utterly broken and will not be supported going forward, s
 ### devices
 only PS2 mouse/keyboard support for now. i want to implement USB at some point but it seems like a huge pain. most vms and even hardware emulates PS2 from USB devices anyways.
 monOS does use the newer APIC instead of the old fashioned 8259 PIC since its support seems to be (basically?) nonexistent under UEFI.
-
 
 ### memory
 the kernel is mapped into the higher half of memory (at `0xffff800000000000`) and currently has a stack size of 1MiB and a heap size of 16MiB.
@@ -105,7 +106,7 @@ its something i still want to do at some point though.
 
 
 #### filesystem
-monOS (currently) has no way of accessing external disks, all data is kept within a ramdisk. this means that all data gets wiped when the os reboots. feel free to wreak havoc :P.
+monOS (currently) has no way of accessing external disks, all data is kept within a ramdisk. this means that everything gets wiped when the os reboots. feel free to wreak havoc :P.
 the ramdisk itself is a FAT16 image with the following structure:
 - `/bin`: userspace programs
 - `/home`: user directory
@@ -170,31 +171,34 @@ there is currently no safety in place for channels, meaning that a process can j
     - [ ] !!! figure out why the allocator breaks when compiling with `-g`
     - [ ] implement own allocator
   - [x] virtual address allocation
-- [ ] ACPI
+- [x] ACPI
   - [x] basic table parsing
   - [ ] (?)
 - [ ] APIC
   - [ ] local apic
     - [x] timer interrupts
-      - [ ] precisely timed timer interrupts
+      - [ ] calibrate timer using PIT
   - [x] io apic
     - [x] ps2 keyboard input
     - [x] ps2 mouse input
 - [ ] gui
   - [x] image loading
     - [x] .ppm loading
-    - [ ] scale image on load for faster drawing
-    - [ ] turn fb into image for fast screen clearing
+    - [x] turn fb into image for fast screen clearing
   - [ ] decently usable immediate mode gui library
     - [x] basic functionality
     - [x] better text wrapping
     - [x] buttons
+    - [x] text input
+    - [ ] scrollable 
     - [ ] "drawing" functionality
     - [ ] only rerender if necessary
+  - [ ] rewrite fb drawing code because it is messy as hell
   - [x] boot screen 
+  - [ ] kernel panic screen
   - [ ] desktop environment (`rooftop`)
     - [ ] basic ui
-    - [ ] only rerender necessary parts
+    - [x] only rerender necessary parts
     - [ ] spawning windows
   - [ ] terminal
 - [ ] task management
@@ -223,15 +227,17 @@ there is currently no safety in place for channels, meaning that a process can j
     - [ ] sending memory chunks
     - [ ] block waiting processes
     - [ ] process <-> process
-    - [ ] mpsc (?)
-  - [ ] get sse/avx to work
-  - [ ] running doom
+    - [ ] mpsc/broadcasts (?)
+  - [ ] save sse/avx context
+  - [ ] running [REDACTED] :)
     - [ ] figure out linking
     - [ ] scuffed libc port
     - [ ] it works!
 - [ ] monoscript
   - [x] basic parsing
   - [ ] missing statements
+    - [x] function declarations 
+    - [x] function return values
     - [ ] if/else
     - [ ] while
     - [ ] sound hook
@@ -243,26 +249,37 @@ there is currently no safety in place for channels, meaning that a process can j
   - [ ] parsing
   - [ ] viewing
   - [ ] editing
+  - [ ] docs
 - [x] filesystem support
   - [x] ramdisk reading
   - [x] fat16 drivers
     - [ ] multi-lfn file names
   - [ ] keep track of opened files to avoid conflicts
   - [ ] block device drivers
+- [ ] networking
+  - [ ] get access to the network card/pcie devices at all
+  - [ ] get [smoltcp](https://github.com/smoltcp-rs/smoltcp) (or some other TCP stack) running
+  - [ ] write a simple http implementation (or use an existing one, idk)
+  - [ ] get websockets working
+  - [ ] [Cibo Online!](https://github.com/Fisch03/cibo-online) client
 - [ ] multiprocessor support (maybe)
 - [ ] USB support (maybe)
 - [ ] whatever else comes to mind (suggest something!) :)
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_cheers.png" />
 
+# building/running
+you'll need a working rust installation. install llvm-tools (`rustup component add llvm-tools-preview`) and then do a `cargo build` in the workspace root. the disk image will be in `target/debug/build/monos-xxxxxxxxxxx/out/uefi.img`. if you have qemu installed, you can just do `cargo run` and it will be started automatically after the build :)
+
+running in virtualbox seems to work great too. convert the image into a virtualbox `.vdi` disk image using qemu-img (`qemu-img convert -f raw -O vdi uefi.vdi uefi.iso`) or a similar tool. set the vm type to "Other" and the version to "Other/Unknown (64-bit)". make sure to tick the "Enable EFI (special OSes only)" option at the hardware step or it won't work.
+
 # big thanks
 - to mono for being cool and based and providing me with lots of entertainment while i wrote this thing :3
-- to my friends for putting up with me constantly bothering them with this project
-
-- to Philipp Oppermann's [amazing blog series](https://os.phil-opp.com/) for getting me on the right track
+- to my friends for putting up with me constantly bothering them about this project <3
+- to Philipp Oppermann's [amazing blog series](https://os.phil-opp.com/) for getting me started on this at all
 - to this [blog post](https://nfil.dev/kernel/rust/coding/rust-kernel-to-userspace-and-back/) for getting me on the right track with getting into userspace
 - to all the developers of the [x86_64 crate](https://github.com/rust-osdev/x86_64) that served as a great reference point for my own implementations
-- to [moros](https://github.com/vinc/moros), [EuraliOS](https://github.com/bendudson/EuraliOS), [Hermit OS](https://github.com/hermit-os) and [Redox OS](https://www.redox-os.org/) for also serving as references
+- to [EuraliOS](https://github.com/bendudson/EuraliOS), [moros](https://github.com/vinc/moros), [Hermit OS](https://github.com/hermit-os) and [Redox OS](https://www.redox-os.org/) for also serving as awesome references
 - to the [OSDev Wiki](https://wiki.osdev.org)
 
 
@@ -272,3 +289,4 @@ there is currently no safety in place for channels, meaning that a process can j
 please contact me if you want your work removed. i wasn't able to find decent licensing information for all of these and am using them under the assumption that using for non-profit fan content is fine.
 - [woofycakes](https://x.com/woofycakes) for the mono emotes in this file
 - [slavfox](https://github.com/slavfox) for [Cozette](https://github.com/slavfox/Cozette), the system font
+- [benwr](https://github.com/benwr) for [Glean](https://github.com/benwr/glean), the (smaller) system font and Jim Knoble for Neep, the font that Glean is originally based on

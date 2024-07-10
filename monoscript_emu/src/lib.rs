@@ -42,7 +42,7 @@ impl<'a> EmuInterface<'a> {
 
             let start = std::time::Instant::now();
             c.execute(context, self).expect("failed to render window");
-            println!("rendered in {:?}", start.elapsed());
+            //println!("rendered in {:?}", start.elapsed());
 
             let w = &mut self.windows[window_idx];
             w.window
