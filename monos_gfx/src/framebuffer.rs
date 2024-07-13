@@ -1,5 +1,5 @@
 use crate::{
-    font::{Character, Font},
+    text::{Character, Font},
     types::*,
     Image, ImageFormat,
 };
@@ -179,6 +179,21 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
+    pub fn draw_vert_line(&mut self, start: Position, len: i64, color: &Color) {
+        let start = Position {
+            x: start.x.max(0).min(self.dimensions.width as i64),
+            y: start.y.max(0).min(self.dimensions.height as i64),
+        };
+
+        let end_y = (start.y + len as i64)
+            .max(0)
+            .min(self.dimensions.height as i64);
+
+        for y in start.y..end_y {
+            self.draw_pixel_unchecked(&Position { x: start.x, y }, color);
+        }
+    }
+
     pub fn draw_rect(&mut self, rect: &Rect, color: &Color) {
         let mut rect = rect.clone();
         rect.min.x = rect.min.x.max(0).min(self.dimensions.width as i64);
@@ -186,10 +201,9 @@ impl<'a> Framebuffer<'a> {
         rect.max.x = rect.max.x.max(0).min(self.dimensions.width as i64);
         rect.max.y = rect.max.y.max(0).min(self.dimensions.height as i64);
 
-        // TODO: optimize this
         for y in rect.min.y..rect.max.y {
             for x in rect.min.x..rect.max.x {
-                self.draw_pixel(&Position { x, y }, color);
+                self.draw_pixel_unchecked(&Position { x, y }, color);
             }
         }
     }
@@ -314,11 +328,35 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
+    #[inline(always)]
     pub fn draw_str<F: Font>(&mut self, color: &Color, string: &str, position: &Position) {
+        self.draw_str_clipped::<F>(
+            color,
+            string,
+            position,
+            &Rect::from_dimensions(self.dimensions),
+        );
+    }
+
+    pub fn draw_str_clipped<F: Font>(
+        &mut self,
+        color: &Color,
+        string: &str,
+        position: &Position,
+        clip: &Rect,
+    ) {
         if position.y >= self.dimensions.height as i64 || position.x >= self.dimensions.width as i64
         {
             return;
         }
+
+        let clip = Rect {
+            min: Position::new(clip.min.x.max(0), clip.min.y.max(0)),
+            max: Position::new(
+                clip.max.x.min(self.dimensions.width as i64),
+                clip.max.y.min(self.dimensions.height as i64),
+            ),
+        };
 
         let chars = string
             .chars()
@@ -328,12 +366,12 @@ impl<'a> Framebuffer<'a> {
         let mut current_position = position.clone();
 
         for y in 0..F::CHAR_HEIGHT as usize {
-            if current_position.y >= self.dimensions.height as i64 {
+            if current_position.y >= clip.max.y as i64 {
                 return;
             }
             'inner: for c in &chars {
                 for x in 0..c.width {
-                    if current_position.x >= self.dimensions.width as i64 {
+                    if current_position.x >= clip.max.x as i64 {
                         break 'inner;
                     }
 
@@ -344,12 +382,8 @@ impl<'a> Framebuffer<'a> {
                     let byte = c.data.get(c_byte_offset).unwrap_or(&1);
 
                     if byte & (1 << c_bit_offset) == 0 {
-                        if current_position.x > 0 && current_position.y > 0 {
-                            let line_pos = self.pos_to_offset(&current_position) as usize;
-                            let pixel_bytes = &mut self.buffer[line_pos..];
-                            pixel_bytes[self.format.r_position] = color.r;
-                            pixel_bytes[self.format.g_position] = color.g;
-                            pixel_bytes[self.format.b_position] = color.b;
+                        if current_position.x > clip.min.x && current_position.y > clip.min.y {
+                            self.draw_pixel_unchecked(&current_position, color);
                         }
                     }
 
@@ -362,21 +396,23 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
+    #[inline(always)]
     pub fn draw_pixel(&mut self, position: &Position, color: &Color) {
-        if position.x >= self.dimensions.width.into() || position.y >= self.dimensions.height.into()
+        if position.x >= self.dimensions.width.into()
+            || position.y >= self.dimensions.height.into()
+            || position.x < 0
+            || position.y < 0
         {
             return;
         }
 
-        let y = position.y as u64 * self.format.stride;
-
-        let offset = y + position.x as u64;
-
-        self.draw_pixel_raw((offset * self.format.bytes_per_pixel) as usize, color);
+        self.draw_pixel_unchecked(position, color);
     }
 
     #[inline(always)]
-    fn draw_pixel_raw(&mut self, byte_offset: usize, color: &Color) {
+    fn draw_pixel_unchecked(&mut self, position: &Position, color: &Color) {
+        let byte_offset = self.pos_to_offset(position) as usize;
+
         let pixel_bytes = &mut self.buffer[byte_offset..];
         // match self.info.pixel_format {
         //     PixelFormat::Rgb => {

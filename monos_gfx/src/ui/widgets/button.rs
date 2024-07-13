@@ -1,9 +1,8 @@
+use crate::text::{Font, Lines, TextWrap};
 use crate::types::*;
 use crate::ui::*;
-use crate::Font;
 use crate::Image;
 use core::marker::PhantomData;
-use widgets::Lines;
 
 pub struct Button<'a, F>
 where
@@ -26,8 +25,12 @@ impl<F: Font> UIElement for Button<'_, F> {
     fn draw(self, context: &mut UIContext) -> UIResult {
         let max_width = context.placer.max_width();
 
-        let lines = Lines::<F>::layout_single_line(self.text, max_width);
-        if lines.dimensions == Dimension::zero() {
+        let lines = Lines::<F>::layout(
+            self.text,
+            TextWrap::Disabled,
+            Dimension::new(max_width, u32::MAX),
+        );
+        if lines.dimensions() == Dimension::zero() {
             return UIResult::default();
         }
 

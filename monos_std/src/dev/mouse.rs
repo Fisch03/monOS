@@ -4,19 +4,26 @@ use crate::messaging::{Message, MessageData};
 pub struct MouseState {
     pub x: i16,
     pub y: i16,
+    pub scroll: i16,
     pub flags: MouseFlags,
 }
 
 impl MessageData for MouseState {
     fn into_message(self) -> (u64, u64, u64, u64) {
-        (self.x as u64, self.y as u64, self.flags.as_u8() as u64, 0)
+        (
+            self.x as u64,
+            self.y as u64,
+            self.scroll as u64,
+            self.flags.as_u8() as u64,
+        )
     }
 
     unsafe fn from_message(message: &Message) -> Option<Self> {
         let state = Self {
             x: message.data.0 as i16,
             y: message.data.1 as i16,
-            flags: MouseFlags::new(message.data.2 as u8),
+            scroll: message.data.2 as i16,
+            flags: MouseFlags::new(message.data.3 as u8),
         };
 
         if state.flags.is_valid() {

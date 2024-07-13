@@ -1,6 +1,6 @@
-use crate::{input::Input, Dimension, Font, Framebuffer, Position, Rect};
+use crate::{input::Input, text::Font, Dimension, Framebuffer, Position, Rect};
 pub mod widgets;
-pub use widgets::{Lines, TextWrap};
+pub use crate::text::{Lines, TextWrap};
 
 use core::any::TypeId;
 use hashbrown::hash_map::HashMap;
@@ -71,12 +71,11 @@ impl UIContext<'_, '_> {
     }
 
     // widget shortcuts
-    pub fn label<F: Font>(&mut self, text: &str) -> UIResult {
-        self.add(widgets::Label::<F>::new(text))
+    pub fn label<'a, F: Font>(&mut self, text: &'a str) -> UIResult {
+        self.add(widgets::Label::<F, _>::new(text))
     }
     pub fn textbox<F: Font>(&mut self, text: &mut String) -> UIResult {
-        let textbox = widgets::Textbox::<F>::new(text, self);
-        self.add(textbox)
+        self.add(widgets::Textbox::<F>::new(text))
     }
     pub fn button<F: Font>(&mut self, text: &str) -> UIResult {
         self.add(widgets::Button::<F>::new(text))
@@ -267,7 +266,7 @@ impl Placer {
     /// allocate a rect of the desired space.
     ///
     /// there is no guarantee that the returned rect will fit the desired space.
-    pub fn alloc_space(&mut self, mut desired_space: Dimension) -> UIResult {
+    fn alloc_space(&mut self, mut desired_space: Dimension) -> UIResult {
         if let MarginMode::Fixed(position, dimension) = self.margin_mode {
             return UIResult {
                 rect: Rect::new(position, position + dimension),
@@ -413,7 +412,7 @@ pub struct UIResult {
     pub clicked: bool,
     // whether the mouse is hovering over the widget
     pub hovered: bool,
-    //
+
     // the exact meaning of this field is up to the widget.
     // a textbox might set this to true if the user pressed enter.
     pub submitted: bool,

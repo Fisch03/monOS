@@ -3,7 +3,7 @@ use crate::types::*;
 use alloc::collections::VecDeque;
 pub use pc_keyboard::{DecodedKey as Key, KeyCode as RawKey, KeyState};
 
-use monos_std::dev::mouse::MouseState;
+pub use monos_std::dev::mouse::{MouseFlags, MouseState};
 
 #[derive(Debug, Default, Clone)]
 pub struct Input {
@@ -22,6 +22,7 @@ impl Input {
 #[derive(Debug, Clone, Default)]
 pub struct MouseInput {
     pub position: Position,
+    pub scroll: i64,
 
     pub left_button: MouseButtonState,
     pub right_button: MouseButtonState,
@@ -34,6 +35,7 @@ impl MouseInput {
         self.position.x = self.position.x.max(bounds.min.x).min(bounds.max.x);
         self.position.y -= state.y as i64;
         self.position.y = self.position.y.max(bounds.min.y).min(bounds.max.y);
+        self.scroll += state.scroll as i64;
         self.left_button.update(state.flags.left_button());
         self.right_button.update(state.flags.right_button());
         self.middle_button.update(state.flags.middle_button());
@@ -43,6 +45,7 @@ impl MouseInput {
         self.left_button.clicked = false;
         self.right_button.clicked = false;
         self.middle_button.clicked = false;
+        self.scroll = 0;
     }
 }
 

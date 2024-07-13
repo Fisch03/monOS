@@ -11,9 +11,9 @@ use monos_std::prelude::*;
 use monos_std::dev::mouse::MouseState;
 
 use monos_gfx::{
-    font::Cozette,
     framebuffer::{FramebufferRequest, FramebufferResponse},
     input::Input,
+    text::Cozette,
     ui::*,
     Framebuffer, Position, Rect,
 };

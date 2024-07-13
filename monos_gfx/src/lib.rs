@@ -12,8 +12,7 @@ extern crate alloc;
 pub mod types;
 pub use types::*;
 
-pub mod font;
-pub use font::Font;
+pub mod text;
 
 pub mod image;
 pub use image::{Image, ImageFormat};

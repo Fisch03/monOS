@@ -110,6 +110,7 @@ impl Mouse {
             state: MouseState {
                 x: 0,
                 y: 0,
+                scroll: 0,
                 flags: MouseFlags::new(0),
             },
         }

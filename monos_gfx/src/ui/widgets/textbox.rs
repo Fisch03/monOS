@@ -1,43 +1,28 @@
-use super::Lines;
 use crate::input::*;
+use crate::text::{Font, Lines};
 use crate::types::*;
 use crate::ui::*;
-use crate::Font;
 use core::marker::PhantomData;
 
 pub struct Textbox<'a, F>
 where
     F: Font,
 {
-    id: u64,
     text: &'a mut String,
     wrap: TextWrap,
-    state: TextboxState,
     font: PhantomData<F>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub(crate) struct TextboxState {
     cursor: usize,
     selection: Option<usize>,
 }
 
 impl<'a, F: Font> Textbox<'a, F> {
-    pub fn new(text: &'a mut String, context: &mut UIContext) -> Self {
-        let id = context.next_id();
-        let state = if let Some(state) = context.state_get(id) {
-            state
-        } else {
-            TextboxState {
-                cursor: 0,
-                selection: None,
-            }
-        };
-
+    pub fn new(text: &'a mut String) -> Self {
         Self {
-            id,
             text,
-            state,
             wrap: TextWrap::Disabled,
             font: PhantomData,
         }
@@ -50,10 +35,13 @@ impl<'a, F: Font> Textbox<'a, F> {
 }
 
 impl<F: Font> UIElement for Textbox<'_, F> {
-    fn draw(mut self, context: &mut UIContext) -> UIResult {
+    fn draw(self, context: &mut UIContext) -> UIResult {
+        let id = context.next_id();
+        let mut state: TextboxState = context.state_get(id).unwrap_or_default();
+
         let mut submitted = false;
 
-        self.state.cursor = self.state.cursor.min(self.text.len());
+        state.cursor = state.cursor.min(self.text.len());
 
         //TODO: check for focus
         while let Some(event) = context.input.keyboard.pop_front() {
@@ -64,18 +52,18 @@ impl<F: Font> UIElement for Textbox<'_, F> {
 
             match event.key {
                 Key::Unicode(c) => {
-                    self.text.insert(self.state.cursor, c);
-                    self.state.cursor += 1;
+                    self.text.insert(state.cursor, c);
+                    state.cursor += 1;
                 }
 
                 Key::RawKey(RawKey::ArrowLeft) => {
-                    if self.state.cursor > 0 {
-                        self.state.cursor -= 1;
+                    if state.cursor > 0 {
+                        state.cursor -= 1;
                     }
                 }
                 Key::RawKey(RawKey::ArrowRight) => {
-                    if self.state.cursor < self.text.len() {
-                        self.state.cursor += 1;
+                    if state.cursor < self.text.len() {
+                        state.cursor += 1;
                     }
                 }
 
@@ -83,14 +71,14 @@ impl<F: Font> UIElement for Textbox<'_, F> {
                     submitted = true;
                 }
                 Key::RawKey(RawKey::Backspace) => {
-                    if self.state.cursor > 0 {
-                        self.text.remove(self.state.cursor - 1);
-                        self.state.cursor -= 1;
+                    if state.cursor > 0 {
+                        self.text.remove(state.cursor - 1);
+                        state.cursor -= 1;
                     }
                 }
                 Key::RawKey(RawKey::Delete) => {
-                    if self.state.cursor < self.text.len() {
-                        self.text.remove(self.state.cursor);
+                    if state.cursor < self.text.len() {
+                        self.text.remove(state.cursor);
                     }
                 }
 
@@ -112,7 +100,7 @@ impl<F: Font> UIElement for Textbox<'_, F> {
 
         lines.draw(context.fb, lines_rect.min, Color::new(255, 255, 255));
 
-        let cursor_pos = lines_rect.min + lines.char_position(self.state.cursor);
+        let cursor_pos = lines_rect.min + lines.char_position(state.cursor);
         let cursor_rect = Rect::new(
             cursor_pos,
             Position::new(cursor_pos.x + 1, cursor_pos.y + F::CHAR_HEIGHT as i64),
@@ -121,7 +109,7 @@ impl<F: Font> UIElement for Textbox<'_, F> {
             .fb
             .draw_rect(&cursor_rect, &Color::new(255, 255, 255));
 
-        context.state_insert(self.id, self.state);
+        context.state_insert(id, state);
 
         result
     }
