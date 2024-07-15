@@ -12,8 +12,9 @@ use monos_std::dev::mouse::MouseState;
 
 use monos_gfx::{
     framebuffer::{FramebufferRequest, FramebufferResponse},
+    image::SliceReader,
     input::Input,
-    text::Cozette,
+    text::font::Cozette,
     ui::*,
     Framebuffer, Position, Rect,
 };
@@ -50,8 +51,8 @@ fn main() {
     );
     let mut taskbar_ui = UIFrame::new(Direction::LeftToRight);
 
-    let test_icon = FileHandle::open("data/test_ico.ppm").expect("failed to load image data");
-    let test_icon = monos_gfx::Image::from_ppm(&test_icon).expect("failed to parse image data");
+    // let test_icon = FileHandle::open("data/test_ico.ppm").expect("failed to load image data");
+    // let test_icon = monos_gfx::Image::from_ppm(&test_icon).expect("failed to parse image data");
 
     fb.clear_with(&clear_fb);
     loop {
@@ -80,11 +81,10 @@ fn main() {
             ui.margin(MarginMode::Grow);
             ui.label::<Cozette>("Hello, World!");
 
-            ui.img_button(&test_icon);
+            // ui.img_button(&test_icon);
         });
         draw_cursor(&mut fb, input.mouse.position);
 
-        input.mouse.clear();
         syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
     }
 }
@@ -92,7 +92,8 @@ fn main() {
 fn create_clear_fb<'a>(main_fb: &Framebuffer, buffer: &'a mut Vec<u8>) -> Framebuffer<'a> {
     let mut clear_fb = Framebuffer::new(buffer, main_fb.dimensions(), main_fb.format().clone());
 
-    let taskbar = FileHandle::open("data/taskbar.ppm").expect("failed to load image data");
+    // let taskbar = FileHandle::open("data/taskbar.ppm").expect("failed to load image data");
+    let taskbar = SliceReader::new(include_bytes!("../assets/taskbar.ppm"));
     let taskbar = monos_gfx::Image::from_ppm(&taskbar).expect("failed to parse image data");
 
     clear_fb.draw_img(

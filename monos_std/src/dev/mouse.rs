@@ -4,8 +4,8 @@ use crate::messaging::{Message, MessageData};
 pub struct MouseState {
     pub x: i16,
     pub y: i16,
-    pub scroll: i16,
     pub flags: MouseFlags,
+    pub scroll: i16,
 }
 
 impl MessageData for MouseState {
@@ -13,8 +13,8 @@ impl MessageData for MouseState {
         (
             self.x as u64,
             self.y as u64,
-            self.scroll as u64,
             self.flags.as_u8() as u64,
+            self.scroll as u64,
         )
     }
 
@@ -22,8 +22,8 @@ impl MessageData for MouseState {
         let state = Self {
             x: message.data.0 as i16,
             y: message.data.1 as i16,
-            scroll: message.data.2 as i16,
-            flags: MouseFlags::new(message.data.3 as u8),
+            flags: MouseFlags::new(message.data.2 as u8),
+            scroll: message.data.3 as i16,
         };
 
         if state.flags.is_valid() {
