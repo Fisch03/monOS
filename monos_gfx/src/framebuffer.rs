@@ -233,71 +233,128 @@ impl<'a> Framebuffer<'a> {
     }
 
     pub fn draw_img(&mut self, image: &Image, position: &Position) {
+        self.draw_img_clipped(image, position, &Rect::from_dimensions(self.dimensions))
+    }
+
+    pub fn draw_img_clipped(&mut self, image: &Image, position: &Position, clip: &Rect) {
         let (mut image_data, alpha_val) = match &image.data {
             ImageFormat::RGB { data, alpha_val } => (data.iter(), alpha_val),
             _ => return,
         };
 
-        let skip_y = (-position.y).max(0);
-        let skip_x = (-position.x).max(0);
+        let dimensions = image.dimensions();
 
-        if skip_y as u32 >= image.dimensions().height
-            || skip_x as u32 >= image.dimensions().width
-            || position.y >= self.dimensions.height as i64
-            || position.x >= self.dimensions.width as i64
+        if position.y >= self.dimensions.height as i64 || position.x >= self.dimensions.width as i64
         {
             return;
         }
 
-        let mut line_start = (((position.y + skip_y) * self.format.stride as i64
-            + (position.x + skip_x))
-            * self.format.bytes_per_pixel as i64) as usize;
-        let mut line_pos = line_start;
-        let max_x = (self.dimensions.width - position.x as u32).min(image.dimensions().width);
+        let clip = Rect {
+            min: Position::new(clip.min.x.max(0), clip.min.y.max(0)),
+            max: Position::new(
+                clip.max.x.min(self.dimensions.width as i64),
+                clip.max.y.min(self.dimensions.height as i64),
+            ),
+        };
 
-        let mut skip_y_current = skip_y;
+        let mut current_position = position.clone();
 
-        for _y in 0..image.dimensions().height {
-            let mut skip_y = false;
-            if skip_y_current > 0 {
-                skip_y_current -= 1;
-                skip_y = true
+        for _y in 0..dimensions.height {
+            if current_position.y >= clip.max.y as i64 {
+                return;
             }
+            for x in 0..dimensions.width {
+                if current_position.x >= clip.max.x as i64 {
+                    let skip = (dimensions.width - x) as usize;
+                    image_data.nth(skip * 3 - 1);
 
-            let mut skip_x_current = skip_x;
-            for x in 0..image.dimensions().width {
-                let r = *image_data.next().unwrap_or(&0);
-                let g = *image_data.next().unwrap_or(&0);
-                let b = *image_data.next().unwrap_or(&0);
+                    break;
+                }
 
-                if skip_x_current > 0 {
-                    skip_x_current -= 1;
-                } else if x < max_x && !skip_y {
-                    let mut skip_alpha = false;
-                    if let Some(alpha_val) = alpha_val {
-                        if r == alpha_val.r && g == alpha_val.g && b == alpha_val.b {
-                            skip_alpha = true;
-                        }
-                    }
+                let color = Color::new(
+                    *image_data.next().unwrap_or(&0),
+                    *image_data.next().unwrap_or(&0),
+                    *image_data.next().unwrap_or(&0),
+                );
+                if current_position.x >= clip.min.x && current_position.y >= clip.min.y {
+                    let skip_alpha = if let Some(alpha_val) = alpha_val {
+                        color.r == alpha_val.r && color.g == alpha_val.g && color.b == alpha_val.b
+                    } else {
+                        false
+                    };
+
                     if !skip_alpha {
-                        let pixel_bytes = &mut self.buffer[line_pos..];
-                        pixel_bytes[self.format.r_position] = r;
-                        pixel_bytes[self.format.g_position] = g;
-                        pixel_bytes[self.format.b_position] = b;
+                        self.draw_pixel_unchecked(&current_position, &color);
                     }
-
-                    line_pos += self.format.bytes_per_pixel as usize;
                 }
+
+                current_position.x += 1;
             }
 
-            if !skip_y {
-                line_start += (self.format.stride * self.format.bytes_per_pixel) as usize;
-                if line_start >= self.buffer.len() {
-                    return;
-                }
-                line_pos = line_start;
-            }
+            current_position.x = position.x;
+            current_position.y += 1;
         }
+
+        // let skip_y = (-position.y).max(0);
+        // let skip_x = (-position.x).max(0);
+        //
+        // if skip_y as u32 >= image.dimensions().height
+        //     || skip_x as u32 >= image.dimensions().width
+        //     || position.y >= self.dimensions.height as i64
+        //     || position.x >= self.dimensions.width as i64
+        // {
+        //     return;
+        // }
+        //
+        // let mut line_start = (((position.y + skip_y) * self.format.stride as i64
+        //     + (position.x + skip_x))
+        //     * self.format.bytes_per_pixel as i64) as usize;
+        // let mut line_pos = line_start;
+        // let max_x = (self.dimensions.width - position.x as u32).min(image.dimensions().width);
+        //
+        // let mut skip_y_current = skip_y;
+        //
+        // for _y in 0..image.dimensions().height {
+        //     let mut skip_y = false;
+        //     if skip_y_current > 0 {
+        //         skip_y_current -= 1;
+        //         skip_y = true
+        //     }
+        //
+        //     let mut skip_x_current = skip_x;
+        //     for x in 0..image.dimensions().width {
+        //         let r = *image_data.next().unwrap_or(&0);
+        //         let g = *image_data.next().unwrap_or(&0);
+        //         let b = *image_data.next().unwrap_or(&0);
+        //
+        //         if skip_x_current > 0 {
+        //             skip_x_current -= 1;
+        //         } else if x < max_x && !skip_y {
+        //             let mut skip_alpha = false;
+        //             if let Some(alpha_val) = alpha_val {
+        //                 if r == alpha_val.r && g == alpha_val.g && b == alpha_val.b {
+        //                     skip_alpha = true;
+        //                 }
+        //             }
+        //             if !skip_alpha {
+        //                 let pixel_bytes = &mut self.buffer[line_pos..];
+        //                 pixel_bytes[self.format.r_position] = r;
+        //                 pixel_bytes[self.format.g_position] = g;
+        //                 pixel_bytes[self.format.b_position] = b;
+        //             }
+        //
+        //             line_pos += self.format.bytes_per_pixel as usize;
+        //         }
+        //     }
+        //
+        //     if !skip_y {
+        //         line_start += (self.format.stride * self.format.bytes_per_pixel) as usize;
+        //         if line_start >= self.buffer.len() {
+        //             return;
+        //         }
+        //         line_pos = line_start;
+        //     }
+        // }
     }
 
     pub fn draw_char<F: Font>(&mut self, color: &Color, character: char, position: &Position) {

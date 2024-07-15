@@ -1,4 +1,4 @@
-use super::Font;
+use super::font::{Character, Font};
 use crate::types::*;
 use crate::Framebuffer;
 
@@ -21,6 +21,22 @@ pub enum Origin {
 pub struct Line<'a> {
     pub text: &'a str,
     pub hyphenated: bool,
+}
+
+impl<'a> Line<'a> {
+    pub fn width<F: Font>(&self) -> u32 {
+        self.text
+            .chars()
+            .filter_map(|c| F::get_char(c).map(|c| Character::from_raw(c)))
+            .fold(0, |acc, c| acc + c.width) as u32
+    }
+
+    pub fn width_at<F: Font>(&self, index: usize) -> u32 {
+        self.text[..index.min(self.text.len())]
+            .chars()
+            .filter_map(|c| F::get_char(c).map(|c| Character::from_raw(c)))
+            .fold(0, |acc, c| acc + c.width) as u32
+    }
 }
 
 pub struct Lines<'a, F>
@@ -55,7 +71,7 @@ impl<'a, F: Font> Lines<'a, F> {
             TextWrap::Everywhere => {
                 Lines::<F>::layout_wrapped_everywhere(text, &mut lines, max_dimensions)
             }
-        };
+        } + 1; //TODO: figure out why this looks better
 
         let dimensions = Dimension::new(width, lines.len().max(1) as u32 * F::CHAR_HEIGHT);
 
@@ -84,7 +100,7 @@ impl<'a, F: Font> Lines<'a, F> {
                 TextWrap::Everywhere => {
                     Lines::<F>::layout_wrapped_everywhere(text, &mut lines, max_dimensions)
                 }
-            };
+            } + 1; //TODO: figure out why this looks better
 
             longest_line = longest_line.max(width);
         }
@@ -105,12 +121,14 @@ impl<'a, F: Font> Lines<'a, F> {
 
         let text = &text[..chars_per_line.min(text.len())];
 
-        lines.push(Line {
+        let line = Line {
             text,
             hyphenated: false,
-        });
+        };
 
-        F::CHAR_WIDTH as u32 * text.len() as u32
+        let width = line.width::<F>();
+        lines.push(line);
+        width
     }
 
     fn layout_wrapped_everywhere(
@@ -122,12 +140,13 @@ impl<'a, F: Font> Lines<'a, F> {
 
         text.lines().fold(0, |mut width, mut orig_line| {
             while orig_line.len() > chars_per_line {
-                lines.push(Line {
+                let line = Line {
                     text: &orig_line[..chars_per_line],
                     hyphenated: false,
-                });
+                };
 
-                width = chars_per_line as u32 * F::CHAR_WIDTH;
+                width = width.max(line.width::<F>());
+                lines.push(line);
 
                 orig_line = &orig_line[chars_per_line..];
             }
@@ -136,12 +155,12 @@ impl<'a, F: Font> Lines<'a, F> {
                 return width;
             }
 
-            let remaining_width = orig_line.len() as u32 * F::CHAR_WIDTH;
-            lines.push(Line {
+            let line = Line {
                 text: orig_line,
                 hyphenated: false,
-            });
-            width = width.max(remaining_width);
+            };
+            width = width.max(line.width::<F>());
+            lines.push(line);
 
             width
         })
@@ -162,7 +181,14 @@ impl<'a, F: Font> Lines<'a, F> {
         let max_visible_lines = max_dimensions.height / F::CHAR_HEIGHT;
 
         lines.reserve(lines_hint.min(max_visible_lines as usize));
+
         let mut longest_line = 0;
+        macro_rules! push_line {
+            ($line:expr) => {
+                longest_line = longest_line.max($line.width::<F>());
+                lines.push($line);
+            };
+        }
 
         for orig_line in text.lines() {
             let mut line_start = 0;
@@ -172,20 +198,18 @@ impl<'a, F: Font> Lines<'a, F> {
                 let mut word_len = word.len();
                 if word_len > chars_per_line {
                     if line_pos > 0 {
-                        lines.push(Line {
+                        push_line!(Line {
                             text: &orig_line[line_start..line_start + line_pos],
                             hyphenated: false,
                         });
-                        longest_line = longest_line.max(line_pos);
                         line_start += line_pos;
                         line_pos = 0;
                     }
                     while word_len > chars_per_line {
-                        lines.push(Line {
+                        push_line!(Line {
                             text: &orig_line[line_start..line_start + chars_per_line],
                             hyphenated: hyphenate,
                         });
-                        longest_line = longest_line.max(chars_per_line);
                         word_len -= chars_per_line;
                         line_start += chars_per_line;
                         line_pos = 0;
@@ -193,11 +217,10 @@ impl<'a, F: Font> Lines<'a, F> {
                 }
 
                 if line_pos + word_len > chars_per_line {
-                    lines.push(Line {
+                    push_line!(Line {
                         text: &orig_line[line_start..line_start + line_pos],
                         hyphenated: false,
                     });
-                    longest_line = longest_line.max(line_pos);
                     line_start += line_pos;
                     line_pos = 0;
                 }
@@ -210,15 +233,14 @@ impl<'a, F: Font> Lines<'a, F> {
             }
 
             if line_start < orig_line.len() {
-                lines.push(Line {
+                push_line!(Line {
                     text: &orig_line[line_start..],
                     hyphenated: false,
                 });
-                longest_line = longest_line.max(line_pos);
             }
         }
 
-        longest_line as u32 * F::CHAR_WIDTH
+        longest_line
     }
 
     pub fn char_position(&self, index: usize) -> Position {
@@ -228,7 +250,7 @@ impl<'a, F: Font> Lines<'a, F> {
             if curr_index + line.text.len() >= index {
                 let char_index = index - curr_index;
                 return Position {
-                    x: char_index as i64 * F::CHAR_WIDTH as i64,
+                    x: line.width_at::<F>(char_index) as i64,
                     y: line_index as i64 * F::CHAR_HEIGHT as i64,
                 };
             }

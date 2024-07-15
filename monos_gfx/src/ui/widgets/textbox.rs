@@ -10,6 +10,7 @@ where
 {
     text: &'a mut String,
     wrap: TextWrap,
+    char_limit: Option<usize>,
     font: PhantomData<F>,
 }
 
@@ -25,11 +26,17 @@ impl<'a, F: Font> Textbox<'a, F> {
             text,
             wrap: TextWrap::Disabled,
             font: PhantomData,
+            char_limit: None,
         }
     }
 
     pub fn wrap(mut self, wrap: TextWrap) -> Self {
         self.wrap = wrap;
+        self
+    }
+
+    pub fn char_limit(mut self, limit: usize) -> Self {
+        self.char_limit = Some(limit);
         self
     }
 }
@@ -52,6 +59,12 @@ impl<F: Font> UIElement for Textbox<'_, F> {
 
             match event.key {
                 Key::Unicode(c) => {
+                    if let Some(limit) = self.char_limit {
+                        if self.text.len() >= limit {
+                            continue;
+                        }
+                    }
+
                     self.text.insert(state.cursor, c);
                     state.cursor += 1;
                 }
