@@ -59,7 +59,7 @@ impl ImageLoader for PPMLoader {
         let size_bytes = dimensions.width as usize * dimensions.height as usize * 3;
 
         let start_offset = pixel_data.len();
-        pixel_data.resize(size_bytes, 0);
+        pixel_data.resize(start_offset + size_bytes, 0);
         data.read(&mut pixel_data[start_offset..]);
 
         Some(Image::new(
