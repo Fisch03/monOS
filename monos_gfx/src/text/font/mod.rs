@@ -4,6 +4,9 @@ pub use cozette::Cozette;
 mod glean;
 pub use glean::Glean;
 
+mod haeberli;
+pub use haeberli::Haeberli;
+
 pub trait Font {
     const CHAR_WIDTH: u32;
     const CHAR_HEIGHT: u32;

@@ -13,11 +13,14 @@ pub mod types;
 pub use types::*;
 
 pub mod text;
+pub use text::font;
 
 pub mod image;
 pub use image::{Image, ImageFormat};
 
 pub mod input;
+pub use input::Input;
+
 pub mod ui;
 
 pub mod paint;

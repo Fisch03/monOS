@@ -10,6 +10,31 @@ impl Position {
     pub const fn new(x: i64, y: i64) -> Position {
         Position { x, y }
     }
+
+    pub const fn zero() -> Position {
+        Position { x: 0, y: 0 }
+    }
+
+    pub const fn from_dimensions(dimensions: Dimension) -> Position {
+        Position {
+            x: dimensions.width as i64,
+            y: dimensions.height as i64,
+        }
+    }
+
+    pub fn magnitude(&self) -> f32 {
+        (self.x * self.x + self.y * self.y) as f32
+    }
+}
+
+impl core::ops::Neg for Position {
+    type Output = Position;
+    fn neg(self) -> Position {
+        Position {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
 }
 
 impl core::ops::Add<i64> for Position {
@@ -102,6 +127,14 @@ impl core::ops::Sub<Dimension> for Position {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum Edge {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Rect {
     pub min: Position,
@@ -127,16 +160,19 @@ impl Rect {
         }
     }
 
-    pub fn centered_in(parent: Rect, dimensions: Dimension) -> Rect {
+    pub const fn centered_in(parent: Rect, dimensions: Dimension) -> Rect {
         let min = Position::new(
             parent.min.x + (parent.width() as i64 - dimensions.width as i64) / 2,
             parent.min.y + (parent.height() as i64 - dimensions.height as i64) / 2,
         );
-        let max = min + dimensions;
+        let max = Position::new(
+            min.x + dimensions.width as i64,
+            min.y + dimensions.height as i64,
+        );
         Rect { min, max }
     }
 
-    pub fn dimensions(&self) -> Dimension {
+    pub const fn dimensions(&self) -> Dimension {
         Dimension::new(self.width(), self.height())
     }
 
@@ -148,29 +184,61 @@ impl Rect {
         (self.max.y - self.min.y) as u32
     }
 
-    pub fn center(&self) -> Position {
+    pub const fn center(&self) -> Position {
         Position {
             x: (self.min.x + self.max.x) / 2,
             y: (self.min.y + self.max.y) / 2,
         }
     }
 
-    pub fn shrink(&self, padding: u32) -> Rect {
+    pub const fn shrink(&self, padding: u32) -> Rect {
         Rect {
-            min: self.min + padding as i64,
-            max: self.max - padding as i64,
+            min: Position::new(self.min.x + padding as i64, self.min.y + padding as i64),
+            max: Position::new(self.max.x - padding as i64, self.max.y - padding as i64),
         }
     }
 
-    pub fn contains(&self, pos: Position) -> bool {
+    pub const fn contains(&self, pos: Position) -> bool {
         pos.x >= self.min.x && pos.x < self.max.x && pos.y >= self.min.y && pos.y < self.max.y
     }
 
-    pub fn translate(&self, offset: Position) -> Rect {
+    pub const fn translate(&self, offset: Position) -> Rect {
         Rect {
-            min: self.min + offset,
-            max: self.max + offset,
+            min: Position {
+                x: self.min.x + offset.x,
+                y: self.min.y + offset.y,
+            },
+            max: Position {
+                x: self.max.x + offset.x,
+                y: self.max.y + offset.y,
+            },
         }
+    }
+
+    pub const fn intersects(&self, other: &Rect) -> bool {
+        self.min.x < other.max.x
+            && self.max.x > other.min.x
+            && self.min.y < other.max.y
+            && self.max.y > other.min.y
+    }
+
+    /// check if self sits on the edge of other
+    pub const fn intersects_edge(&self, other: &Rect) -> Option<Edge> {
+        if !self.intersects(other) {
+            return None;
+        }
+
+        if self.min.y < other.min.y && self.max.y > other.min.y {
+            return Some(Edge::Top);
+        } else if self.max.y > other.max.y && self.min.y < other.max.y {
+            return Some(Edge::Bottom);
+        } else if self.min.x < other.min.x && self.max.x > other.min.x {
+            return Some(Edge::Left);
+        } else if self.max.x > other.max.x && self.min.x < other.max.x {
+            return Some(Edge::Right);
+        }
+
+        None
     }
 }
 

@@ -117,7 +117,6 @@ impl<'a> Framebuffer<'a> {
         self.buffer.len()
     }
 
-    #[inline(always)]
     pub fn clear(&mut self) {
         // for some reason, the builtin fill function is *really* slow, so we'll do it manually
         // self.back_buffer.fill(0);
@@ -130,7 +129,6 @@ impl<'a> Framebuffer<'a> {
         (pos.y * self.format.stride as i64 + pos.x) * self.format.bytes_per_pixel as i64
     }
 
-    #[inline(always)]
     pub fn clear_alpha(&mut self) {
         if let Some(a_position) = self.format.a_position {
             for i in (0..self.buffer.len()).step_by(self.format.bytes_per_pixel as usize) {
@@ -139,7 +137,6 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
-    #[inline(always)]
     pub fn clear_with(&mut self, fb: &Framebuffer) {
         assert!(self.buffer.len() == fb.buffer.len());
         assert!(self.format == fb.format);
@@ -153,8 +150,8 @@ impl<'a> Framebuffer<'a> {
         };
     }
 
-    #[inline(always)]
     pub fn clear_region(&mut self, rect: &Rect, fb: &Framebuffer) {
+        assert!(self.buffer.len() == fb.buffer.len());
         assert!(self.format == fb.format);
 
         let mut line_start = ((rect.min.y * self.format.stride as i64 + rect.min.x)
@@ -179,6 +176,112 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
+    pub fn draw_fb(&mut self, fb: &Framebuffer, position: &Position) {
+        self.draw_fb_clipped(fb, position, &Rect::from_dimensions(self.dimensions))
+    }
+    pub fn draw_fb_clipped(&mut self, fb: &Framebuffer, position: &Position, clip: &Rect) {
+        let clip = Rect {
+            min: Position::new(clip.min.x.max(0), clip.min.y.max(0)),
+            max: Position::new(
+                clip.max.x.min(self.dimensions.width as i64),
+                clip.max.y.min(self.dimensions.height as i64),
+            ),
+        };
+
+        let mut current_position = position.clone();
+
+        for y in 0..fb.dimensions.height as i64 {
+            if current_position.y >= clip.max.y as i64 {
+                return;
+            }
+            for x in 0..fb.dimensions.width as i64 {
+                if current_position.x >= clip.max.x as i64 {
+                    break;
+                }
+                let byte_offset = fb.pos_to_offset(&Position { x, y }) as usize;
+                let pixel_bytes = &fb.buffer[byte_offset..];
+                let color = Color::new(
+                    pixel_bytes[fb.format.r_position],
+                    pixel_bytes[fb.format.g_position],
+                    pixel_bytes[fb.format.b_position],
+                );
+                if current_position.x >= clip.min.x && current_position.y >= clip.min.y {
+                    self.draw_pixel_unchecked(&current_position, &color);
+                }
+                current_position.x += 1;
+            }
+            current_position.x = position.x;
+            current_position.y += 1;
+        }
+    }
+
+    pub fn draw_fb_scaled(&mut self, fb: &Framebuffer, position: &Position, scale: u32) {
+        self.draw_fb_scaled_clipped(fb, position, scale, &Rect::from_dimensions(self.dimensions))
+    }
+    pub fn draw_fb_scaled_clipped(
+        &mut self,
+        fb: &Framebuffer,
+        position: &Position,
+        scale: u32,
+        clip: &Rect,
+    ) {
+        let clip = Rect {
+            min: Position::new(clip.min.x.max(0), clip.min.y.max(0)),
+            max: Position::new(
+                clip.max.x.min(self.dimensions.width as i64),
+                clip.max.y.min(self.dimensions.height as i64),
+            ),
+        };
+
+        let mut current_position = position.clone();
+
+        for y in 0..fb.dimensions.height as i64 {
+            if current_position.y >= clip.max.y as i64 {
+                return;
+            }
+            for x in 0..fb.dimensions.width as i64 {
+                if current_position.x >= clip.max.x as i64 {
+                    break;
+                }
+                let byte_offset = fb.pos_to_offset(&Position { x, y }) as usize;
+                let pixel_bytes = &fb.buffer[byte_offset..];
+                let color = Color::new(
+                    pixel_bytes[fb.format.r_position],
+                    pixel_bytes[fb.format.g_position],
+                    pixel_bytes[fb.format.b_position],
+                );
+                for y in 0..scale as i64 {
+                    for x in 0..scale as i64 {
+                        let scale_pos = Position {
+                            x: current_position.x + x,
+                            y: current_position.y + y,
+                        };
+
+                        if scale_pos.x >= clip.min.x
+                            && scale_pos.y >= clip.min.y
+                            && scale_pos.x < clip.max.x
+                            && scale_pos.y < clip.max.y
+                        {
+                            self.draw_pixel_unchecked(&scale_pos, &color);
+                        }
+                        {
+                            self.draw_pixel_unchecked(
+                                &Position {
+                                    x: current_position.x + x,
+                                    y: current_position.y + y,
+                                },
+                                &color,
+                            );
+                        }
+                    }
+                }
+                current_position.x += scale as i64;
+            }
+            current_position.x = position.x;
+            current_position.y += scale as i64;
+        }
+    }
+
     pub fn draw_vert_line(&mut self, start: Position, len: i64, color: &Color) {
         let start = Position {
             x: start.x.max(0).min(self.dimensions.width as i64),
@@ -191,6 +294,28 @@ impl<'a> Framebuffer<'a> {
 
         for y in start.y..end_y {
             self.draw_pixel_unchecked(&Position { x: start.x, y }, color);
+        }
+    }
+
+    pub fn draw_line(&mut self, start: &Position, end: &Position, color: &Color) {
+        let dx = (end.x - start.x).abs();
+        let dy = (end.y - start.y).abs();
+        let sx = if start.x < end.x { 1 } else { -1 };
+        let sy = if start.y < end.y { 1 } else { -1 };
+        let mut err = dx - dy;
+        let mut x = start.x;
+        let mut y = start.y;
+        while x != end.x || y != end.y {
+            self.draw_pixel(&Position { x, y }, &color);
+            let e2 = 2 * err;
+            if e2 > -dy {
+                err -= dy;
+                x += sx;
+            }
+            if e2 < dx {
+                err += dx;
+                y += sy;
+            }
         }
     }
 
@@ -410,32 +535,8 @@ impl<'a> Framebuffer<'a> {
         let byte_offset = self.pos_to_offset(position) as usize;
 
         let pixel_bytes = &mut self.buffer[byte_offset..];
-        // match self.info.pixel_format {
-        //     PixelFormat::Rgb => {
         pixel_bytes[self.format.r_position] = color.r;
         pixel_bytes[self.format.g_position] = color.g;
         pixel_bytes[self.format.b_position] = color.b;
-        //     }
-        //     PixelFormat::Bgr => {
-        //         pixel_bytes[0] = color.b;
-        //         pixel_bytes[1] = color.g;
-        //         pixel_bytes[2] = color.r;
-        //     }
-        //     PixelFormat::U8 => {
-        //         pixel_bytes[0] = color.r / 3 + color.g / 3 + color.b / 3;
-        //     }
-        //     PixelFormat::Unknown {
-        //         red_position,
-        //         green_position,
-        //         blue_position,
-        //     } => {
-        //         pixel_bytes[red_position as usize] = color.r;
-        //         pixel_bytes[green_position as usize] = color.g;
-        //         pixel_bytes[blue_position as usize] = color.b;
-        //     }
-        //     _ => {
-        //         panic!("Unsupported pixel format");
-        //     }
-        // }
     }
 }

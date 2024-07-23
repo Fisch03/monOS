@@ -31,7 +31,7 @@ impl Image {
     }
 
     #[inline]
-    pub fn dimensions(&self) -> Dimension {
+    pub const fn dimensions(&self) -> Dimension {
         self.dimensions
     }
 

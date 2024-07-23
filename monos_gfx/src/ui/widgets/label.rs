@@ -12,6 +12,7 @@ where
     text: I,
     wrap: TextWrap,
     font: PhantomData<F>,
+    color: Color,
 }
 
 pub struct ScrollableLabel<'a, F, I>
@@ -25,6 +26,7 @@ where
     scroll_y: Option<u32>,
     origin: Origin,
     font: PhantomData<F>,
+    color: Color,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -38,6 +40,7 @@ impl<'a, F: Font> Label<'a, F, Once<&'a str>> {
             text: once(text),
             wrap: TextWrap::Disabled,
             font: PhantomData,
+            color: Color::new(255, 255, 255),
         }
     }
 }
@@ -48,11 +51,17 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> Label<'a, F, I> {
             text,
             wrap: TextWrap::Disabled,
             font: PhantomData,
+            color: Color::new(255, 255, 255),
         }
     }
 
     pub fn wrap(mut self, wrap: TextWrap) -> Label<'a, F, I> {
         self.wrap = wrap;
+        self
+    }
+
+    pub fn text_color(mut self, color: Color) -> Label<'a, F, I> {
+        self.color = color;
         self
     }
 }
@@ -68,7 +77,7 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> UIElement for Label<'a, F, I> {
         let result = context.alloc_space(line_dimensions);
         let lines_rect = Rect::centered_in(result.rect, line_dimensions);
 
-        lines.draw(context.fb, lines_rect.min, Color::new(255, 255, 255));
+        lines.draw(context.fb, lines_rect.min, self.color);
 
         result
     }
@@ -82,6 +91,7 @@ impl<'a, F: Font> ScrollableLabel<'a, F, Once<&'a str>> {
             scroll_x: None,
             scroll_y: None,
             origin,
+            color: Color::new(255, 255, 255),
             font: PhantomData,
         }
     }
@@ -95,6 +105,7 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> ScrollableLabel<'a, F, I> {
             scroll_x: None,
             scroll_y: None,
             origin,
+            color: Color::new(255, 255, 255),
             font: PhantomData,
         }
     }
@@ -111,6 +122,11 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> ScrollableLabel<'a, F, I> {
 
     pub fn wrap(mut self, wrap: TextWrap) -> ScrollableLabel<'a, F, I> {
         self.wrap = wrap;
+        self
+    }
+
+    pub fn text_color(mut self, color: Color) -> ScrollableLabel<'a, F, I> {
+        self.color = color;
         self
     }
 }
@@ -210,7 +226,7 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> UIElement for ScrollableLabel<'a,
             context.fb.draw_vert_line(
                 Position::new(lines_rect.max.x - 1, scroll_y),
                 scroll_len,
-                &Color::new(255, 255, 255),
+                &self.color,
             );
         }
         lines.draw_clipped(
@@ -218,9 +234,8 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> UIElement for ScrollableLabel<'a,
             lines_rect,
             state.offset,
             self.origin,
-            Color::new(255, 255, 255),
+            self.color,
         );
-        // lines.draw(context.fb, lines_rect.min, Color::new(255, 255, 255));
 
         context.state_insert(id, state);
 

@@ -289,7 +289,7 @@ impl<'a, F: Font> Lines<'a, F> {
         let (start_line, end_line) = match origin {
             Origin::Top => {
                 let start_line = offset.y as usize / F::CHAR_HEIGHT as usize;
-                let end_line = (start_line + visible_lines + 1).min(self.lines.len());
+                let end_line = (start_line + visible_lines + 2).min(self.lines.len());
 
                 (start_line, end_line)
             }
@@ -304,11 +304,13 @@ impl<'a, F: Font> Lines<'a, F> {
         let mut curr_position = Position {
             x: rect.min.x + offset.x,
             y: match origin {
-                Origin::Top => rect.min.y,
+                Origin::Top => rect.min.y - (offset.y % F::CHAR_HEIGHT as i64),
+
                 Origin::Bottom => {
                     rect.max.y - (end_line - start_line) as i64 * F::CHAR_HEIGHT as i64
+                        + (offset.y % F::CHAR_HEIGHT as i64)
                 }
-            } + (offset.y % F::CHAR_HEIGHT as i64),
+            },
         };
 
         for line in self.lines[start_line..end_line].iter() {

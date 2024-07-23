@@ -17,6 +17,21 @@ impl Input {
         self.mouse.clear();
         self.keyboard.clear();
     }
+
+    pub fn key_pressed(&self, key: Key) -> bool {
+        self.keyboard
+            .iter()
+            .any(|e| e.key == key && e.state == KeyState::Down)
+    }
+
+    pub fn consume_key(&mut self, key: Key) -> Option<KeyState> {
+        let index = self.keyboard.iter().position(|e| e.key == key);
+        if let Some(index) = index {
+            self.keyboard.remove(index).map(|e| e.state)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
