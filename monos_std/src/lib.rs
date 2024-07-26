@@ -16,6 +16,8 @@ pub mod filesystem;
 pub mod messaging;
 
 pub mod dev;
+
+#[cfg(any(feature = "userspace", feature = "syscall"))]
 pub mod syscall;
 
 pub use prelude::*;
@@ -23,8 +25,10 @@ pub use prelude::*;
 pub mod prelude {
     pub use crate::filesystem::FileHandle;
     pub use crate::io::{Read, Seek, Write};
-    pub use crate::{messaging::MessageData, syscall};
+    pub use crate::{messaging::MessageData};
 
+    #[cfg(feature = "syscall")]
+    pub use crate::syscall;
     #[cfg(feature = "userspace")]
     pub use crate::{dbg, print, println};
 

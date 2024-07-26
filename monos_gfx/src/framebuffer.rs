@@ -256,23 +256,8 @@ impl<'a> Framebuffer<'a> {
                             x: current_position.x + x,
                             y: current_position.y + y,
                         };
-
-                        if scale_pos.x >= clip.min.x
-                            && scale_pos.y >= clip.min.y
-                            && scale_pos.x < clip.max.x
-                            && scale_pos.y < clip.max.y
-                        {
-                            self.draw_pixel_unchecked(&scale_pos, &color);
-                        }
-                        {
-                            self.draw_pixel_unchecked(
-                                &Position {
-                                    x: current_position.x + x,
-                                    y: current_position.y + y,
-                                },
-                                &color,
-                            );
-                        }
+                        
+                        self.draw_pixel(&scale_pos, &color); // TODO: optimize
                     }
                 }
                 current_position.x += scale as i64;
