@@ -25,7 +25,7 @@ pub use prelude::*;
 pub mod prelude {
     pub use crate::filesystem::FileHandle;
     pub use crate::io::{Read, Seek, Write};
-    pub use crate::{messaging::MessageData};
+    pub use crate::messaging::MessageData;
 
     #[cfg(feature = "syscall")]
     pub use crate::syscall;
@@ -52,6 +52,7 @@ extern "C" {
 pub unsafe extern "sysv64" fn _start() -> ! {
     asm!(
         "and rsp, -16",
+        //"sub rsp, 8", // align stack to 16 bytes
 
         "mov rdi, r10",
         "mov rsi, r11",

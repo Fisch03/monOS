@@ -1,7 +1,6 @@
 use crate::LOWER_HALF_END;
 
 use crate::fs::{fs, DirEntry, DirIter};
-use crate::process::Process;
 use monos_std::filesystem::{FileHandle, Path};
 
 use alloc::boxed::Box;
@@ -19,11 +18,13 @@ pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
         .expect("invalid utf8 string")
     };
     let path = Path::new(path);
+    crate::println!("sys_open: {:?}", path);
 
     let file_handle_ptr = arg3 as *mut Option<FileHandle>;
     let file_handle = unsafe { &mut *file_handle_ptr };
 
     if let Ok(Some(file)) = fs().iter_root_dir().get_entry(path).map(|f| f.as_file()) {
+        crate::println!("sys_open: opened file {:?}", file);
         let mut current_proc = crate::process::CURRENT_PROCESS.write();
         let current_proc = current_proc.as_mut().unwrap();
 

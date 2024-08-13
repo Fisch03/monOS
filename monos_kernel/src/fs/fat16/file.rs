@@ -87,3 +87,13 @@ impl<'fs> Seek for Fat16File<'fs> {
         todo!()
     }
 }
+
+use core::fmt;
+impl fmt::Debug for Fat16File<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Fat16File")
+            .field("name", &self.name())
+            .field("size", &self.size())
+            .finish()
+    }
+}

@@ -226,7 +226,7 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> UIElement for ScrollableLabel<'a,
             context.fb.draw_vert_line(
                 Position::new(lines_rect.max.x - 1, scroll_y),
                 scroll_len,
-                &self.color,
+                self.color,
             );
         }
         lines.draw_clipped(

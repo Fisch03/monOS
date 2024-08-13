@@ -118,9 +118,7 @@ impl<F: Font> UIElement for Textbox<'_, F> {
             cursor_pos,
             Position::new(cursor_pos.x + 1, cursor_pos.y + F::CHAR_HEIGHT as i64),
         );
-        context
-            .fb
-            .draw_rect(&cursor_rect, &Color::new(255, 255, 255));
+        context.fb.draw_rect(cursor_rect, Color::new(255, 255, 255));
 
         context.state_insert(id, state);
 

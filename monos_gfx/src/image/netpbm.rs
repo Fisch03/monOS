@@ -4,12 +4,14 @@ use super::{Image, ImageFormat, ImageLoader};
 
 pub struct PPMLoader;
 
+#[inline(always)]
 fn check_header<T: Read>(data: &T, expected: &[u8]) -> bool {
     let mut header = [0u8; 3];
     data.read(&mut header);
     header.starts_with(expected)
 }
 
+#[inline(always)]
 fn read_number(mut data: &[u8]) -> (u32, &[u8]) {
     let mut number = 0;
 
@@ -38,9 +40,11 @@ fn parse_header<T: Read>(data: &T, expected_format: &[u8]) -> Option<(Dimension,
                                      // to be way larger than anything usable by the OS anyway.
 
     data.read(&mut size_header);
+    //unsafe { core::arch::asm!("", out("rax") _) };
 
     let (width, mut size_header) = read_number(&size_header);
     size_header = &size_header[1..]; // skip space
+
     let (height, mut size_header) = read_number(size_header);
     size_header = &size_header[1..]; // skip newline
 
@@ -48,6 +52,7 @@ fn parse_header<T: Read>(data: &T, expected_format: &[u8]) -> Option<(Dimension,
 }
 
 impl ImageLoader for PPMLoader {
+    #[inline(never)]
     fn load_image<T: Read>(&self, data: &T) -> Option<Image> {
         let (dimensions, header_remaining) = parse_header(data, b"P6")?;
 
@@ -79,7 +84,9 @@ impl ImageLoader for PBMLoader {
         let (dimensions, header_remaining) = parse_header(data, b"P4")?;
 
         let mut pixel_data = Vec::from(header_remaining);
-        let size_bytes = dimensions.width as usize * dimensions.height as usize / 8;
+        let bytes_per_row =
+            dimensions.width as usize / 8 + if dimensions.width % 8 != 0 { 1 } else { 0 };
+        let size_bytes = bytes_per_row * dimensions.height as usize;
         let start_offset = pixel_data.len();
 
         pixel_data.reserve(size_bytes);

@@ -79,7 +79,9 @@ impl<'fs> Fat16DirEntry<'fs> {
         let raw_entry = unsafe { Fat16RawEntry::new(fs, sector, offset) };
 
         let attributes = raw_entry.attributes;
+        crate::println!("attributes: {:08b}", attributes);
         if attributes.get_bits(0..4) == 0x0F {
+            crate::println!("LFN entry");
             // LFN entry
             let lfn_entry =
                 unsafe { &*(&raw_entry as *const Fat16RawEntry as *const Fat16LongFileNameEntry) };
@@ -136,6 +138,14 @@ impl<'fs> Fat16DirEntry<'fs> {
         let first_cluster = u16::from_le_bytes(raw_entry.first_cluster);
         let size = u32::from_le_bytes(raw_entry.size);
         let attributes = raw_entry.attributes;
+
+        crate::println!(
+            "name: {}, first_cluster: {}, size: {}, attributes: {}\n",
+            name,
+            first_cluster,
+            size,
+            attributes
+        );
 
         Ok(Self {
             name,

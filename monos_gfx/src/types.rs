@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Position {
     pub x: i64,
     pub y: i64,
@@ -291,7 +291,8 @@ impl core::ops::Div<u32> for Dimension {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -301,5 +302,25 @@ pub struct Color {
 impl Color {
     pub const fn new(r: u8, g: u8, b: u8) -> Color {
         Color { r, g, b }
+    }
+
+    pub fn from_slice(slice: &[u8; 3]) -> Color {
+        Color {
+            r: slice[0],
+            g: slice[1],
+            b: slice[2],
+        }
+    }
+
+    pub fn as_slice(&self) -> &[u8; 3] {
+        unsafe { &*(self as *const Color as *const [u8; 3]) }
+    }
+
+    pub fn lerp(self, other: Color, t: f32) -> Color {
+        Color {
+            r: (self.r as f32 + (other.r as f32 - self.r as f32) * t) as u8,
+            g: (self.g as f32 + (other.g as f32 - self.g as f32) * t) as u8,
+            b: (self.b as f32 + (other.b as f32 - self.b as f32) * t) as u8,
+        }
     }
 }

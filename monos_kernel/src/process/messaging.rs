@@ -1,12 +1,11 @@
 use super::{Process, CURRENT_PROCESS, PROCESS_QUEUE};
-use alloc::{boxed::Box, string::String, vec::Vec};
-use crossbeam_queue::ArrayQueue;
+use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, vec::Vec};
 pub use monos_std::messaging::{
     ChannelHandle, Message, MessageData, PartialReceiveChannelHandle, PartialSendChannelHandle,
 };
 use spin::{Lazy, RwLock};
 
-const MAX_QUEUE_SIZE: usize = 64;
+const MAX_QUEUE_SIZE: usize = 65;
 
 static PORTS: Lazy<RwLock<Vec<Port>>> = Lazy::new(|| RwLock::new(Vec::new()));
 static SYS_CHANNELS: Lazy<RwLock<Vec<Option<Box<SystemPortReceiveFn>>>>> =
@@ -68,24 +67,25 @@ where
 
 #[derive(Debug)]
 pub struct Mailbox {
-    queue: ArrayQueue<Message>, //TODO: figure out why ArrayQueue doesn't work
+    queue: VecDeque<Message>,
 }
 
 impl Mailbox {
     pub fn new() -> Mailbox {
         Mailbox {
-            queue: ArrayQueue::new(MAX_QUEUE_SIZE),
+            queue: VecDeque::with_capacity(MAX_QUEUE_SIZE),
         }
     }
 
-    pub fn send(&self, message: Message) {
-        if let Err(_message) = self.queue.push(message) {
+    pub fn send(&mut self, message: Message) {
+        if self.queue.len() >= MAX_QUEUE_SIZE {
             todo!("block sender until there is space in the queue")
         }
+        self.queue.push_back(message);
     }
 
-    pub fn receive(&self) -> Option<Message> {
-        self.queue.pop()
+    pub fn receive(&mut self) -> Option<Message> {
+        self.queue.pop_front()
     }
 
     pub fn len(&self) -> usize {
@@ -154,21 +154,21 @@ pub fn send(message: Message, receiver_handle: PartialSendChannelHandle) {
         return;
     }
 
-    let current_process = CURRENT_PROCESS.read();
-    let process_queue = PROCESS_QUEUE.read();
+    let mut current_process = CURRENT_PROCESS.write();
+    let mut process_queue = PROCESS_QUEUE.write();
     let process = if current_process.as_ref().is_some()
         && current_process.as_ref().unwrap().id() == receiver
     {
-        current_process.as_ref().unwrap()
-    } else if let Some(process) = process_queue.iter().find(|p| p.id == receiver) {
-        process.as_ref()
+        current_process.as_mut().unwrap()
+    } else if let Some(process) = process_queue.iter_mut().find(|p| p.id == receiver) {
+        process.as_mut()
     } else {
         todo!("handle blocked process / process not found")
     };
 
     if let Some(mailbox) = process
         .channels
-        .get(receiver_handle.target_channel as usize)
+        .get_mut(receiver_handle.target_channel as usize)
     {
         mailbox.send(message);
     } else {

@@ -164,7 +164,7 @@ mod calls {
                 in("rsi") arg2,
                 in("rdx") arg3,
                 lateout("rax") ret,
-                out("rcx") _, out("r11") _, out("r9") _
+                out("rcx") _, out("r11") _, out("r9") _,
 
             );
         }

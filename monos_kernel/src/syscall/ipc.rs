@@ -29,8 +29,8 @@ pub fn sys_receive(handle: ChannelHandle, arg1: u64) {
     let message_ptr = arg1 as *mut Option<Message>;
     let message = unsafe { &mut *message_ptr };
 
-    let current_proc = crate::process::CURRENT_PROCESS.read();
-    let current_proc = current_proc.as_ref().unwrap();
+    let mut current_proc = crate::process::CURRENT_PROCESS.write();
+    let current_proc = current_proc.as_mut().unwrap();
 
     *message = current_proc.receive(handle.recv_part());
 }
@@ -39,8 +39,8 @@ pub fn sys_receive_any(arg1: u64) {
     let message_ptr = arg1 as *mut Option<Message>;
     let message = unsafe { &mut *message_ptr };
 
-    let current_proc = crate::process::CURRENT_PROCESS.read();
-    let current_proc = current_proc.as_ref().unwrap();
+    let mut current_proc = crate::process::CURRENT_PROCESS.write();
+    let current_proc = current_proc.as_mut().unwrap();
 
     *message = current_proc.receive_any();
 }

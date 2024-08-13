@@ -266,10 +266,10 @@ impl<'a, F: Font> Lines<'a, F> {
     pub fn draw(&self, fb: &mut Framebuffer, position: Position, color: Color) {
         let mut curr_position = position;
         for line in self.iter() {
-            fb.draw_str::<F>(&color, line.text, &curr_position);
+            fb.draw_str::<F>(color, line.text, curr_position);
             curr_position.x += F::CHAR_WIDTH as i64 * line.text.len() as i64;
             if line.hyphenated {
-                fb.draw_char::<F>(&color, '-', &curr_position);
+                fb.draw_char::<F>(color, '-', &curr_position);
             }
             curr_position.x = position.x;
             curr_position.y += F::CHAR_HEIGHT as i64;
@@ -314,7 +314,7 @@ impl<'a, F: Font> Lines<'a, F> {
         };
 
         for line in self.lines[start_line..end_line].iter() {
-            fb.draw_str_clipped::<F>(&color, &line.text, &curr_position, &rect);
+            fb.draw_str_clipped::<F>(color, &line.text, curr_position, rect);
             curr_position.y += F::CHAR_HEIGHT as i64;
         }
     }

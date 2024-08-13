@@ -1,4 +1,4 @@
-use crate::{Color, Dimension};
+use crate::{Color, Dimension, Position};
 pub use monos_std::io::SliceReader;
 
 mod netpbm;
@@ -21,7 +21,7 @@ pub enum ImageFormat {
 
 #[derive(Clone)]
 pub struct Image {
-    dimensions: Dimension,
+    pub dimensions: Dimension,
     pub data: ImageFormat,
 }
 
@@ -30,11 +30,33 @@ impl Image {
         Self { dimensions, data }
     }
 
+    pub fn get_pixel(&self, pos: Position) -> Color {
+        match &self.data {
+            ImageFormat::RGB { data, .. } => {
+                let offset = (pos.y * self.dimensions.width as i64 + pos.x) as usize * 3;
+                Color::new(data[offset], data[offset + 1], data[offset + 2])
+            }
+            ImageFormat::Bitmap { data, color } => {
+                let bytes_per_row = self.dimensions.width as usize / 8
+                    + if self.dimensions.width % 8 != 0 { 1 } else { 0 };
+                let byte_offset = (pos.y * bytes_per_row as i64 + pos.x / 8) as usize;
+                let bit_offset = pos.x % 8;
+                let bit_offset = 7 - bit_offset;
+                if data[byte_offset] & (1 << bit_offset) != 0 {
+                    *color
+                } else {
+                    Color::new(0, 0, 0)
+                }
+            }
+        }
+    }
+
     #[inline]
     pub const fn dimensions(&self) -> Dimension {
         self.dimensions
     }
 
+    #[inline(always)]
     pub fn from_ppm<T: Read>(data: &T) -> Option<Self> {
         netpbm::PPMLoader.load_image(data)
     }
@@ -60,6 +82,15 @@ impl Image {
         match &mut self.data {
             ImageFormat::RGB { alpha_val, .. } => {
                 *alpha_val = Some(color);
+            }
+            _ => (),
+        }
+    }
+
+    pub fn set_opaque_color(&mut self, color: Color) {
+        match &mut self.data {
+            ImageFormat::Bitmap { color: c, .. } => {
+                *c = color;
             }
             _ => (),
         }

@@ -130,13 +130,13 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 }
 
 impl Process {
-    pub fn receive(&self, handle: PartialReceiveChannelHandle) -> Option<Message> {
-        let mailbox = self.channels.get(handle.own_channel as usize)?;
+    pub fn receive(&mut self, handle: PartialReceiveChannelHandle) -> Option<Message> {
+        let mailbox = self.channels.get_mut(handle.own_channel as usize)?;
         mailbox.receive()
     }
 
-    pub fn receive_any(&self) -> Option<Message> {
-        for mailbox in &self.channels {
+    pub fn receive_any(&mut self) -> Option<Message> {
+        for mailbox in &mut self.channels {
             if let Some(message) = mailbox.receive() {
                 return Some(message);
             }

@@ -40,33 +40,40 @@ pub fn init() {
 extern "C" fn handle_syscall() {
     unsafe {
         asm!(
-            // backup registers for sysretq
-            "push rcx",
-            "push r11",
-            "push rbp",
+            // get access to kernel stack
+            "swapgs",
+            "mov gs:{temp_stack}, rsp", // save current rsp
 
-            // save callee-saved registers
-            "push rbx", 
+            "mov rsp, gs:{kernel_stack}",
+            "sub rsp, {kernel_stack_offset}",
+
+            "sub rsp, 8",
+            "push gs:{temp_stack}",
+            "swapgs", // switch to user gs
+
+            // backup registers for sysretq
+            "push r11",
+            "sub rsp, 8",
+            "push rcx",
+
+            "push rax",
+            "push rbx",
+            "push rcx",
+            "push rdx",
+
+            "push rdi",
+            "push rsi",
+            "push rbp",
+            "push r8",
+
+            "push r9",
+            "push r10",
+            "push r11",
             "push r12",
+
             "push r13",
             "push r14",
             "push r15",
-
-            // save syscall args
-            "push r10",
-            "push rdx",
-            "push rsi",
-            "push rdi",
-            // "push rax",
-            "push 0", // push dummy return value (will be popped into rax)
-
-            
-            // get access to kernel stack
-            "swapgs",
-            "mov rcx, rsp", // back up current rsp
-            "mov rsp, gs:{kernel_stack}",
-            "sub rsp, {kernel_stack_offset}",
-            "push rcx",
 
             // convert syscall args to c abi
             // c abi:   rdi, rsi, rdx, rcx, r8, r9
@@ -82,32 +89,32 @@ extern "C" fn handle_syscall() {
             "call {dispatch_syscall}",
 
             
-            // switch back to original GS
-            "pop rcx",
-            "mov rsp, rcx", // restore original rsp
-            "swapgs",
-
-            // restore syscall args
-            "pop rax",
-            "pop rdi",
-            "pop rsi",
-            "pop rdx",
-            "pop r10",
-
-            // restore callee-saved registers
-            "pop r15", 
+            "pop r15", // restore callee-saved registers
             "pop r14",
             "pop r13",
-            "pop r12",
-            "pop rbx",
 
-             // restore stack and registers for sysretq
-            "pop rbp",
+            "pop r12",
             "pop r11",
+            "pop r10",
+            "pop r9",
+
+            "pop r8",
+            "pop rbp",
+            "pop rsi",
+            "pop rdi",
+
+            "pop rdx",
             "pop rcx",
+            "pop rbx",
+            "pop rax",
+
+            "add rsp, 24", // Skip RIP, CS and RFLAGS
+            "pop rsp", // Restore user stack
+
             "sysretq", // back to userland
 
             kernel_stack = const(0x24 + gdt::TIMER_IST_INDEX * 8),
+            temp_stack = const(0x24 + gdt::SYSCALL_TEMP_INDEX * 8),
             kernel_stack_offset = const(1024),
             dispatch_syscall = sym dispatch_syscall,
             options(noreturn));
