@@ -259,6 +259,13 @@ impl Dimension {
             height: 0,
         }
     }
+
+    pub const fn center(&self) -> Position {
+        Position {
+            x: self.width as i64 / 2,
+            y: self.height as i64 / 2,
+        }
+    }
 }
 
 impl core::ops::Add<u32> for Dimension {

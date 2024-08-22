@@ -468,7 +468,7 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
-    pub fn draw_disc(&mut self, pos: &Position, radius: u32, color: Color) {
+    pub fn draw_disc(&mut self, pos: Position, radius: u32, color: Color) {
         use micromath::F32Ext;
 
         let top_left_position = pos.clone() - Position::new(radius as i64, radius as i64);
