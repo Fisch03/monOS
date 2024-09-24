@@ -6,10 +6,10 @@ use core::arch::asm;
 pub unsafe fn set_cs(selector: SegmentSelector) {
     asm!(
         "push {sel}",
-        "lea {tmp}, [1f + rip]",
+        "lea {tmp}, [2f + rip]",
         "push {tmp}",
         "retfq",
-        "1:",
+        "2:",
         sel = in(reg) u64::from(selector.as_u16()),
         tmp = lateout(reg) _,
         options(preserves_flags)

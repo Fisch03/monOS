@@ -27,7 +27,6 @@ fn main() {
     //let ptr = &test_icon.dimensions as *const Dimension;
     //dbg!(ptr);
 
-    /*
     let fb_channel = syscall::connect("sys.framebuffer").unwrap();
     let mut fb: Option<Framebuffer> = None;
 
@@ -58,12 +57,10 @@ fn main() {
         Position::new(fb.dimensions().width as i64, fb.dimensions().height as i64),
     );
     let mut taskbar_ui = UIFrame::new(Direction::LeftToRight);
-    */
 
-    //fb.clear_with(&clear_fb);
-    //println!("Starting event loop");
+    fb.clear_with(&clear_fb);
+    println!("Starting event loop");
     loop {
-        /*
         let old_mouse_pos = input.mouse.position;
         let mut mouse_moved = false;
         while let Some(msg) = syscall::receive_any() {
@@ -78,23 +75,22 @@ fn main() {
             }
         }
 
-                                if mouse_moved {
-        fb.clear_region(
-            &Rect::new(old_mouse_pos, old_mouse_pos + Position::new(6, 9)),
-            &clear_fb,
+        if mouse_moved {
+            fb.clear_region(
+                &Rect::new(old_mouse_pos, old_mouse_pos + Position::new(6, 9)),
+                &clear_fb,
             );
-            }
+        }
 
-            taskbar_ui.draw_frame(&mut fb, taskbar_ui_rect, &mut input, |ui| {
-                //ui.margin(MarginMode::Grow);
-                //ui.label::<Cozette>("Hello, World!");
+        taskbar_ui.draw_frame(&mut fb, taskbar_ui_rect, &mut input, |ui| {
+            //ui.margin(MarginMode::Grow);
+            //ui.label::<Cozette>("Hello, World!");
 
-                //ui.img_button(&test_icon);
-            });
-            */
-        //draw_cursor(&mut fb, input.mouse.position);
+            //ui.img_button(&test_icon);
+        });
+        draw_cursor(&mut fb, input.mouse.position);
 
-        //syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
+        syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
     }
 }
 

@@ -2,7 +2,6 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(naked_functions)]
-#![feature(asm_const)]
 
 extern crate alloc;
 

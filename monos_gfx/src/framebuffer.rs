@@ -587,7 +587,6 @@ impl<'a> Framebuffer<'a> {
         };
 
         let mut current_position = position.clone();
-        let mut current_bit = 0;
 
         for y in 0..dimensions.height as i64 {
             if current_position.y >= clip.max.y as i64 {

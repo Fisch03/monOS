@@ -31,14 +31,18 @@ pub fn read(handle: &FileHandle, buf: &mut [u8]) -> usize {
     let buf_ptr = buf.as_mut_ptr() as u64;
     let buf_len = buf.len() as u64;
 
-    unsafe {
+    let read = unsafe {
         syscall_3(
             Syscall::new(SyscallType::Read),
             handle.as_u64(),
             buf_ptr,
             buf_len,
         ) as usize
-    }
+    };
+
+    crate::println!("read: {:?}", read);
+
+    read
 }
 
 pub fn stat(handle: &FileHandle) -> Option<FileInfo> {

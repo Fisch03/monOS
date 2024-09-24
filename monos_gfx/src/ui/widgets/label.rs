@@ -35,7 +35,7 @@ struct ScrollState {
 }
 
 impl<'a, F: Font> Label<'a, F, Once<&'a str>> {
-    pub fn new(text: &'a str) -> Label<F, Once<&'a str>> {
+    pub fn new(text: &'a str) -> Label<'a, F, Once<&'a str>> {
         Label::<F, Once<&'a str>> {
             text: once(text),
             wrap: TextWrap::Disabled,
@@ -84,7 +84,7 @@ impl<'a, F: Font, I: Iterator<Item = &'a str>> UIElement for Label<'a, F, I> {
 }
 
 impl<'a, F: Font> ScrollableLabel<'a, F, Once<&'a str>> {
-    pub fn new(text: &'a str, origin: Origin) -> ScrollableLabel<F, Once<&'a str>> {
+    pub fn new(text: &'a str, origin: Origin) -> ScrollableLabel<'a, F, Once<&'a str>> {
         ScrollableLabel::<F, Once<&'a str>> {
             text: once(text),
             wrap: TextWrap::Enabled { hyphenate: false },

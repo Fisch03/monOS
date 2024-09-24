@@ -56,7 +56,8 @@ extern "C" fn handle_syscall() {
             "sub rsp, 8",
             "push rcx",
 
-            "push rax",
+            // no need to save rax, since it gets overwritten by return value
+            //"push rax",
             "push rbx",
             "push rcx",
             "push rdx",
@@ -78,7 +79,6 @@ extern "C" fn handle_syscall() {
             // convert syscall args to c abi
             // c abi:   rdi, rsi, rdx, rcx, r8, r9
             // syscall: rax, rdi, rsi, rdx, r10, return
-            "mov r9, rcx", // rcx still points to the top of the user stack
             "mov r8, r10",
             "mov rcx, rdx",
             "mov rdx, rsi",
@@ -88,7 +88,6 @@ extern "C" fn handle_syscall() {
             // call the rust handler
             "call {dispatch_syscall}",
 
-            
             "pop r15", // restore callee-saved registers
             "pop r14",
             "pop r13",
@@ -106,7 +105,7 @@ extern "C" fn handle_syscall() {
             "pop rdx",
             "pop rcx",
             "pop rbx",
-            "pop rax",
+            // rax is the return value
 
             "add rsp, 24", // Skip RIP, CS and RFLAGS
             "pop rsp", // Restore user stack
@@ -121,14 +120,8 @@ extern "C" fn handle_syscall() {
     }
 }
 
-extern "C" fn dispatch_syscall(
-    syscall_id: u64,
-    arg1: u64,
-    arg2: u64,
-    arg3: u64,
-    arg4: u64,
-    ret: &mut u64,
-) {
+extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64, arg4: u64) -> u64 {
+    let mut ret = 0;
     if let Ok(syscall) = Syscall::try_from(syscall_id) {
         match syscall.ty {
             SyscallType::Print => {
@@ -155,7 +148,7 @@ extern "C" fn dispatch_syscall(
 
             SyscallType::Open => fs::sys_open(arg1, arg2, arg3),
             SyscallType::Seek => panic!("unimplemented syscall {:?}", syscall),
-            SyscallType::Read => *ret = fs::sys_read(arg1, arg2, arg3),
+            SyscallType::Read => ret = fs::sys_read(arg1, arg2, arg3),
             SyscallType::Write => panic!("unimplemented syscall {:?}", syscall),
         }
     } else {
@@ -168,4 +161,6 @@ extern "C" fn dispatch_syscall(
             arg4
         );
     }
+
+    ret
 }
