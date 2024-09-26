@@ -31,20 +31,22 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
 
     // start the desktop environment
-    let rooftop = {
-        let file = fs()
-            .iter_root_dir()
-            .get_entry("bin/rooftop")
-            .unwrap()
-            .as_file()
-            .unwrap();
+    {
+        let rooftop = {
+            let file = fs()
+                .iter_root_dir()
+                .get_entry("bin/rooftop")
+                .unwrap()
+                .as_file()
+                .unwrap();
 
-        let mut data = alloc::vec![0u8; file.size()];
-        file.read_all(data.as_mut_slice());
-        data
-    };
+            let mut data = alloc::vec![0u8; file.size()];
+            file.read_all(data.as_mut_slice());
+            data
+        };
 
-    process::spawn(&rooftop.as_slice());
+        process::spawn(&rooftop.as_slice());
+    }
 
     loop {
         unsafe {

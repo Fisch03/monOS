@@ -40,8 +40,6 @@ pub fn read(handle: &FileHandle, buf: &mut [u8]) -> usize {
         ) as usize
     };
 
-    crate::println!("read: {:?}", read);
-
     read
 }
 

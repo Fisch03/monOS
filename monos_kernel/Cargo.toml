@@ -12,4 +12,5 @@ uart_16550 = "0.3.0"
 x86_64 = "0.15.1"
 monos_gfx = { path = "../monos_gfx", default-features = false }
 monos_std = { path = "../monos_std", default-features = false, features = ["syscall"] }
-buddy_system_allocator = "0.10.0"
+# buddy_system_allocator = "0.11.0"
+linked_list_allocator = "0.10.5"

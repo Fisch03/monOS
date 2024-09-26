@@ -83,7 +83,6 @@ where
     Self::Item: DirEntry,
 {
     fn get_entry<'p, P: Into<Path<'p>>>(&mut self, path: P) -> Result<Self::Item, GetFileError> {
-        crate::println!("DirIter::get_entry");
         let path = path.into();
         if let Some((current_dir, children)) = path.enter() {
             for entry in self {
@@ -93,7 +92,6 @@ where
             }
             Err(GetFileError::NotFound)
         } else {
-            crate::println!("DirIter::get_entry:no children");
             for entry in self {
                 if entry.name() == path.as_str() {
                     return Ok(entry);

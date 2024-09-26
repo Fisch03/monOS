@@ -16,14 +16,14 @@ use monos_gfx::{
     input::Input,
     text::font::Cozette,
     ui::*,
-    Dimension, Framebuffer, Position, Rect,
+    Color, Dimension, Framebuffer, Position, Rect,
 };
 
 #[no_mangle]
 fn main() {
     let test_icon = FileHandle::open("data/test.ppm").expect("failed to load image data");
     let test_icon = monos_gfx::Image::from_ppm(&test_icon).expect("failed to parse image data");
-    //dbg!(&test_icon);
+    // dbg!(&test_icon);
     //let ptr = &test_icon.dimensions as *const Dimension;
     //dbg!(ptr);
 
@@ -59,10 +59,12 @@ fn main() {
     let mut taskbar_ui = UIFrame::new(Direction::LeftToRight);
 
     fb.clear_with(&clear_fb);
-    println!("Starting event loop");
+    println!("starting event loop");
     loop {
         let old_mouse_pos = input.mouse.position;
         let mut mouse_moved = false;
+        input.clear();
+
         while let Some(msg) = syscall::receive_any() {
             if msg.sender == mouse_channel {
                 if let Some(mouse_state) = unsafe { MouseState::from_message(&msg) } {
@@ -83,10 +85,12 @@ fn main() {
         }
 
         taskbar_ui.draw_frame(&mut fb, taskbar_ui_rect, &mut input, |ui| {
-            //ui.margin(MarginMode::Grow);
-            //ui.label::<Cozette>("Hello, World!");
+            ui.margin(MarginMode::Grow);
+            ui.label::<Cozette>("Hello, World!");
 
-            //ui.img_button(&test_icon);
+            if ui.img_button(&test_icon).clicked {
+                println!("button clicked!");
+            };
         });
         draw_cursor(&mut fb, input.mouse.position);
 
@@ -97,9 +101,14 @@ fn main() {
 fn create_clear_fb<'a>(main_fb: &Framebuffer, buffer: &'a mut Vec<u8>) -> Framebuffer<'a> {
     let mut clear_fb = Framebuffer::new(buffer, main_fb.dimensions(), main_fb.format().clone());
 
-    // let taskbar = FileHandle::open("data/taskbar.ppm").expect("failed to load image data");
-    let taskbar = SliceReader::new(include_bytes!("../assets/taskbar.ppm"));
+    let taskbar = FileHandle::open("data/task.ppm").expect("failed to load image data");
+    // let taskbar = SliceReader::new(include_bytes!("../assets/taskbar.ppm"));
     let taskbar = monos_gfx::Image::from_ppm(&taskbar).expect("failed to parse image data");
+
+    clear_fb.draw_rect(
+        Rect::from_dimensions(clear_fb.dimensions()),
+        Color::new(55, 54, 61),
+    );
 
     clear_fb.draw_img(
         &taskbar,
