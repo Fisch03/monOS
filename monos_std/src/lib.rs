@@ -23,7 +23,7 @@ pub mod syscall;
 pub use prelude::*;
 
 pub mod prelude {
-    pub use crate::filesystem::FileHandle;
+    pub use crate::filesystem::{File, Path, PathBuf};
     pub use crate::io::{Read, Seek, Write};
     pub use crate::messaging::MessageData;
 

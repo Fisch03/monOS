@@ -3,6 +3,8 @@ pub use monos_std::{
     io::{Read, Seek, Write},
 };
 
+use alloc::boxed::Box;
+
 pub mod fat16;
 use fat16::Fat16Fs;
 
@@ -61,14 +63,92 @@ impl core::fmt::Debug for dyn File {
     }
 }
 
-pub trait DirEntry: Sized {
+impl Into<DirEntry> for Box<dyn File> {
+    fn into(self) -> DirEntry {
+        DirEntry::File(self)
+    }
+}
+
+pub trait Directory: Send + Sync {
+    fn name(&self) -> &str;
+
+    fn iter(&self) -> Box<dyn Iterator<Item = DirEntry>>
+    where
+        Self: 'static;
+    /*
+    fn add_file(&mut self, file: Box<dyn File>);
+    fn add_directory(&mut self, directory: Box<dyn Directory>);
+    */
+}
+
+impl core::fmt::Debug for dyn Directory {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Directory")
+            .field("name", &self.name())
+            .finish()
+    }
+}
+
+impl Into<DirEntry> for Box<dyn Directory> {
+    fn into(self) -> DirEntry {
+        DirEntry::Directory(self)
+    }
+}
+
+#[derive(Debug)]
+pub enum DirEntry {
+    File(Box<dyn File>),
+    Directory(Box<dyn Directory>),
+}
+
+impl DirEntry {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::File(file) => file.name(),
+            Self::Directory(dir) => dir.name(),
+        }
+    }
+
+    pub fn is_dir(&self) -> bool {
+        matches!(self, Self::Directory(_))
+    }
+
+    pub fn as_file(&self) -> Option<&dyn File> {
+        match self {
+            Self::File(file) => Some(file.as_ref()),
+            _ => None,
+        }
+    }
+
+    pub fn as_dir(&self) -> Option<&dyn Directory> {
+        match self {
+            Self::Directory(dir) => Some(dir.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+pub trait AbstractDirEntry: Sized {
     type File: File;
+    type Directory: Directory;
     type DirIter: Iterator<Item = Self> + DirIter<Item = Self>;
 
     fn name(&self) -> &str;
     fn is_dir(&self) -> bool;
 
     fn as_file(&self) -> Option<Self::File>;
+    fn as_dir(&self) -> Option<Self::Directory>;
+    fn as_entry(&self) -> DirEntry
+    where
+        <Self as AbstractDirEntry>::File: 'static,
+        <Self as AbstractDirEntry>::Directory: 'static,
+    {
+        if self.is_dir() {
+            DirEntry::Directory(Box::new(self.as_dir().unwrap()))
+        } else {
+            DirEntry::File(Box::new(self.as_file().unwrap()))
+        }
+    }
 
     fn iter(&self) -> Option<Self::DirIter>;
 
@@ -80,7 +160,7 @@ pub trait DirEntry: Sized {
 
 pub trait DirIter: Iterator + Sized
 where
-    Self::Item: DirEntry,
+    Self::Item: AbstractDirEntry,
 {
     fn get_entry<'p, P: Into<Path<'p>>>(&mut self, path: P) -> Result<Self::Item, GetFileError> {
         let path = path.into();

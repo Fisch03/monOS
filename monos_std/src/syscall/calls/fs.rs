@@ -4,14 +4,14 @@ use crate::filesystem::*;
 use core::ptr::NonNull;
 use volatile::VolatilePtr;
 
-pub fn open<'p, P: Into<Path<'p>>>(path: P, _flags: FileFlags) -> Option<FileHandle> {
+pub fn open<'p, P: Into<Path<'p>>>(path: P, _flags: FileFlags) -> Option<File> {
     let path: Path = path.into();
     let path = path.as_str();
 
     let path_ptr = path.as_ptr() as u64;
     let path_len = path.len() as u64;
 
-    let mut file_handle: Option<FileHandle> = None;
+    let mut file_handle: Option<File> = None;
 
     let file_handle_ptr = &mut file_handle as *mut _;
     unsafe {
@@ -27,7 +27,7 @@ pub fn open<'p, P: Into<Path<'p>>>(path: P, _flags: FileFlags) -> Option<FileHan
     file_handle_ptr.read()
 }
 
-pub fn read(handle: &FileHandle, buf: &mut [u8]) -> usize {
+pub fn read(handle: &File, buf: &mut [u8]) -> usize {
     let buf_ptr = buf.as_mut_ptr() as u64;
     let buf_len = buf.len() as u64;
 
@@ -43,6 +43,6 @@ pub fn read(handle: &FileHandle, buf: &mut [u8]) -> usize {
     read
 }
 
-pub fn stat(handle: &FileHandle) -> Option<FileInfo> {
+pub fn stat(handle: &File) -> Option<FileInfo> {
     todo!();
 }

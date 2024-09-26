@@ -2,7 +2,7 @@ pub mod messaging;
 use messaging::{Mailbox, Message, PartialReceiveChannelHandle};
 
 use crate::arch::registers::CR3;
-use crate::fs::File;
+use crate::fs::DirEntry;
 use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
@@ -12,7 +12,7 @@ use crate::mem::{
 
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
 use core::sync::atomic::{AtomicU32, Ordering};
-use monos_std::filesystem::FileHandle;
+use monos_std::filesystem::File as FileHandle;
 use object::{Object, ObjectSegment};
 use spin::RwLock;
 
@@ -28,7 +28,7 @@ pub struct Process {
     memory: ProcessMemory,
     context_addr: VirtualAddress,
     channels: Vec<Mailbox>,
-    files: Vec<Box<dyn File>>,
+    file_handles: Vec<DirEntry>,
 }
 
 #[allow(dead_code)]
@@ -145,13 +145,14 @@ impl Process {
         None
     }
 
-    pub fn open_file(&mut self, file: Box<dyn File>) -> FileHandle {
-        self.files.push(file);
-        FileHandle::new(self.files.len() as u64 - 1)
+    pub fn open(&mut self, entry: DirEntry) -> FileHandle {
+        self.file_handles.push(entry);
+        FileHandle::new(self.file_handles.len() as u64 - 1)
     }
 
-    pub fn read_file(&self, handle: FileHandle, buf: &mut [u8]) -> Option<usize> {
-        let file = self.files.get(handle.as_u64() as usize)?;
+    pub fn read(&self, handle: FileHandle, buf: &mut [u8]) -> Option<usize> {
+        let entry = self.file_handles.get(handle.as_u64() as usize)?;
+        let file = entry.as_file()?;
 
         Some(file.read_all(buf))
     }
@@ -323,7 +324,7 @@ impl Process {
             },
             context_addr,
             channels: Vec::new(),
-            files: Vec::new(),
+            file_handles: Vec::new(),
         };
 
         crate::println!(

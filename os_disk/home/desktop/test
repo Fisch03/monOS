@@ -1,0 +1,3 @@
+name = "test"
+icon = "data/icons/test.ppm"
+open_with = "bin/term"

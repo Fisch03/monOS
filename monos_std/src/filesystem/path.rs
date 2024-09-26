@@ -6,11 +6,11 @@ pub struct Path<'p>(&'p str);
 pub struct PathBuf(String);
 
 impl<'p> Path<'p> {
-    pub fn new(path: &'p str) -> Self {
+    pub const fn new(path: &'p str) -> Self {
         Self(path)
     }
 
-    pub fn as_str(&self) -> &str {
+    pub const fn as_str(&self) -> &str {
         self.0
     }
 

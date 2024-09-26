@@ -40,7 +40,7 @@ impl<'a> EmuInterface<'a> {
         for (window_idx, c) in contents.iter().enumerate() {
             self.current_window = window_idx;
 
-            let start = std::time::Instant::now();
+            //let start = std::time::Instant::now();
             c.execute(context, self).expect("failed to render window");
             //println!("rendered in {:?}", start.elapsed());
 

@@ -1,9 +1,7 @@
 use crate::LOWER_HALF_END;
 
-use crate::fs::{fs, DirEntry, DirIter};
-use monos_std::filesystem::{FileHandle, Path};
-
-use alloc::boxed::Box;
+use crate::fs::{fs, AbstractDirEntry, DirIter};
+use monos_std::filesystem::{File, Path};
 
 pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
     assert!(arg1 < LOWER_HALF_END);
@@ -20,15 +18,15 @@ pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
     let path = Path::new(path);
     crate::println!("sys_open: {:?}", path);
 
-    let file_handle_ptr = arg3 as *mut Option<FileHandle>;
+    let file_handle_ptr = arg3 as *mut Option<File>;
     let file_handle = unsafe { &mut *file_handle_ptr };
 
-    if let Ok(Some(file)) = fs().iter_root_dir().get_entry(path).map(|f| f.as_file()) {
-        crate::println!("sys_open: opened file {:?}", file);
+    if let Ok(entry) = fs().iter_root_dir().get_entry(path).map(|f| f.as_entry()) {
+        crate::println!("sys_open: opened entry {:?}", entry);
         let mut current_proc = crate::process::CURRENT_PROCESS.write();
         let current_proc = current_proc.as_mut().unwrap();
 
-        *file_handle = Some(current_proc.open_file(Box::new(file)));
+        *file_handle = Some(current_proc.open(entry));
     } else {
         crate::println!("sys_open: failed to open file");
 
@@ -45,7 +43,7 @@ pub fn sys_read(arg1: u64, arg2: u64, arg3: u64) -> u64 {
     let mut current_proc = crate::process::CURRENT_PROCESS.write();
     let current_proc = current_proc.as_mut().unwrap();
 
-    if let Some(read) = current_proc.read_file(FileHandle::new(arg1), &mut buf) {
+    if let Some(read) = current_proc.read(File::new(arg1), &mut buf) {
         return read as u64;
     } else {
         crate::println!(

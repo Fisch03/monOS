@@ -187,26 +187,26 @@ pub struct Placer {
 }
 
 /// affects how big the total space allocated for a widget will be.
-///
-/// minimum: the widget will be allocated the exact space it needs.
-/// grow: the widget will fill the entire cross axis.
-/// fixed: put the widget at a fixed position and size.
-/// at_least: the widget will be allocated at least the specified size on the cross axis.
 #[derive(Debug)]
 pub enum MarginMode {
+    /// the widget will be allocated the exact space it needs.
     Minimum,
+    /// the widget will fill the entire cross axis.
     Grow,
+    /// put the widget at a fixed position and size.
     Fixed(Position, Dimension),
-    // AtLeast(u32), // sorta broken right now, i'll fix it once i actually need this
+    /* sorta broken right now, i'll fix it once i actually need this
+    /// the widget will be allocated at least the specified size on the cross axis.
+    AtLeast(u32),
+    */
 }
 
 /// affects how much of the allocated space (determined by the margin mode) will be filled with the widget.
-///
-/// minimum: the widget will only fill the exact space it needs
-/// fill: the widget will fill the entire space allocated for it.
 #[derive(Debug)]
 pub enum PaddingMode {
+    /// the widget will fill the entire space allocated for it.
     Fill,
+    /// the widget will fill the space allocated for it minus the specified gap.
     Gap(u32),
 }
 

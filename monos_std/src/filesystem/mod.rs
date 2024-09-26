@@ -7,14 +7,14 @@ pub use path::*;
 use crate::syscall;
 
 #[derive(Debug, Clone, Copy)]
-pub struct FileHandle(u64);
+pub struct File(u64);
 
 #[derive(Debug, Clone)]
 pub struct FileInfo {
     pub size: usize,
 }
 
-impl FileHandle {
+impl File {
     pub const fn new(fd: u64) -> Self {
         Self(fd)
     }
@@ -35,21 +35,21 @@ impl FileHandle {
 }
 
 #[cfg(feature = "userspace")]
-impl Read for FileHandle {
+impl Read for File {
     fn read(&self, buf: &mut [u8]) -> usize {
         syscall::read(&self, buf)
     }
 }
 
 #[cfg(feature = "userspace")]
-impl Write for FileHandle {
+impl Write for File {
     fn write(&mut self, buf: &[u8]) -> usize {
         todo!()
     }
 }
 
 #[cfg(feature = "userspace")]
-impl Seek for FileHandle {
+impl Seek for File {
     fn seek(&self, pos: usize) {
         todo!()
     }

@@ -1,7 +1,7 @@
 use super::{Fat16File, Fat16Fs};
-use crate::fs::{DirEntry, DirIter};
+use crate::fs::{AbstractDirEntry, DirEntry, DirIter, Directory};
 use crate::utils::BitField;
-use alloc::string::String;
+use alloc::{boxed::Box, string::String};
 use core::{mem, str::FromStr};
 
 #[derive(Debug)]
@@ -165,8 +165,9 @@ fn parse_lfn_str(data: &[u8]) -> impl Iterator<Item = char> + '_ {
         .map(|c| char::from(c as u8))
 }
 
-impl<'fs> DirEntry for Fat16DirEntry<'fs> {
+impl<'fs> AbstractDirEntry for Fat16DirEntry<'fs> {
     type File = Fat16File<'fs>;
+    type Directory = Self;
     type DirIter = Fat16DirIter<'fs>;
 
     fn name(&self) -> &str {
@@ -195,6 +196,27 @@ impl<'fs> DirEntry for Fat16DirEntry<'fs> {
         }
 
         Some(Fat16File::new(self.fs, self.clone()))
+    }
+
+    fn as_dir(&self) -> Option<Self> {
+        if !self.is_dir() {
+            return None;
+        }
+
+        Some(self.clone())
+    }
+}
+
+impl<'fs> Directory for Fat16DirEntry<'fs> {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn iter(&self) -> Box<dyn Iterator<Item = DirEntry>>
+    where
+        'fs: 'static,
+    {
+        Box::new(Fat16DirEntryIter::new(self.fs, self.first_sector()))
     }
 }
 
@@ -233,5 +255,26 @@ impl<'fs> Iterator for Fat16DirIter<'fs> {
                 self.next()
             }
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct Fat16DirEntryIter<'fs> {
+    iter: Fat16DirIter<'fs>,
+}
+
+impl<'fs> Fat16DirEntryIter<'fs> {
+    pub fn new(fs: &'fs Fat16Fs, sector: u32) -> Self {
+        Self {
+            iter: Fat16DirIter::new(fs, sector),
+        }
+    }
+}
+
+impl Iterator for Fat16DirEntryIter<'static> {
+    type Item = DirEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|entry| entry.as_entry())
     }
 }

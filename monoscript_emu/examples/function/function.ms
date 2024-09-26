@@ -1,6 +1,6 @@
 // sometimes you want to reuse pieces of code from multiple places
 // this is where functions come in. lets make a simple function that creates a new window:
-fn my_cool_function() { // declare a new function called `my_cool_window`
+fn my_cool_function() { // declare a new function called `my_cool_function`
   // when the function is run print a string
   print("good mononing!")
 }

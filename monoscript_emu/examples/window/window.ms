@@ -1,5 +1,5 @@
 // one unique concept to monoscript are 'hooks'.
-// these are your way to interact with the outside world.
+// these are your way to interact with the operating system running monoscript.
 // let's take a closer look!
 
 // a hook consists of its name, followed by a block of code surrounded by curly braces.
