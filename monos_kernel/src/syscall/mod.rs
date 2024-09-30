@@ -152,6 +152,8 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
             SyscallType::Seek => panic!("unimplemented syscall {:?}", syscall),
             SyscallType::Read => ret = fs::sys_read(arg1, arg2, arg3),
             SyscallType::Write => panic!("unimplemented syscall {:?}", syscall),
+
+            SyscallType::List => ret = fs::sys_list(arg1, arg2, arg3, arg4),
         }
     } else {
         crate::println!(

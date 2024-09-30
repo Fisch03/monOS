@@ -33,12 +33,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     // start the desktop environment
     {
         let rooftop = {
-            let file = fs()
-                .iter_root_dir()
-                .get_entry("bin/rooftop")
-                .unwrap()
-                .as_file()
-                .unwrap();
+            let file = fs().get("bin/rooftop").unwrap().open().unwrap();
 
             let mut data = alloc::vec![0u8; file.size()];
             file.read_all(data.as_mut_slice());

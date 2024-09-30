@@ -1,7 +1,6 @@
-use super::{Fat16File, Fat16Fs};
-use crate::fs::{AbstractDirEntry, DirEntry, DirIter, Directory};
+use super::Fat16Fs;
 use crate::utils::BitField;
-use alloc::{boxed::Box, string::String};
+use alloc::string::{String, ToString};
 use core::{mem, str::FromStr};
 
 #[derive(Debug)]
@@ -53,28 +52,35 @@ impl Fat16LongFileNameEntry {
 }
 
 #[derive(Debug, Clone)]
-pub struct Fat16DirEntry<'fs> {
-    pub(crate) name: String,
-    pub(crate) attributes: u8,
-    pub(crate) first_cluster: u16,
-    pub(crate) size: u32,
-    fs: &'fs Fat16Fs,
+pub struct Fat16Node {
+    pub(super) name: String,
+    pub(super) attributes: u8,
+    pub(super) first_cluster: u16,
+    pub(super) size: u32,
 }
 
 #[derive(Debug)]
-pub enum DirEntryError {
+pub enum NodeError {
     NoMoreEntries,
     FreeEntry,
+    IsDotNode,
 }
 
-impl<'fs> Fat16DirEntry<'fs> {
+impl Fat16Node {
     #[inline]
-    pub fn first_sector(&self) -> u32 {
-        self.fs.first_data_sector
-            + (self.first_cluster as u32 - 2) * self.fs.sectors_per_cluster as u32
+    pub fn first_sector(&self, fs: &Fat16Fs) -> u32 {
+        fs.first_data_sector + (self.first_cluster as u32 - 2) * fs.sectors_per_cluster as u32
     }
 
-    pub fn new(fs: &'fs Fat16Fs, sector: u32, offset: u32) -> Result<(Self, usize), DirEntryError> {
+    pub fn is_dir(&self) -> bool {
+        self.attributes.get_bit(4)
+    }
+
+    pub fn iter<'fs>(&self, fs: &'fs Fat16Fs) -> Fat16DirIter<'fs> {
+        Fat16DirIter::new(fs, self.first_sector(fs))
+    }
+
+    pub fn new(fs: &Fat16Fs, sector: u32, offset: u32) -> Result<(Self, usize), NodeError> {
         let mut bytes_read = 32;
         let raw_entry = unsafe { Fat16RawEntry::new(fs, sector, offset) };
 
@@ -98,7 +104,7 @@ impl<'fs> Fat16DirEntry<'fs> {
                 let name = name.chain(parse_lfn_str(&last_entry.name));
                 let name = name.take_while(|&c| c != char::from(0)).collect();
 
-                Self::finalize(fs, name, &last_entry).map(|entry| (entry, bytes_read))
+                Self::finalize(name, &last_entry).map(|entry| (entry, bytes_read))
             } else {
                 Self::continue_from_lfn(fs, sector, offset + 32, name, bytes_read)
             }
@@ -106,33 +112,34 @@ impl<'fs> Fat16DirEntry<'fs> {
             let name = String::from_str(
                 core::str::from_utf8(&raw_entry.name)
                     .unwrap()
-                    .trim_end_matches(char::from(0)),
+                    // .trim_end_matches(char::from(0))
+                    .trim_end_matches(' '),
             )
             .unwrap();
 
-            Self::finalize(fs, name, &raw_entry).map(|entry| (entry, bytes_read))
+            Self::finalize(name, &raw_entry).map(|entry| (entry, bytes_read))
         }
     }
 
     fn continue_from_lfn(
-        _fs: &'fs Fat16Fs,
+        _fs: &Fat16Fs,
         _sector: u32,
         _offset: u32,
         _name: impl Iterator<Item = char>,
         _bytes_read: usize,
-    ) -> Result<(Self, usize), DirEntryError> {
+    ) -> Result<(Self, usize), NodeError> {
         todo!("lfn entries spanning multiple fat entries")
     }
 
-    fn finalize(
-        fs: &'fs Fat16Fs,
-        name: String,
-        raw_entry: &Fat16RawEntry,
-    ) -> Result<Self, DirEntryError> {
+    fn finalize(name: String, raw_entry: &Fat16RawEntry) -> Result<Self, NodeError> {
         match raw_entry.name[0] {
-            0x00 => return Err(DirEntryError::NoMoreEntries),
-            0xE5 => return Err(DirEntryError::FreeEntry),
+            0x00 => return Err(NodeError::NoMoreEntries),
+            0xE5 => return Err(NodeError::FreeEntry),
             _ => {}
+        }
+
+        if name == "." || name == ".." {
+            return Err(NodeError::IsDotNode);
         }
 
         let first_cluster = u16::from_le_bytes(raw_entry.first_cluster);
@@ -154,10 +161,25 @@ impl<'fs> Fat16DirEntry<'fs> {
             attributes,
             first_cluster,
             size,
-            fs,
         })
     }
 }
+
+/*
+impl Directory for Fat16Dir {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn iter(&self) -> Box<dyn DirIter> {
+        Box::new(Fat16DirIter {
+            fs: unsafe { self.fs.clone() }, //TODO: incredible horrors.
+            sector: self.first_sector(),
+            offset: 0,
+        })
+    }
+}
+*/
 
 fn parse_lfn_str(data: &[u8]) -> impl Iterator<Item = char> + '_ {
     data.chunks_exact(2)
@@ -165,62 +187,6 @@ fn parse_lfn_str(data: &[u8]) -> impl Iterator<Item = char> + '_ {
         .map(|c| char::from(c as u8))
 }
 
-impl<'fs> AbstractDirEntry for Fat16DirEntry<'fs> {
-    type File = Fat16File<'fs>;
-    type Directory = Self;
-    type DirIter = Fat16DirIter<'fs>;
-
-    fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    fn is_dir(&self) -> bool {
-        self.attributes.get_bit(4)
-    }
-
-    fn iter(&self) -> Option<Self::DirIter> {
-        if !self.is_dir() {
-            return None;
-        }
-
-        Some(Fat16DirIter {
-            fs: self.fs,
-            sector: self.first_sector(),
-            offset: 0,
-        })
-    }
-
-    fn as_file(&self) -> Option<Self::File> {
-        if self.is_dir() {
-            return None;
-        }
-
-        Some(Fat16File::new(self.fs, self.clone()))
-    }
-
-    fn as_dir(&self) -> Option<Self> {
-        if !self.is_dir() {
-            return None;
-        }
-
-        Some(self.clone())
-    }
-}
-
-impl<'fs> Directory for Fat16DirEntry<'fs> {
-    fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = DirEntry>>
-    where
-        'fs: 'static,
-    {
-        Box::new(Fat16DirEntryIter::new(self.fs, self.first_sector()))
-    }
-}
-
-#[derive(Clone)]
 pub struct Fat16DirIter<'fs> {
     fs: &'fs Fat16Fs,
     sector: u32,
@@ -237,44 +203,21 @@ impl<'fs> Fat16DirIter<'fs> {
     }
 }
 
-impl<'fs> DirIter for Fat16DirIter<'fs> {}
-
 impl<'fs> Iterator for Fat16DirIter<'fs> {
-    type Item = Fat16DirEntry<'fs>;
+    type Item = Fat16Node;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let entry = Fat16DirEntry::new(self.fs, self.sector, self.offset);
+        let entry = Fat16Node::new(&self.fs, self.sector, self.offset);
         match entry {
             Ok((entry, bytes_read)) => {
                 self.offset += bytes_read as u32;
                 Some(entry)
             }
-            Err(DirEntryError::NoMoreEntries) => None,
-            Err(DirEntryError::FreeEntry) => {
+            Err(NodeError::NoMoreEntries) => None,
+            Err(NodeError::FreeEntry) | Err(NodeError::IsDotNode) => {
                 self.offset += 32;
                 self.next()
             }
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Fat16DirEntryIter<'fs> {
-    iter: Fat16DirIter<'fs>,
-}
-
-impl<'fs> Fat16DirEntryIter<'fs> {
-    pub fn new(fs: &'fs Fat16Fs, sector: u32) -> Self {
-        Self {
-            iter: Fat16DirIter::new(fs, sector),
-        }
-    }
-}
-
-impl Iterator for Fat16DirEntryIter<'static> {
-    type Item = DirEntry;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|entry| entry.as_entry())
     }
 }

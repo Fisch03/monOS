@@ -1,8 +1,9 @@
-use super::{ramdisk::RamDisk, File, Read, Seek, Write};
+use super::{ramdisk::RamDisk, *};
+use alloc::{boxed::Box, sync::Arc};
 use core::mem;
 
-mod dir_entry;
-use dir_entry::{Fat16DirEntry, Fat16DirIter};
+mod node;
+use node::{Fat16DirIter, Fat16Node};
 
 mod file;
 use file::Fat16File;
@@ -70,18 +71,85 @@ impl Fat16Fs {
     }
 
     #[inline]
-    pub fn seek(&self, sector: u32, offset: u32) {
+    fn seek(&self, sector: u32, offset: u32) {
         self.ramdisk
             .seek((self.sector_offset(sector) + offset) as usize);
     }
 
     #[inline]
-    pub fn read(&self, buf: &mut [u8]) {
+    fn read(&self, buf: &mut [u8]) {
         self.ramdisk.read(buf);
     }
 
-    pub fn iter_root_dir(&self) -> Fat16DirIter<'_> {
+    pub fn iter_root_dir(&self) -> Fat16DirIter {
         Fat16DirIter::new(self, self.first_root_sector)
+    }
+}
+
+enum Fat16NodeData {
+    RootDir,
+    Node(Fat16Node),
+}
+
+impl FileSystem for Fat16Fs {
+    fn open(self: Arc<Self>, node: &VFSNode) -> Result<File, OpenError> {
+        let fs = node.fs();
+        let node: &Fat16NodeData = fs.as_ref().unwrap().data();
+
+        let node = match node {
+            Fat16NodeData::Node(node) => node,
+            _ => return Err(OpenError::NotAFile),
+        };
+
+        Ok(Fat16File::new(self, node))
+    }
+
+    fn list(self: Arc<Fat16Fs>, node: Arc<VFSNode>) {
+        let fs = node.fs();
+        let node_data: &Fat16NodeData = fs.as_ref().unwrap().data();
+        let iter = match node_data {
+            Fat16NodeData::RootDir => self.iter_root_dir(),
+            Fat16NodeData::Node(node) => {
+                if node.is_dir() {
+                    node.iter(&self)
+                } else {
+                    return;
+                }
+            }
+        };
+
+        for child in iter {
+            let node_type = if child.is_dir() {
+                VFSNodeType::Directory
+            } else {
+                VFSNodeType::File {
+                    size: child.size as usize,
+                }
+            };
+            VFSNode::add_child(
+                &node,
+                child.name.clone(),
+                node_type,
+                Some(FSData {
+                    fs: self.clone(),
+                    data: Box::new(Fat16NodeData::Node(child)),
+                }),
+            );
+        }
+    }
+
+    fn read(&self, file: &File, buf: &mut [u8]) -> usize {
+        Fat16File::read(file, self, buf)
+    }
+    fn write(&self, file: &mut File, buf: &[u8]) -> usize {
+        Fat16File::write(file, self, buf)
+    }
+    fn seek(&self, file: &File, pos: usize) {
+        file.seek(pos);
+    }
+
+    fn mount(self, node: &VFSNode) {
+        node.set_fs(FSData::new(self, Fat16NodeData::RootDir));
     }
 }
 

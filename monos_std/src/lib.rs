@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(alloc_error_handler)]
 #![feature(naked_functions)]
+#![feature(maybe_uninit_uninit_array)]
 
 extern crate alloc;
 
@@ -12,7 +13,7 @@ mod memory;
 
 pub mod io;
 
-pub mod filesystem;
+pub mod fs;
 pub mod messaging;
 
 pub mod dev;
@@ -23,7 +24,7 @@ pub mod syscall;
 pub use prelude::*;
 
 pub mod prelude {
-    pub use crate::filesystem::{File, Path, PathBuf};
+    pub use crate::fs::{self, FileHandle as File, Path, PathBuf};
     pub use crate::io::{Read, Seek, Write};
     pub use crate::messaging::MessageData;
 

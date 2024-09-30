@@ -1,20 +1,25 @@
 mod path;
+pub use path::*;
+
 #[cfg(feature = "userspace")]
 use crate::io::{Read, Seek, Write};
-pub use path::*;
+
+#[cfg(feature = "userspace")]
+use alloc::vec::Vec;
 
 #[cfg(feature = "userspace")]
 use crate::syscall;
 
 #[derive(Debug, Clone, Copy)]
-pub struct File(u64);
+pub struct FileHandle(u64);
 
 #[derive(Debug, Clone)]
-pub struct FileInfo {
-    pub size: usize,
+pub enum FileInfo {
+    File { size: usize },
+    Directory { num_files: usize },
 }
 
-impl File {
+impl FileHandle {
     pub const fn new(fd: u64) -> Self {
         Self(fd)
     }
@@ -35,21 +40,21 @@ impl File {
 }
 
 #[cfg(feature = "userspace")]
-impl Read for File {
+impl Read for FileHandle {
     fn read(&self, buf: &mut [u8]) -> usize {
         syscall::read(&self, buf)
     }
 }
 
 #[cfg(feature = "userspace")]
-impl Write for File {
+impl Write for FileHandle {
     fn write(&mut self, buf: &[u8]) -> usize {
         todo!()
     }
 }
 
 #[cfg(feature = "userspace")]
-impl Seek for File {
+impl Seek for FileHandle {
     fn seek(&self, pos: usize) {
         todo!()
     }

@@ -27,6 +27,15 @@ impl RamDisk {
     fn as_mut_slice(&mut self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self.start.as_mut_ptr(), self.size) }
     }
+
+    /// safety: the fs implementation must guarantee that no aliasing occurs
+    pub unsafe fn clone(&self) -> Self {
+        Self {
+            start: self.start,
+            size: self.size,
+            pos: AtomicUsize::new(0),
+        }
+    }
 }
 
 impl Read for RamDisk {

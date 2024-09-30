@@ -90,6 +90,8 @@ fn main() {
             );
         }
 
+        desktop.draw(&mut fb, &mut input);
+
         window_list.draw_frame(&mut fb, window_list_rect, &mut input, |ui| {
             ui.margin(MarginMode::Grow);
             // TODO: list open windows

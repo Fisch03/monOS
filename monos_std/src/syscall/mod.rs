@@ -18,7 +18,7 @@ pub enum SyscallType {
     Read,
     Write,
 
-    
+    List,
 
     Print,
 }
