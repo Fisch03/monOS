@@ -3,6 +3,7 @@ use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, vec::V
 pub use monos_std::messaging::{
     ChannelHandle, Message, MessageData, PartialReceiveChannelHandle, PartialSendChannelHandle,
 };
+use monos_std::ProcessId;
 use spin::{Lazy, RwLock};
 
 const MAX_QUEUE_SIZE: usize = 65;
@@ -54,7 +55,7 @@ where
     G: Fn(Message) + Sync + Send + 'static,
 {
     let mut sys_channels = SYS_CHANNELS.write();
-    let handle = PartialSendChannelHandle::new(0, sys_channels.len() as u16);
+    let handle = PartialSendChannelHandle::new(ProcessId(0), sys_channels.len() as u16);
     let receive_fn = receive_fn.map(|f| Box::new(f) as Box<SystemPortReceiveFn>);
     sys_channels.push(receive_fn);
 
@@ -136,7 +137,7 @@ pub fn connect(
 pub fn send(message: Message, receiver_handle: PartialSendChannelHandle) {
     let receiver = receiver_handle.target_process;
 
-    if receiver == 0 {
+    if receiver == ProcessId(0) {
         let sys_channels = SYS_CHANNELS.read();
         if let Some(Some(receive_fn)) = sys_channels
             .get(receiver_handle.target_channel as usize)

@@ -1,0 +1,8 @@
+[package]
+name = "terminal"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+monos_std = { path = "../../monos_std" }
+

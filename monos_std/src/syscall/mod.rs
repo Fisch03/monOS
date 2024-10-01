@@ -1,11 +1,14 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::messaging::ChannelHandle;
+use crate::ProcessId;
 
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum SyscallType {
-    Serve = 0,
+    Spawn = 0,
+
+    Serve,
     Connect,
     WaitConnect,
     Send,
@@ -27,7 +30,7 @@ pub enum SyscallType {
 pub struct Syscall {
     pub ty: SyscallType,
     flags: u8,
-    receiver_pid: u32,
+    receiver_pid: ProcessId,
     receiver_channel: u8,
     sender_channel: u8,
 }
@@ -37,7 +40,7 @@ impl Syscall {
         Self {
             ty,
             flags: 0,
-            receiver_pid: 0,
+            receiver_pid: ProcessId(0),
             receiver_channel: 0,
             sender_channel: 0,
         }
@@ -113,9 +116,11 @@ mod calls {
 
     mod fs;
     mod ipc;
+    mod process;
 
     pub use fs::*;
     pub use ipc::*;
+    pub use process::*;
 
     #[inline(always)]
     #[allow(dead_code)]

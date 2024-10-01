@@ -7,6 +7,7 @@ use core::arch::asm;
 
 mod fs;
 mod ipc;
+mod process;
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
 const IA32_STAR_MSR: u32 = 0xC0000081;
@@ -126,20 +127,8 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
     let mut ret = 0;
     if let Ok(syscall) = Syscall::try_from(syscall_id) {
         match syscall.ty {
-            SyscallType::Print => {
-                assert!(arg1 < crate::LOWER_HALF_END);
-                assert!(arg1 + arg2 < crate::LOWER_HALF_END);
+            SyscallType::Spawn => ret = process::sys_spawn(arg1, arg2),
 
-                let s = unsafe {
-                    core::str::from_utf8(core::slice::from_raw_parts(
-                        arg1 as *const u8,
-                        arg2 as usize,
-                    ))
-                    .expect("invalid utf8 string")
-                };
-
-                crate::print!("{}", s);
-            }
             SyscallType::Serve => panic!("unimplemented syscall {:?}", syscall),
             SyscallType::Connect => ipc::sys_connect(arg1, arg2, arg3),
             SyscallType::WaitConnect => panic!("unimplemented syscall {:?}", syscall),
@@ -154,6 +143,21 @@ extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64,
             SyscallType::Write => panic!("unimplemented syscall {:?}", syscall),
 
             SyscallType::List => ret = fs::sys_list(arg1, arg2, arg3, arg4),
+
+            SyscallType::Print => {
+                assert!(arg1 < crate::LOWER_HALF_END);
+                assert!(arg1 + arg2 < crate::LOWER_HALF_END);
+
+                let s = unsafe {
+                    core::str::from_utf8(core::slice::from_raw_parts(
+                        arg1 as *const u8,
+                        arg2 as usize,
+                    ))
+                    .expect("invalid utf8 string")
+                };
+
+                crate::print!("{}", s);
+            }
         }
     } else {
         crate::println!(

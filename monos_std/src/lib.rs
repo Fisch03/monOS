@@ -21,12 +21,30 @@ pub mod dev;
 #[cfg(any(feature = "userspace", feature = "syscall"))]
 pub mod syscall;
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Ord, PartialOrd)]
+#[repr(transparent)]
+pub struct ProcessId(pub u32);
+
+impl ProcessId {
+    #[inline]
+    pub fn as_u32(self) -> u32 {
+        self.0
+    }
+}
+
+impl core::fmt::Display for ProcessId {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 pub use prelude::*;
 
 pub mod prelude {
     pub use crate::fs::{self, FileHandle as File, Path, PathBuf};
     pub use crate::io::{Read, Seek, Write};
     pub use crate::messaging::MessageData;
+    pub use crate::ProcessId;
 
     #[cfg(feature = "syscall")]
     pub use crate::syscall;

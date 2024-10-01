@@ -5,7 +5,6 @@
 use bootloader_api::{config, BootInfo, BootloaderConfig};
 use core::arch::asm;
 
-use fs::*;
 use monos_kernel::*;
 
 extern crate alloc;
@@ -31,17 +30,8 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
 
     // start the desktop environment
-    {
-        let rooftop = {
-            let file = fs().get("bin/rooftop").unwrap().open().unwrap();
-
-            let mut data = alloc::vec![0u8; file.size()];
-            file.read_all(data.as_mut_slice());
-            data
-        };
-
-        process::spawn(&rooftop.as_slice());
-    }
+    process::spawn("bin/rooftop").expect("failed to start desktop environment");
+    // process::spawn("bin/terminal").expect("failed to start desktop environment");
 
     loop {
         unsafe {

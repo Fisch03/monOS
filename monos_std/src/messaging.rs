@@ -1,3 +1,4 @@
+use crate::ProcessId;
 use core::num::NonZeroU64;
 
 pub trait MessageData
@@ -11,14 +12,14 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct ChannelHandle {
-    pub target_process: u32,
+    pub target_process: ProcessId,
     pub target_channel: u16,
     pub own_channel: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PartialSendChannelHandle {
-    pub target_process: u32,
+    pub target_process: ProcessId,
     pub target_channel: u16,
 }
 
@@ -28,7 +29,7 @@ pub struct PartialReceiveChannelHandle {
 }
 
 impl ChannelHandle {
-    pub fn new(other_process: u32, other_channel: u16, own_channel: u16) -> Self {
+    pub fn new(other_process: ProcessId, other_channel: u16, own_channel: u16) -> Self {
         Self {
             target_process: other_process,
             target_channel: other_channel,
@@ -62,7 +63,7 @@ impl ChannelHandle {
 }
 
 impl PartialSendChannelHandle {
-    pub fn new(other_process: u32, other_channel: u16) -> Self {
+    pub fn new(other_process: ProcessId, other_channel: u16) -> Self {
         Self {
             target_process: other_process,
             target_channel: other_channel,
@@ -72,7 +73,8 @@ impl PartialSendChannelHandle {
 
 impl PartialEq<ChannelHandle> for PartialSendChannelHandle {
     fn eq(&self, other: &ChannelHandle) -> bool {
-        self.target_process == other.target_process && self.target_channel == other.target_channel
+        let other_process = other.target_process;
+        self.target_process == other_process && self.target_channel == other.target_channel
     }
 }
 

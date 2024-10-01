@@ -195,10 +195,8 @@ pub enum MarginMode {
     Grow,
     /// put the widget at a fixed position and size.
     Fixed(Position, Dimension),
-    /* sorta broken right now, i'll fix it once i actually need this
     /// the widget will be allocated at least the specified size on the cross axis.
     AtLeast(u32),
-    */
 }
 
 /// affects how much of the allocated space (determined by the margin mode) will be filled with the widget.
@@ -298,6 +296,10 @@ impl Placer {
                         self.cursor.x + desired_space.width as i64,
                         self.cursor.y + self.max_rect.height() as i64,
                     ),
+                    MarginMode::AtLeast(min_height) => Position::new(
+                        self.cursor.x + desired_space.width as i64,
+                        self.cursor.y + desired_space.height.max(min_height) as i64,
+                    ),
                     MarginMode::Fixed(_, _) => unreachable!(),
                 };
                 self.cursor.x += desired_space.width as i64;
@@ -315,8 +317,12 @@ impl Placer {
                         Position::new(self.cursor.x, self.cursor.y + desired_space.height as i64)
                     }
                     MarginMode::Grow => {
-                        Position::new(self.cursor.x, self.cursor.y + desired_space.height as i64)
+                        Position::new(self.cursor.x, self.cursor.y + self.max_rect.height() as i64)
                     }
+                    MarginMode::AtLeast(min_height) => Position::new(
+                        self.cursor.x,
+                        self.cursor.y + desired_space.height.max(min_height) as i64,
+                    ),
                     MarginMode::Fixed(_, _) => unreachable!(),
                 };
                 self.cursor.x -= desired_space.width as i64;
@@ -337,6 +343,10 @@ impl Placer {
                         self.max_rect.max.x,
                         self.cursor.y + desired_space.height as i64,
                     ),
+                    MarginMode::AtLeast(min_width) => Position::new(
+                        self.cursor.x + desired_space.width.max(min_width) as i64,
+                        self.cursor.y + desired_space.height as i64,
+                    ),
                     MarginMode::Fixed(_, _) => unreachable!(),
                 };
                 self.cursor.y += desired_space.height as i64;
@@ -354,6 +364,10 @@ impl Placer {
                         Position::new(self.cursor.x + desired_space.width as i64, self.cursor.y)
                     }
                     MarginMode::Grow => Position::new(self.max_rect.max.x, self.cursor.y),
+                    MarginMode::AtLeast(min_width) => Position::new(
+                        self.cursor.x + desired_space.width.max(min_width) as i64,
+                        self.cursor.y,
+                    ),
                     MarginMode::Fixed(_, _) => unreachable!(),
                 };
                 self.cursor.y -= desired_space.height as i64;

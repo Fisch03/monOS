@@ -55,7 +55,8 @@ fn main() {
             fb.dimensions().width as i64,
             fb.dimensions().height as i64 - 20,
         ),
-    );
+    )
+    .shrink(10);
     let mut desktop = Desktop::new(desktop_rect);
 
     let window_list_rect = Rect::new(

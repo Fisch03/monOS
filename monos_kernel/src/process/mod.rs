@@ -2,13 +2,14 @@ pub mod messaging;
 use messaging::{Mailbox, Message, PartialReceiveChannelHandle};
 
 use crate::arch::registers::CR3;
-use crate::fs::{fs, File, Read};
+use crate::fs::{fs, File, OpenError, Read};
 use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
     active_level_4_table, alloc_frame, copy_pagetable, create_user_demand_pages, empty_page_table,
     physical_mem_offset, Frame, MapTo, Mapper, Page, PageTableFlags, VirtualAddress,
 };
+use monos_std::ProcessId;
 
 use crate::fs::{FileHandle, Path};
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
@@ -22,7 +23,7 @@ static NEXT_PID: AtomicU32 = AtomicU32::new(1); // 0 is reserved for the kernel
 
 #[derive(Debug)]
 pub struct Process {
-    id: u32,
+    id: ProcessId,
     mapper: Mapper<'static>,
     page_table_frame: Frame,
     memory: ProcessMemory,
@@ -44,7 +45,7 @@ struct ProcessMemory {
 }
 
 impl Process {
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> ProcessId {
         self.id
     }
 
@@ -90,8 +91,24 @@ const USER_HEAP_SIZE: u64 = 1024 * 1024 * 128; // 128 MiB
 
 const ELF_BYTES: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 
-pub fn spawn(elf: &[u8]) {
-    Process::new(elf);
+#[derive(Debug)]
+pub enum SpawnError {
+    FileNotFound,
+    NotABinary,
+    OpenError(OpenError),
+}
+
+pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Result<ProcessId, SpawnError> {
+    let path = path.into();
+    let binary = {
+        let file = fs().get(path).unwrap().open().unwrap();
+
+        let mut data = alloc::vec![0u8; file.size()];
+        file.read_all(data.as_mut_slice());
+        data
+    };
+
+    Process::new(&binary.as_slice())
 }
 
 pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
@@ -166,8 +183,11 @@ impl Process {
         Some(handle.read_all(buf))
     }
 
-    fn new(elf: &[u8]) -> u32 {
-        assert_eq!(&elf[0..4], &ELF_BYTES, "not an ELF file");
+    fn new(elf: &[u8]) -> Result<ProcessId, SpawnError> {
+        if &elf[0..4] != &ELF_BYTES {
+            return Err(SpawnError::NotABinary);
+        }
+
         let obj = object::File::parse(elf).expect("failed to parse ELF file");
 
         let mut free_start = VirtualAddress::new(obj.segments().fold(0, |free_start, segment| {
@@ -185,6 +205,8 @@ impl Process {
         unsafe { CR3::write(page_table_frame, 0) };
 
         let mut process_mapper = unsafe { Mapper::new(physical_mem_offset(), process_page_table) };
+
+        crate::println!("allocating stack");
 
         let user_stack_start = VirtualAddress::new(USER_STACK_START);
         let mut user_stack_page = Page::around(user_stack_start);
@@ -284,7 +306,7 @@ impl Process {
             });
         }
 
-        let id = NEXT_PID.fetch_add(1, Ordering::SeqCst);
+        let id = ProcessId(NEXT_PID.fetch_add(1, Ordering::SeqCst));
 
         let kernel_stack = Vec::with_capacity(KERNEL_STACK_SIZE as usize);
         let kernel_stack_start = VirtualAddress::from_ptr(kernel_stack.as_ptr());
@@ -347,6 +369,6 @@ impl Process {
         let mut processes = PROCESS_QUEUE.write();
         processes.push_front(Box::new(process));
 
-        id
+        Ok(id)
     }
 }

@@ -112,24 +112,33 @@ the ramdisk itself is a FAT16 image with the following structure:
 - `/home`: user directory
 - `/data`: OS resources. you probably shouldn't touch these unless you want to break something >:D
 
-the build script automatically builds all the crates in the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) and puts their elf binaries in `/bin` 
+the build script automatically builds all the crates in the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) and puts their elf binaries in `/bin`
+
+monOS's vfs model closely follows the one linux uses (albeit much simplified). the vfs is represented as a tree structure that gets lazily loaded into memory as needed.
+vfs nodes currently are either files or directories, i dont think ill add symlinks since they would complicate links a lot further.
+one filesystem gets used as the root and then other filesystem implementations can be mounted inside empty directories (this is currently unused though...).
+
+i have thought about replacing the current [messaging](#messaging) functionality with virtual files aswell since it would simplify the usage from userspace. 
+the kernel implementation would be relatively complex though and also probably not as fast so itll stay as a idea for now.
 
 ### syscalls
 the following syscalls currently exist: 
 | id | name         | param 1                      | param 2        | param 3                         | param 4 | description                                                                            | 
 | -- | ------------ | ---------------------------- | -------------- | ------------------------------- | ------- | -------------------------------------------------------------------------------------- |
-| 0  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
-| 1  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
-| 2  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                           |
-| 3* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
-| 4* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
-| 5* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
-| 6  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
-| 7  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
-| 8  | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
-| 9  | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
-| 10 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
-| 11 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 0  | spawn        | file path ptr                | file path len  |                                 |         | spawn a new process of the given binary                                                |
+| 1  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
+| 2  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
+| 3  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                           |
+| 4* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
+| 5* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
+| 6* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
+| 7  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
+| 8  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
+| 9  | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
+| 10 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
+| 11 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
+| 12 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
+| 13 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
 
 *it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 
@@ -214,6 +223,8 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] it works!
     - [x] framebuffer access
     - [ ] spawning/killing processes 
+      - [x] spawning
+      - [ ] killing
     - [x] filesystem access
   - [ ] userspace memory
     - [x] heap
@@ -254,6 +265,7 @@ there is currently no safety in place for channels, meaning that a process can j
   - [x] ramdisk reading
   - [x] fat16 drivers
     - [ ] multi-lfn file names
+  - [x] decent vfs implementation
   - [ ] keep track of opened files to avoid conflicts
   - [ ] block device drivers
 - [ ] networking

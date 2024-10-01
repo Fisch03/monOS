@@ -1,3 +1,4 @@
-name = "test"
-icon = "data/icons/test.ppm"
-open_with = "bin/term"
+name=test
+icon=data/icons/test.ppm
+open=home/test
+open_with=bin/term

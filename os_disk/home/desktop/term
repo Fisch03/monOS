@@ -1,2 +1,3 @@
-name = "terminal"
-icon = "data/icons/term.ppm"
+name=terminal
+open=bin/terminal
+icon=data/icons/term.ppm
