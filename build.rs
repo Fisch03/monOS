@@ -164,11 +164,16 @@ fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
         }
         let relative_path = full_path.strip_prefix(&in_dir).unwrap().to_str().unwrap();
 
+        #[cfg(target_os = "windows")]
+        let relative_path = relative_path.replace("\\", "/");
         if full_path.is_dir() {
-            fs_root.create_dir(&relative_path).unwrap();
+            match fs_root.create_dir(&relative_path) {
+                Ok(_) => {}
+                Err(e) => {
+                    panic!("Error creating directory {:?}: {:?}", relative_path, e);
+                }
+            }
         } else {
-            #[cfg(target_os = "windows")]
-            let relative_path = relative_path.replace("\\", "/");
             let mut file = fs_root.create_file(&relative_path).unwrap();
             let mut source = fs::File::open(&full_path).unwrap();
             std::io::copy(&mut source, &mut file).unwrap();
