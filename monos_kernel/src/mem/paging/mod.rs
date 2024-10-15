@@ -96,6 +96,11 @@ pub fn alloc_frames(count: usize) -> Option<Frame<PageSize4K>> {
 
 pub fn empty_page_table() -> (*mut PageTable, Frame) {
     let page_table_frame = alloc_frame().expect("failed to alloc frame for process page table");
+    let page_table_page = Page::<PageSize4K>::around(
+        super::physical_mem_offset() + page_table_frame.start_address().as_u64(),
+    );
+
+    /*
     let page_table_page = Page::around(super::alloc_vmem(4096));
     unsafe {
         map_to(
@@ -105,6 +110,7 @@ pub fn empty_page_table() -> (*mut PageTable, Frame) {
         )
         .expect("failed to map page table page");
     };
+    */
 
     let page_table_ptr: *mut PageTable = page_table_page.start_address().as_mut_ptr();
 

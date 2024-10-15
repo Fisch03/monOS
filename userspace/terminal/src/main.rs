@@ -13,6 +13,6 @@ use core::arch::asm;
 #[no_mangle]
 fn main() {
     loop {
-        println!("Hello, World!");
+        println!("terminal!");
     }
 }
