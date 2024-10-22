@@ -5,6 +5,8 @@ use crate::mem::PhysicalAddress;
 
 use super::{Frame, PageSize4K};
 
+//TODO: at 8mb allocated frames, the system panics, is there some region that is not being marked as unusable?
+
 pub struct FrameAllocator {
     map: BitArray<32768>, // enough for 1 GiB of memory
     start: PhysicalAddress,

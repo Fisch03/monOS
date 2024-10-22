@@ -7,6 +7,7 @@ use crate::ProcessId;
 #[repr(u8)]
 pub enum SyscallType {
     Spawn = 0,
+    Yield,
 
     Serve,
     Connect,
@@ -121,6 +122,22 @@ mod calls {
     pub use fs::*;
     pub use ipc::*;
     pub use process::*;
+
+    #[inline(always)]
+    #[allow(dead_code)]
+    unsafe fn syscall_0(syscall: Syscall) -> u64 {
+        let syscall: u64 = syscall.into();
+        let ret: u64;
+        unsafe {
+            asm!(
+                "syscall",
+                in("rax") syscall,
+                lateout("rax") ret,
+                out("rcx") _, out("r11") _, out("r9") _,
+            );
+        }
+        ret
+    }
 
     #[inline(always)]
     #[allow(dead_code)]

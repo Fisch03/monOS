@@ -19,8 +19,25 @@ struct DesktopEntry {
 
 #[derive(Debug)]
 enum EntryAction {
-    Open(PathBuf),
-    OpenWith { bin: PathBuf, arg: String },
+    Open { bin: PathBuf, arg: String },
+}
+
+impl EntryAction {
+    fn execute(&self) {
+        match self {
+            Self::Open { bin, arg: _ } => {
+                // TODO: pass arg
+                match syscall::spawn(bin /* arg*/) {
+                    Some(pid) => {
+                        println!("Spawned process with PID {}", pid);
+                    }
+                    None => {
+                        println!("Failed to spawn process");
+                    }
+                }
+            }
+        };
+    }
 }
 
 impl Desktop {
@@ -41,8 +58,7 @@ impl Desktop {
             ui.margin(MarginMode::AtLeast(50));
             for entry in &self.entries {
                 if ui.img_button(&entry.icon).clicked {
-                    dbg!(entry);
-                    syscall::spawn("bin/hello_world");
+                    entry.action.execute();
                 };
                 ui.label::<Cozette>(&entry.name);
             }
@@ -66,41 +82,31 @@ impl Desktop {
                 let mut name = None;
                 let mut icon = None;
                 let mut open = None;
-                let mut open_with = None;
+                let mut args = None;
 
                 for line in entry.lines() {
                     let (key, value) = line.split_once('=').unwrap();
                     match key {
                         "name" => name = Some(value),
-                        "icon" => {
-                            icon = { File::open(value).and_then(|file| Image::from_ppm(&file)) }
-                        }
+                        "icon" => icon = File::open(value).and_then(|file| Image::from_ppm(&file)),
                         "open" => open = Some(value),
-                        "open_with" => open_with = Some(value),
+                        "args" => args = Some(value),
                         _ => {}
                     }
                 }
 
                 if let (Some(name), Some(icon), Some(open)) = (name, icon, open) {
                     let name = name.to_string();
-                    let open = String::from(open);
-                    let open_with = open_with.map(PathBuf::from);
+                    let open = PathBuf::from(open);
+                    let args = args.map(String::from).unwrap_or_default();
 
-                    let entry = if let Some(open_with) = open_with {
-                        DesktopEntry {
-                            name,
-                            icon,
-                            action: EntryAction::OpenWith {
-                                bin: open_with,
-                                arg: open,
-                            },
-                        }
-                    } else {
-                        DesktopEntry {
-                            name,
-                            icon,
-                            action: EntryAction::Open(PathBuf::from(open)),
-                        }
+                    let entry = DesktopEntry {
+                        name,
+                        icon,
+                        action: EntryAction::Open {
+                            bin: open,
+                            arg: args,
+                        },
                     };
 
                     self.entries.push(entry);

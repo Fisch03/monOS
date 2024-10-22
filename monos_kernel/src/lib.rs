@@ -22,6 +22,13 @@ use bootloader_api::BootInfo;
 
 const LOWER_HALF_END: u64 = 0x0000_8000_0000_0000;
 
+use mem::VirtualAddress;
+const HEAP_START: VirtualAddress = VirtualAddress::new(0xffff_fff0_0000_0000);
+const FB_START: VirtualAddress = VirtualAddress::new(0xffff_fff1_0000_0000);
+const MAPPING_START: VirtualAddress = VirtualAddress::new(0xffff_fff2_0000_0000);
+
+const APIC_ADDR: VirtualAddress = VirtualAddress::new(0xffff_ffff_0000_0000);
+
 pub fn kernel_init(boot_info: &'static mut BootInfo) {
     gdt::init();
     interrupts::init_idt();

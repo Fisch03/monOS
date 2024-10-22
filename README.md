@@ -94,14 +94,11 @@ monOS currently uses the following algorithms for allocating memory:
 | ----------------- | --------------------- |
 | pages             | bitmap allocator      | 
 | heap memory       | buddy system          |
-| virtual addresses | bump allocator        |
 | userspace heap    | buddy system          |
 
 these were basically all just chosen because they were the easiest to implement. memory performance really isn't a big concern for this OS. 
-as for virtual addresses, i would like to switch over to something more robust at some point. since monOS is strictly 64-bit with the kernel mapped into the higher half,
-there is around 256TiB of virtual memory available for allocation. i just dont see that being reached over the time a single boot with the current scope of the project.
 
-the heap allocator is using the [buddy_system_allocator](https://github.com/rcore-os/buddy_system_allocator) crate right now, because i couldn't be bothered to write my own.
+the heap allocator is using the [linked_list_allocator](https://github.com/rust-osdev/linked-list-allocator) crate right now, because i couldn't be bothered to write my own.
 its something i still want to do at some point though.
 
 
@@ -126,19 +123,20 @@ the following syscalls currently exist:
 | id | name         | param 1                      | param 2        | param 3                         | param 4 | description                                                                            | 
 | -- | ------------ | ---------------------------- | -------------- | ------------------------------- | ------- | -------------------------------------------------------------------------------------- |
 | 0  | spawn        | file path ptr                | file path len  |                                 |         | spawn a new process of the given binary                                                |
-| 1  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
-| 2  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
-| 3  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                           |
-| 4* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
-| 5* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
-| 6* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
-| 7  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
-| 8  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
-| 9  | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
-| 10 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
-| 11 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
-| 12 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
-| 13 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 1  | yield        |                              |                |                                 |         | suspend the current process and move it to the end of the process queue                |
+| 2  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
+| 3  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
+| 4  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                           |
+| 5* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
+| 6* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
+| 7* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
+| 8  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
+| 9  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
+| 10 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
+| 11 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
+| 12 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
+| 13 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
+| 14 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
 
 *it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 

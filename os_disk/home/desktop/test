@@ -1,4 +1,4 @@
 name=test
 icon=data/icons/test.ppm
-open=home/test
-open_with=bin/term
+open=bin/term
+args=home/test.ms

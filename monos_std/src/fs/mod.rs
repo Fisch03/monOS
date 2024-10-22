@@ -5,9 +5,6 @@ pub use path::*;
 use crate::io::{Read, Seek, Write};
 
 #[cfg(feature = "userspace")]
-use alloc::vec::Vec;
-
-#[cfg(feature = "userspace")]
 use crate::syscall;
 
 #[derive(Debug, Clone, Copy)]
@@ -48,14 +45,14 @@ impl Read for FileHandle {
 
 #[cfg(feature = "userspace")]
 impl Write for FileHandle {
-    fn write(&mut self, buf: &[u8]) -> usize {
+    fn write(&mut self, _buf: &[u8]) -> usize {
         todo!()
     }
 }
 
 #[cfg(feature = "userspace")]
 impl Seek for FileHandle {
-    fn seek(&self, pos: usize) {
+    fn seek(&self, _pos: usize) {
         todo!()
     }
 }

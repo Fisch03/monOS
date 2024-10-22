@@ -1,9 +1,16 @@
 use super::{
     map_to, unmap, Frame, MapToError, Page, PageTableFlags, PhysicalAddress, VirtualAddress,
 };
-use crate::mem::alloc_vmem;
 
+use core::sync::atomic::{AtomicU64, Ordering};
 use core::{fmt, marker::PhantomData, mem::size_of, ops};
+
+static NEXT_VIRT_ADDR: AtomicU64 = AtomicU64::new(crate::MAPPING_START.as_u64());
+fn alloc_vmem(size: u64) -> VirtualAddress {
+    let size = (size + 4096 - 1) & !(4096 - 1);
+    let addr = NEXT_VIRT_ADDR.fetch_add(size, Ordering::Relaxed);
+    VirtualAddress::new(addr)
+}
 
 pub struct Mapping<T> {
     start_addr: VirtualAddress,
@@ -24,7 +31,7 @@ impl<T> Mapping<T> {
     /// unsafe: the physical address needs to point to the given structure and there needs to be
     /// enough room in the virtual address space
     pub unsafe fn new(phys: PhysicalAddress, size: usize) -> Result<Self, MapToError> {
-        let virt = alloc_vmem(size as u64).align_up(4096);
+        let virt = alloc_vmem(size as u64);
 
         let start_frame = Frame::around(phys);
         let start_page = Page::around(virt);

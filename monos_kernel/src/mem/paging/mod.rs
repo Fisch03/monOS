@@ -29,6 +29,7 @@ use bootloader_api::info::BootInfo;
 
 static MAPPER: Once<Mutex<Mapper>> = Once::new();
 static FRAME_ALLOCATOR: Once<Mutex<FrameAllocator>> = Once::new();
+pub static KERNEL_PAGE_TABLE: Once<&PageTable> = Once::new();
 
 pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
     // set up PAT to use write-combining for write-through + cache-disabled pages (used for frame buffer)
@@ -36,6 +37,8 @@ pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
         PAT::INDEX_WRITE_THROUGH | PAT::INDEX_CACHE_DISABLED,
         PAT::WRITE_COMBINING,
     );
+    KERNEL_PAGE_TABLE.call_once(|| active_level_4_table());
+
     MAPPER.call_once(|| {
         let mapper = unsafe { Mapper::new(physical_mem_offset, active_level_4_table()) };
         Mutex::new(mapper)

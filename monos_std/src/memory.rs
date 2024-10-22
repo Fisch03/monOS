@@ -1,7 +1,5 @@
 use linked_list_allocator::LockedHeap;
 
-use crate::syscall;
-
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 

@@ -5,8 +5,6 @@ mod paging;
 pub use paging::*;
 
 mod alloc_heap;
-mod alloc_vmem;
-pub use alloc_vmem::alloc_vmem;
 
 use bootloader_api::info::BootInfo;
 use core::arch::asm;
@@ -24,7 +22,6 @@ pub unsafe fn init(boot_info: &BootInfo) {
 
     paging::init(phys_mem_offset, boot_info);
 
-    alloc_vmem::init(phys_mem_offset, &boot_info);
     alloc_heap::init();
 }
 

@@ -6,8 +6,8 @@ use crate::fs::{fs, File, OpenError, Read};
 use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
-    active_level_4_table, alloc_frame, copy_pagetable, create_user_demand_pages, empty_page_table,
-    physical_mem_offset, Frame, MapTo, Mapper, Page, PageTableFlags, VirtualAddress,
+    alloc_frame, copy_pagetable, create_user_demand_pages, empty_page_table, physical_mem_offset,
+    Frame, MapTo, Mapper, Page, PageTableFlags, VirtualAddress, KERNEL_PAGE_TABLE,
 };
 use monos_std::ProcessId;
 
@@ -75,17 +75,17 @@ pub struct Context {
     pub rax: u64,
 
     pub rip: u64,
-    cs: u64,
+    pub cs: u64,
     rflags: u64,
     rsp: u64,
-    ss: u64,
+    pub ss: u64,
 }
 
 const KERNEL_STACK_SIZE: u64 = 0x1000; // 4 KiB
 
 const USER_CODE_START: u64 = 0x200_000; // there is some bootloader stuff at 0x188_00
 const USER_STACK_START: u64 = 0x400_000_000_000;
-const USER_STACK_SIZE: u64 = 1024 * 1024 * 4; // 4 MiB
+const USER_STACK_SIZE: u64 = 1024 * 1024 * 1; // 1 MiB //TODO: allocations panic the kernel at some point, when fixed increase this
 const USER_HEAP_START: u64 = 0x28_000_000_000;
 const USER_HEAP_SIZE: u64 = 1024 * 1024 * 128; // 128 MiB
 
@@ -190,134 +190,116 @@ impl Process {
 
         let obj = object::File::parse(elf).expect("failed to parse ELF file");
 
-        let mut free_start = VirtualAddress::new(obj.segments().fold(0, |free_start, segment| {
-            free_start.max(segment.address() + segment.size())
-        }));
-
-        free_start = free_start.align_up(0x1000) + 0x1000;
-
-        let kernel_page_table = active_level_4_table();
+        let kernel_page_table = KERNEL_PAGE_TABLE.get().unwrap();
 
         let (process_page_table, page_table_frame) = empty_page_table();
         let process_page_table = unsafe { &mut *process_page_table };
         copy_pagetable(kernel_page_table, process_page_table);
-
-        unsafe { CR3::write(page_table_frame, 0) };
+        crate::println!(
+            "created user page table at {:#x}",
+            process_page_table as *mut _ as u64
+        );
 
         let mut process_mapper = unsafe { Mapper::new(physical_mem_offset(), process_page_table) };
-
-        crate::println!("allocating stack");
-
-        let user_stack_start = VirtualAddress::new(USER_STACK_START);
-        let mut user_stack_page = Page::around(user_stack_start);
-        let user_stack_end = user_stack_page.start_address() + USER_STACK_SIZE;
-        let user_stack_end_page = Page::around(user_stack_end);
-
-        user_stack_page = user_stack_page.next(); // skip one page to act as guard page
-
-        loop {
-            let user_stack_frame = alloc_frame().expect("failed to alloc frame for process stack");
-
-            unsafe {
-                process_mapper
-                    .map_to(
-                        &user_stack_page,
-                        &user_stack_frame,
-                        PageTableFlags::PRESENT
-                            | PageTableFlags::WRITABLE
-                            | PageTableFlags::USER_ACCESSIBLE,
-                    )
-                    .expect("failed to map stack page");
-            }
-
-            if user_stack_page == user_stack_end_page {
-                break;
-            }
-
-            user_stack_page = user_stack_page.next();
-
-            free_start += 0x1000;
-        }
-
-        // free_start += 0x4000;
 
         let user_heap_addr = VirtualAddress::new(USER_HEAP_START);
         create_user_demand_pages(&mut process_mapper, user_heap_addr, USER_HEAP_SIZE)
             .expect("failed to create user demand pages");
 
-        let code_addr = obj.entry();
+        without_interrupts(|| {
+            let (current_pt_frame, flags) = CR3::read();
+            unsafe { CR3::write(page_table_frame, flags) };
 
-        for segment in obj.segments() {
-            if segment.address() < USER_CODE_START {
-                panic!("segment address too low");
-            }
+            crate::println!("allocating stack");
 
-            let start_addr = VirtualAddress::new(segment.address());
-            let end_addr = start_addr + segment.size();
+            let user_stack_start = VirtualAddress::new(USER_STACK_START);
+            let mut user_stack_page = Page::around(user_stack_start);
+            let user_stack_end = user_stack_page.start_address() + USER_STACK_SIZE;
+            let user_stack_end_page = Page::around(user_stack_end);
 
-            let mut page = Page::around(start_addr);
-            let end_page = Page::around(end_addr.align_up(0x1000));
-
-            let mut frame = alloc_frame().expect("failed to alloc frame for process");
+            user_stack_page = user_stack_page.next(); // skip one page to act as guard page
 
             loop {
+                let user_stack_frame =
+                    alloc_frame().expect("failed to alloc frame for process stack");
+
                 unsafe {
                     process_mapper
                         .map_to(
-                            &page,
-                            &frame,
+                            &user_stack_page,
+                            &user_stack_frame,
                             PageTableFlags::PRESENT
                                 | PageTableFlags::WRITABLE
                                 | PageTableFlags::USER_ACCESSIBLE,
                         )
-                        .expect("failed to map code page");
+                        .expect("failed to map stack page");
                 }
 
-                if page == end_page {
+                if user_stack_page == user_stack_end_page {
                     break;
                 }
 
-                page = page.next();
-                frame = alloc_frame().expect("failed to alloc frame for process");
+                user_stack_page = user_stack_page.next();
             }
 
-            let dest = start_addr.as_mut_ptr::<u8>();
-            let src = segment.data().unwrap();
+            let code_addr = obj.entry();
 
-            crate::println!(
-                "copying segment from {:#x} to {:#x} to {:#x}",
-                src.as_ptr() as u64,
-                src.as_ptr() as u64 + src.len() as u64,
-                dest as u64
-            );
-            let (current_pt_frame, flags) = CR3::read();
-            without_interrupts(|| {
-                unsafe {
-                    CR3::write(page_table_frame, flags);
+            for segment in obj.segments() {
+                if segment.address() < USER_CODE_START {
+                    panic!("segment address too low");
                 }
+
+                let start_addr = VirtualAddress::new(segment.address());
+                let end_addr = start_addr + segment.size();
+
+                let mut page = Page::around(start_addr);
+                let end_page = Page::around(end_addr.align_up(0x1000));
+
+                let mut frame = alloc_frame().expect("failed to alloc frame for process");
+
+                loop {
+                    unsafe {
+                        process_mapper
+                            .map_to(
+                                &page,
+                                &frame,
+                                PageTableFlags::PRESENT
+                                    | PageTableFlags::WRITABLE
+                                    | PageTableFlags::USER_ACCESSIBLE,
+                            )
+                            .expect("failed to map code page");
+                    }
+
+                    if page == end_page {
+                        break;
+                    }
+
+                    page = page.next();
+                    frame = alloc_frame().expect("failed to alloc frame for process");
+                }
+
+                let dest = start_addr.as_mut_ptr::<u8>();
+                let src = segment.data().unwrap();
+
+                crate::println!(
+                    "copying segment from {:#x} to {:#x} to {:#x}",
+                    src.as_ptr() as u64,
+                    src.as_ptr() as u64 + src.len() as u64,
+                    dest as u64
+                );
 
                 unsafe {
                     core::ptr::copy_nonoverlapping(src.as_ptr(), dest, src.len());
-                }
-
-                unsafe {
-                    CR3::write(current_pt_frame, flags);
-                }
-            });
-        }
-
-        let id = ProcessId(NEXT_PID.fetch_add(1, Ordering::SeqCst));
-
-        let kernel_stack = Vec::with_capacity(KERNEL_STACK_SIZE as usize);
-        let kernel_stack_start = VirtualAddress::from_ptr(kernel_stack.as_ptr());
-        let kernel_stack_end = kernel_stack_start + KERNEL_STACK_SIZE;
-
-        let context_addr = kernel_stack_end - core::mem::size_of::<Context>() as u64;
-        without_interrupts(|| {
-            let (current_pt_frame, flags) = CR3::read();
-            unsafe {
-                CR3::write(page_table_frame, flags);
+                };
             }
+
+            let id = ProcessId(NEXT_PID.fetch_add(1, Ordering::SeqCst));
+
+            let kernel_stack = Vec::with_capacity(KERNEL_STACK_SIZE as usize);
+            let kernel_stack_start = VirtualAddress::from_ptr(kernel_stack.as_ptr());
+            let kernel_stack_end = kernel_stack_start + KERNEL_STACK_SIZE;
+
+            let context_addr = kernel_stack_end - core::mem::size_of::<Context>() as u64;
 
             let context = unsafe { &mut *context_addr.as_mut_ptr::<Context>() };
             *context = Context::default();
@@ -335,40 +317,41 @@ impl Process {
             context.r10 = user_heap_addr.as_u64();
             context.r11 = USER_HEAP_SIZE as u64 - 1;
 
+            let process = Self {
+                id,
+                mapper: process_mapper,
+                page_table_frame,
+                memory: ProcessMemory {
+                    user_stack_end,
+
+                    kernel_stack_end,
+                    kernel_stack,
+
+                    heap_start: user_heap_addr,
+                    heap_size: USER_HEAP_SIZE as usize - 1,
+                },
+                context_addr,
+                channels: Vec::new(),
+                file_handles: Vec::new(),
+            };
+
+            crate::println!(
+                "spawned process {}, entry at {:#x}, stack: {:#x}, heap: {:#x}, pt: {:#x}",
+                id,
+                code_addr,
+                user_stack_end.as_u64(),
+                user_heap_addr.as_u64(),
+                page_table_frame.start_address().as_u64()
+            );
+
+            let mut processes = PROCESS_QUEUE.write();
+            processes.push_front(Box::new(process));
+
             unsafe {
                 CR3::write(current_pt_frame, flags);
             }
-        });
 
-        let process = Self {
-            id,
-            mapper: process_mapper,
-            page_table_frame,
-            memory: ProcessMemory {
-                user_stack_end,
-
-                kernel_stack_end,
-                kernel_stack,
-
-                heap_start: user_heap_addr,
-                heap_size: USER_HEAP_SIZE as usize - 1,
-            },
-            context_addr,
-            channels: Vec::new(),
-            file_handles: Vec::new(),
-        };
-
-        crate::println!(
-            "spawned process {}, entry at {:#x}, stack: {:#x}, heap: {:#x}",
-            id,
-            code_addr,
-            user_stack_end.as_u64(),
-            user_heap_addr.as_u64()
-        );
-
-        let mut processes = PROCESS_QUEUE.write();
-        processes.push_front(Box::new(process));
-
-        Ok(id)
+            Ok(id)
+        })
     }
 }

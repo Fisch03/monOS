@@ -12,7 +12,8 @@ use core::arch::asm;
 
 #[no_mangle]
 fn main() {
+    println!("terminal!");
     loop {
-        println!("terminal!");
+        syscall::yield_();
     }
 }

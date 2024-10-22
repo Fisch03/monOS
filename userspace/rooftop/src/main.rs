@@ -15,11 +15,10 @@ use monos_std::dev::mouse::MouseState;
 
 use monos_gfx::{
     framebuffer::{FramebufferRequest, FramebufferResponse},
-    image::SliceReader,
     input::Input,
     text::font::Cozette,
     ui::*,
-    Color, Dimension, Framebuffer, Position, Rect,
+    Color, Framebuffer, Position, Rect,
 };
 
 #[no_mangle]
@@ -100,6 +99,7 @@ fn main() {
         draw_cursor(&mut fb, input.mouse.position);
 
         syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
+        syscall::yield_();
     }
 }
 

@@ -1,8 +1,10 @@
 use crate::arch::registers::MSR;
 use crate::gdt;
+use crate::mem::VirtualAddress;
 
 use monos_std::syscall::{Syscall, SyscallType};
 
+use crate::process::Context;
 use core::arch::asm;
 
 mod fs;
@@ -53,12 +55,11 @@ extern "C" fn handle_syscall() {
             "swapgs", // switch to user gs
 
             // backup registers for sysretq
-            "push r11",
-            "sub rsp, 8",
-            "push rcx",
+            "push r11",  // rflags
+            "sub rsp, 8", // will be filled with CS
+            "push rcx",  // rip
 
-            // no need to save rax, since it gets overwritten by return value
-            //"push rax",
+            "push rax",
             "push rbx",
             "push rcx",
             "push rdx",
@@ -79,7 +80,8 @@ extern "C" fn handle_syscall() {
 
             // convert syscall args to c abi
             // c abi:   rdi, rsi, rdx, rcx, r8, r9
-            // syscall: rax, rdi, rsi, rdx, r10, return
+            // syscall: rax, rdi, rsi, rdx, r10
+            "mov r9, rsp", // context ptr
             "mov r8, r10",
             "mov rcx, rdx",
             "mov rdx, rsi",
@@ -106,7 +108,7 @@ extern "C" fn handle_syscall() {
             "pop rdx",
             "pop rcx",
             "pop rbx",
-            // rax is the return value
+            "add rsp, 8", // pop rax without restoring it (it contains the return value now)
 
             "add rsp, 24", // Skip RIP, CS and RFLAGS
             "pop rsp", // Restore user stack
@@ -121,13 +123,29 @@ extern "C" fn handle_syscall() {
     }
 }
 
-extern "C" fn dispatch_syscall(syscall_id: u64, arg1: u64, arg2: u64, arg3: u64, arg4: u64) -> u64 {
+extern "C" fn dispatch_syscall(
+    syscall_id: u64,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+    arg4: u64,
+    context_addr: u64,
+) -> u64 {
     // crate::println!("syscall {} {} {} {} {}", syscall_id, arg1, arg2, arg3, arg4);
+    let context_addr = VirtualAddress::new(context_addr);
+
+    // fix the context cs and ss
+    unsafe {
+        let context: &mut Context = &mut *context_addr.as_mut_ptr();
+        context.cs = gdt::GDT.1.user_code.as_u16() as u64;
+        context.ss = gdt::GDT.1.user_data.as_u16() as u64;
+    }
 
     let mut ret = 0;
     if let Ok(syscall) = Syscall::try_from(syscall_id) {
         match syscall.ty {
             SyscallType::Spawn => ret = process::sys_spawn(arg1, arg2),
+            SyscallType::Yield => process::sys_yield(context_addr),
 
             SyscallType::Serve => panic!("unimplemented syscall {:?}", syscall),
             SyscallType::Connect => ipc::sys_connect(arg1, arg2, arg3),

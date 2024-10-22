@@ -112,7 +112,7 @@ pub fn init() {
     apic_base.set_x2apic_mode(false);
 
     let frame = mem::Frame::around(apic_base.address());
-    let page = mem::Page::around(mem::alloc_vmem(4096).align_up(4096));
+    let page = mem::Page::around(crate::APIC_ADDR);
 
     use mem::PageTableFlags;
     let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::CACHE_DISABLE;
@@ -123,7 +123,7 @@ pub fn init() {
         let mut local_apic = LocalAPIC::new(page.start_address());
 
         local_apic.write(LocalAPICField::TimerDivideConfig, 0b11);
-        local_apic.write(LocalAPICField::TimerInitialCount, 3_000_000); //TODO: measure apic speed using the pit and adjust the timer accordingly
+        local_apic.write(LocalAPICField::TimerInitialCount, 1_000_000); //TODO: measure apic speed using the pit and adjust the timer accordingly
 
         local_apic
     });

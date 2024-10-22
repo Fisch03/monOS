@@ -84,7 +84,7 @@ impl<'a> KernelFramebuffer<'a> {
         let front_buffer_end_page =
             mem::Page::around(front_buffer_virt + info.byte_len as u64).next();
 
-        let back_buffer_virt = mem::alloc_vmem(info.byte_len as u64);
+        let back_buffer_virt = crate::FB_START;
         let mut back_buffer_page = mem::Page::around(back_buffer_virt);
         let back_buffer_start_frame =
             mem::alloc_frames(info.byte_len as usize / 4096).expect("no memory for back buffer");

@@ -17,3 +17,9 @@ pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Option<ProcessId> {
         Some(ProcessId(ret as u32))
     }
 }
+
+pub fn yield_() {
+    unsafe {
+        syscall_0(Syscall::new(SyscallType::Yield));
+    }
+}
