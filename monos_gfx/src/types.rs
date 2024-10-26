@@ -198,6 +198,13 @@ impl Rect {
         }
     }
 
+    pub const fn grow(&self, padding: u32) -> Rect {
+        Rect {
+            min: Position::new(self.min.x - padding as i64, self.min.y - padding as i64),
+            max: Position::new(self.max.x + padding as i64, self.max.y + padding as i64),
+        }
+    }
+
     pub const fn contains(&self, pos: Position) -> bool {
         pos.x >= self.min.x && pos.x < self.max.x && pos.y >= self.min.y && pos.y < self.max.y
     }

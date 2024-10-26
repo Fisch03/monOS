@@ -30,7 +30,9 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     monos_kernel::kernel_init(boot_info);
 
     // start the desktop environment
-    process::spawn("bin/rooftop").expect("failed to start desktop environment");
+    interrupts::without_interrupts(|| {
+        process::spawn("bin/rooftop").expect("failed to start desktop environment");
+    });
 
     loop {
         unsafe {

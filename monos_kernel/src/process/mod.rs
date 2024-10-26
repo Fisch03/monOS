@@ -1,5 +1,7 @@
 pub mod messaging;
-use messaging::{Mailbox, Message, PartialReceiveChannelHandle};
+use messaging::{
+    add_process_port, GenericMessage, Mailbox, MessageType, PartialReceiveChannelHandle,
+};
 
 use crate::arch::registers::CR3;
 use crate::fs::{fs, File, OpenError, Read};
@@ -7,7 +9,7 @@ use crate::gdt::{self, GDT};
 use crate::interrupts::without_interrupts;
 use crate::mem::{
     alloc_frame, copy_pagetable, create_user_demand_pages, empty_page_table, physical_mem_offset,
-    Frame, MapTo, Mapper, Page, PageTableFlags, VirtualAddress, KERNEL_PAGE_TABLE,
+    Frame, MapTo, Mapper, Page, PageSize4K, PageTableFlags, VirtualAddress, KERNEL_PAGE_TABLE,
 };
 use monos_std::ProcessId;
 
@@ -30,6 +32,21 @@ pub struct Process {
     context_addr: VirtualAddress,
     channels: Vec<Mailbox>,
     file_handles: Vec<File>,
+    memory_chunks: Vec<MemoryChunk>,
+}
+
+struct MemoryChunk {
+    start_page: Page,
+    end_page: Page,
+}
+
+impl core::fmt::Debug for MemoryChunk {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("MemoryChunk")
+            .field("start", &self.start_page.start_address())
+            .field("end", &self.end_page.end_address())
+            .finish()
+    }
 }
 
 #[allow(dead_code)]
@@ -88,6 +105,7 @@ const USER_STACK_START: u64 = 0x400_000_000_000;
 const USER_STACK_SIZE: u64 = 1024 * 1024 * 1; // 1 MiB //TODO: allocations panic the kernel at some point, when fixed increase this
 const USER_HEAP_START: u64 = 0x28_000_000_000;
 const USER_HEAP_SIZE: u64 = 1024 * 1024 * 128; // 128 MiB
+const MEMORY_CHUNK_START: u64 = 0x500_000_000_000;
 
 const ELF_BYTES: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 
@@ -147,22 +165,172 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 }
 
 impl Process {
-    pub fn receive(&mut self, handle: PartialReceiveChannelHandle) -> Option<Message> {
-        let mailbox = self.channels.get_mut(handle.own_channel as usize)?;
-        mailbox.receive()
+    pub fn serve(&mut self, port: &str) -> PartialReceiveChannelHandle {
+        let mailbox = Mailbox::new();
+        self.channels.push(mailbox);
+
+        add_process_port(port, self.id, self.channels.len() as u16 - 1);
+
+        PartialReceiveChannelHandle {
+            own_channel: self.channels.len() as u16 - 1,
+        }
     }
 
-    pub fn receive_any(&mut self) -> Option<Message> {
+    fn receive_chunk(
+        &mut self,
+        chunk_address: VirtualAddress,
+        sender: ProcessId,
+    ) -> Option<VirtualAddress> {
+        let mut process_queue = PROCESS_QUEUE.write();
+        let sender = process_queue
+            .iter_mut()
+            .find(|p| p.id() == sender)?
+            .as_mut();
+
+        let chunk_index = sender
+            .memory_chunks
+            .iter()
+            .position(|chunk| chunk.start_page.start_address() == chunk_address)
+            .expect("message contains invalid memory chunk");
+        let chunk = sender.memory_chunks.remove(chunk_index);
+
+        let start = self.memory_chunks.last().map_or(
+            Page::around(VirtualAddress::new(MEMORY_CHUNK_START)),
+            |last| last.end_page.next(),
+        );
+
+        let mut current_sender = chunk.start_page;
+        let mut current_receiver = start;
+        loop {
+            let phys = sender
+                .mapper
+                .translate_addr(current_sender.start_address())
+                .expect("failed to translate page");
+            let frame = Frame::<PageSize4K>::around(phys);
+
+            sender
+                .mapper
+                .unmap(&current_sender)
+                .expect("failed to unmap page from sender");
+
+            unsafe {
+                self.mapper
+                    .map_to(
+                        &current_receiver,
+                        &frame,
+                        PageTableFlags::PRESENT
+                            | PageTableFlags::WRITABLE
+                            | PageTableFlags::USER_ACCESSIBLE,
+                    )
+                    .expect("failed to map page to receiver");
+            }
+
+            if current_sender == chunk.end_page {
+                break;
+            }
+
+            current_sender = current_sender.next();
+            current_receiver = current_receiver.next();
+        }
+
+        self.memory_chunks.push(MemoryChunk {
+            start_page: start,
+            end_page: current_receiver,
+        });
+
+        // crate::println!(
+        //     "sent chunk from pid {} at {:#x} to {:#x} -> pid {} at {:#x} to {:#x}",
+        //     sender.id().as_u32(),
+        //     chunk.start_page.start_address().as_u64(),
+        //     chunk.end_page.start_address().as_u64(),
+        //     self.id().as_u32(),
+        //     start.start_address().as_u64(),
+        //     current_receiver.start_address().as_u64()
+        // );
+
+        Some(start.start_address())
+    }
+
+    pub fn receive(&mut self, handle: PartialReceiveChannelHandle) -> Option<GenericMessage> {
+        let mailbox = self.channels.get_mut(handle.own_channel as usize)?;
+        let mut msg = mailbox.receive()?;
+
+        if let MessageType::Chunk {
+            ref mut address, ..
+        } = msg.data
+        {
+            *address = self
+                .receive_chunk(VirtualAddress::new(*address), msg.sender.target_process)?
+                .as_u64();
+        }
+
+        Some(msg)
+    }
+
+    pub fn receive_any(&mut self) -> Option<GenericMessage> {
         for mailbox in &mut self.channels {
-            if let Some(message) = mailbox.receive() {
-                return Some(message);
+            if let Some(mut msg) = mailbox.receive() {
+                if let MessageType::Chunk {
+                    ref mut address, ..
+                } = msg.data
+                {
+                    *address = self
+                        .receive_chunk(VirtualAddress::new(*address), msg.sender.target_process)?
+                        .as_u64();
+                }
+
+                return Some(msg);
             }
         }
 
         None
     }
 
-    //TODO: return result
+    pub fn request_chunk(&mut self, size: u64) -> Option<VirtualAddress> {
+        let start = self.memory_chunks.last().map_or(
+            Page::around(VirtualAddress::new(MEMORY_CHUNK_START)),
+            |last| last.end_page.next(),
+        );
+
+        let end = Page::around(start.start_address() + size);
+
+        let mut current = start;
+        loop {
+            let frame = alloc_frame()?;
+            unsafe {
+                self.mapper
+                    .map_to(
+                        &current,
+                        &frame,
+                        PageTableFlags::PRESENT
+                            | PageTableFlags::WRITABLE
+                            | PageTableFlags::USER_ACCESSIBLE,
+                    )
+                    .ok()?;
+            }
+
+            if current == end {
+                break;
+            }
+
+            current = current.next();
+        }
+
+        self.memory_chunks.push(MemoryChunk {
+            start_page: start,
+            end_page: end,
+        });
+
+        crate::println!(
+            "requested chunk from {:#x} to {:#x}",
+            start.start_address().as_u64(),
+            end.start_address().as_u64()
+        );
+
+        Some(start.start_address())
+    }
+
+    //TODO: return result instead of option
     pub fn open<'p, P: Into<Path<'p>>>(&mut self, path: P) -> Option<FileHandle> {
         let node = fs().get(path)?;
 
@@ -333,6 +501,7 @@ impl Process {
                 context_addr,
                 channels: Vec::new(),
                 file_handles: Vec::new(),
+                memory_chunks: Vec::new(),
             };
 
             crate::println!(

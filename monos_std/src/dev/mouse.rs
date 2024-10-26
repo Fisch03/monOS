@@ -1,4 +1,4 @@
-use crate::messaging::{Message, MessageData};
+use crate::messaging::{GenericMessage, MessageData, MessageType};
 
 #[derive(Debug, Clone)]
 pub struct MouseState {
@@ -9,8 +9,8 @@ pub struct MouseState {
 }
 
 impl MessageData for MouseState {
-    fn into_message(self) -> (u64, u64, u64, u64) {
-        (
+    fn into_message(self) -> MessageType {
+        MessageType::Scalar(
             self.x as u64,
             self.y as u64,
             self.flags.as_u8() as u64,
@@ -18,12 +18,14 @@ impl MessageData for MouseState {
         )
     }
 
-    unsafe fn from_message(message: &Message) -> Option<Self> {
+    unsafe fn from_message(message: GenericMessage) -> Option<Self> {
+        let data = message.data.as_scalar()?;
+
         let state = Self {
-            x: message.data.0 as i16,
-            y: message.data.1 as i16,
-            flags: MouseFlags::new(message.data.2 as u8),
-            scroll: message.data.3 as i16,
+            x: data.0 as i16,
+            y: data.1 as i16,
+            flags: MouseFlags::new(data.2 as u8),
+            scroll: data.3 as i16,
         };
 
         if state.flags.is_valid() {

@@ -1176,7 +1176,6 @@ dependencies = [
  "arrayvec",
  "linked_list_allocator",
  "num_enum",
- "volatile 0.6.1",
 ]
 
 [[package]]
@@ -1855,7 +1854,9 @@ dependencies = [
 name = "terminal"
 version = "0.1.0"
 dependencies = [
+ "monos_gfx",
  "monos_std",
+ "rooftop",
 ]
 
 [[package]]
@@ -1987,12 +1988,6 @@ name = "volatile"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "442887c63f2c839b346c192d047a7c87e73d0689c9157b00b53dcc27dd5ea793"
-
-[[package]]
-name = "volatile"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af8ca9a5d4debca0633e697c88269395493cebf2e10db21ca2dbde37c1356452"
 
 [[package]]
 name = "waker-fn"
@@ -2284,7 +2279,7 @@ dependencies = [
  "bit_field",
  "bitflags 2.6.0",
  "rustversion",
- "volatile 0.4.6",
+ "volatile",
 ]
 
 [[package]]

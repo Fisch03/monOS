@@ -147,13 +147,22 @@ extern "C" fn dispatch_syscall(
             SyscallType::Spawn => ret = process::sys_spawn(arg1, arg2),
             SyscallType::Yield => process::sys_yield(context_addr),
 
-            SyscallType::Serve => panic!("unimplemented syscall {:?}", syscall),
+            SyscallType::Serve => ipc::sys_serve(arg1, arg2, arg3),
             SyscallType::Connect => ipc::sys_connect(arg1, arg2, arg3),
             SyscallType::WaitConnect => panic!("unimplemented syscall {:?}", syscall),
             SyscallType::Receive => ipc::sys_receive(syscall.get_handle(), arg1),
             SyscallType::ReceiveAny => ipc::sys_receive_any(arg1),
-            SyscallType::Send => ipc::sys_send(syscall.get_handle(), arg1, arg2, arg3, arg4),
+            SyscallType::Send => ipc::sys_send(
+                syscall.get_handle(),
+                syscall.is_chunk(),
+                arg1,
+                arg2,
+                arg3,
+                arg4,
+            ),
             SyscallType::SendSync => panic!("unimplemented syscall {:?}", syscall),
+
+            SyscallType::RequestChunk => ret = ipc::sys_request_chunk(arg1),
 
             SyscallType::Open => fs::sys_open(arg1, arg2, arg3),
             SyscallType::Seek => panic!("unimplemented syscall {:?}", syscall),

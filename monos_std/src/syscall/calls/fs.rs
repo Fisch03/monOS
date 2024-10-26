@@ -3,8 +3,6 @@ use crate::fs::*;
 
 use alloc::vec::Vec;
 use core::mem::MaybeUninit;
-use core::ptr::NonNull;
-use volatile::VolatilePtr;
 
 pub fn open<'p, P: Into<Path<'p>>>(path: P, _flags: FileFlags) -> Option<FileHandle> {
     let path: Path = path.into();
@@ -25,8 +23,7 @@ pub fn open<'p, P: Into<Path<'p>>>(path: P, _flags: FileFlags) -> Option<FileHan
         );
     }
 
-    let file_handle_ptr = unsafe { VolatilePtr::new(NonNull::new(file_handle_ptr).unwrap()) };
-    file_handle_ptr.read()
+    file_handle
 }
 
 pub fn read(handle: &FileHandle, buf: &mut [u8]) -> usize {

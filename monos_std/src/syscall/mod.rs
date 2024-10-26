@@ -17,6 +17,8 @@ pub enum SyscallType {
     Receive,
     ReceiveAny,
 
+    RequestChunk,
+
     Open,
     Seek,
     Read,
@@ -30,7 +32,7 @@ pub enum SyscallType {
 #[repr(C, packed)]
 pub struct Syscall {
     pub ty: SyscallType,
-    flags: u8,
+    is_chunk: bool,
     receiver_pid: ProcessId,
     receiver_channel: u8,
     sender_channel: u8,
@@ -40,7 +42,7 @@ impl Syscall {
     pub const fn new(ty: SyscallType) -> Self {
         Self {
             ty,
-            flags: 0,
+            is_chunk: false,
             receiver_pid: ProcessId(0),
             receiver_channel: 0,
             sender_channel: 0,
@@ -56,6 +58,11 @@ impl Syscall {
         )
     }
 
+    #[inline(always)]
+    pub fn is_chunk(&self) -> bool {
+        self.is_chunk
+    }
+
     pub fn with_handle(mut self, channel: ChannelHandle) -> Self {
         // TODO: raise channel id limit to 12 bits
         self.receiver_pid = channel.target_process;
@@ -67,6 +74,11 @@ impl Syscall {
             .own_channel
             .try_into()
             .expect("channel id too large (fixme pls)");
+        self
+    }
+
+    pub fn send_chunk(mut self, is_chunk: bool) -> Self {
+        self.is_chunk = is_chunk;
         self
     }
 }
@@ -98,7 +110,7 @@ impl core::fmt::Debug for Syscall {
 
         f.debug_struct("Syscall")
             .field("type", &self.ty)
-            .field("flags", &self.flags)
+            .field("is_chunk", &self.is_chunk)
             .field("receiver_pid", &receiver_pid)
             .field("receiver_channel", &receiver_channel)
             .field("sender_channel", &sender_channel)

@@ -1,6 +1,6 @@
 use super::Fat16Fs;
 use crate::utils::BitField;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use core::{mem, str::FromStr};
 
 #[derive(Debug)]

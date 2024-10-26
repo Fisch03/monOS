@@ -8,8 +8,6 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
-use core::arch::asm;
-
 #[no_mangle]
 fn main() {
     loop {

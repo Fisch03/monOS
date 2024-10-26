@@ -61,18 +61,21 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
     let packet = unsafe { port.read() };
 
     if let Some(state) = MOUSE.lock().handle_packet(packet) {
-        use crate::process::messaging::{send, Message};
-        let message = Message {
-            sender: *CHANNEL_HANDLE.get().expect("mouse channel not initialized"),
-            data: (
-                state.x as u64,
-                state.y as u64,
-                state.flags.as_u8() as u64,
-                0,
-            ),
-        };
+        use crate::process::messaging::{send, GenericMessage, MessageType};
+        let sender = *CHANNEL_HANDLE.get().expect("mouse channel not initialized");
         for listener in LISTENERS.lock().iter() {
-            send(message.clone(), *listener);
+            send(
+                GenericMessage {
+                    sender,
+                    data: MessageType::Scalar(
+                        state.x as u64,
+                        state.y as u64,
+                        state.flags.as_u8() as u64,
+                        0,
+                    ),
+                },
+                *listener,
+            );
         }
     }
 

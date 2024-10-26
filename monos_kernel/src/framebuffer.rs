@@ -1,6 +1,6 @@
 use crate::mem::{self, PageTableFlags, VirtualAddress};
 
-use crate::process::messaging::{add_system_port, Message, PartialSendChannelHandle};
+use crate::process::messaging::{add_system_port, GenericMessage, PartialSendChannelHandle};
 use bootloader_api::info::FrameBuffer as RawFrameBuffer;
 use bootloader_api::info::PixelFormat;
 use core::slice;
@@ -18,7 +18,7 @@ pub fn get() -> Option<MutexGuard<'static, KernelFramebuffer<'static>>> {
     FRAMEBUFFER.get().map(|fb| fb.lock())
 }
 
-pub fn receive_message(message: Message) {
+pub fn receive_message(message: GenericMessage) {
     let mut current_proc_guard = crate::process::CURRENT_PROCESS.write();
     let current_proc = current_proc_guard.as_mut().unwrap();
 
@@ -36,26 +36,27 @@ pub fn receive_message(message: Message) {
         use crate::process::messaging::{send, MessageData};
         use monos_gfx::framebuffer::{FramebufferRequest, FramebufferResponse};
 
-        let request = unsafe { FramebufferRequest::from_message(&message).unwrap() };
+        let requester = message.sender;
+        let request = unsafe { FramebufferRequest::from_message(message).unwrap() };
         match request {
             FramebufferRequest::SubmitFrame(frame) => {
                 fb_guard.submit_frame(frame.buffer());
             }
             FramebufferRequest::Open(fb) => {
                 fb_guard.borrow(
-                    message.sender,
+                    requester,
                     fb,
                     current_proc.mapper(),
                     VirtualAddress::new(0x410000000000),
                 );
 
-                let return_message = Message {
+                let return_message = GenericMessage {
                     sender: fb_guard.own_handle,
                     data: FramebufferResponse::OK.into_message(),
                 };
 
                 drop(current_proc_guard); // drop the guard before sending the message, to avoid deadlock
-                send(return_message, message.sender);
+                send(return_message, requester);
             }
         }
     }

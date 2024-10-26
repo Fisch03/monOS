@@ -53,7 +53,7 @@ pub mod prelude {
 
     pub use alloc::{
         boxed::Box,
-        //format, // format!() causes a page fault for some reason
+        format, // format!() causes a page fault for some reason
         string::{String, ToString},
         vec,
         vec::Vec,
@@ -114,5 +114,7 @@ fn panic(info: &PanicInfo) -> ! {
 
     // TODO: exit syscall
 
-    loop {}
+    loop {
+        syscall::yield_();
+    }
 }

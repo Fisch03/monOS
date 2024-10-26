@@ -1,12 +1,103 @@
 use crate::ProcessId;
-use core::num::NonZeroU64;
+use core::marker::PhantomData;
 
 pub trait MessageData
 where
     Self: Sized,
 {
-    unsafe fn from_message(message: &Message) -> Option<Self>;
-    fn into_message(self) -> (u64, u64, u64, u64);
+    unsafe fn from_message(message: GenericMessage) -> Option<Self>;
+    fn into_message(self) -> MessageType;
+}
+
+#[derive(Debug)]
+pub enum MessageType {
+    Scalar(u64, u64, u64, u64),
+    Chunk {
+        address: u64,
+        size: u64,
+        data: (u64, u64),
+    },
+}
+
+impl MessageType {
+    pub fn as_scalar(&self) -> Option<(u64, u64, u64, u64)> {
+        match self {
+            Self::Scalar(a, b, c, d) => Some((*a, *b, *c, *d)),
+            _ => None,
+        }
+    }
+
+    // safety: supplied type must match the type of the chunk
+    pub unsafe fn as_chunk<T: Sized + 'static>(&self) -> Option<MemoryChunk<T>> {
+        match self {
+            Self::Chunk { address, size, .. } => {
+                assert_eq!(size_of::<T>() as u64, *size); // sanity check
+                let ptr = *address as *const T;
+                let chunk = unsafe { MemoryChunk::new(ptr) };
+                Some(chunk)
+            }
+            _ => None,
+        }
+    }
+}
+
+pub struct MemoryChunk<T>
+where
+    T: Sized + 'static,
+{
+    pub address: u64,
+    data: PhantomData<T>,
+}
+
+impl<T> MemoryChunk<T>
+where
+    T: Sized + 'static,
+{
+    // safety: should only be called from the kernel on a correctly mapped memory chunk
+    pub unsafe fn new(ptr: *const T) -> Self {
+        Self {
+            address: ptr as u64,
+            data: PhantomData,
+        }
+    }
+
+    pub fn size(&self) -> u64 {
+        size_of::<T>() as u64
+    }
+
+    pub fn as_message(&self, data1: u64, data2: u64) -> MessageType {
+        MessageType::Chunk {
+            address: self.address,
+            size: self.size(),
+            data: (data1, data2),
+        }
+    }
+}
+
+impl<T> core::ops::Deref for MemoryChunk<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*(self.address as *const T) }
+    }
+}
+
+impl<T> core::ops::DerefMut for MemoryChunk<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *(self.address as *mut T) }
+    }
+}
+
+impl<T> core::fmt::Debug for MemoryChunk<T>
+where
+    T: Sized + core::fmt::Debug + 'static,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        use core::ops::Deref;
+        f.debug_struct("MemoryChunk")
+            .field("address", &self.address)
+            .field("content", &self.deref())
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -60,6 +151,11 @@ impl ChannelHandle {
             own_channel: self.own_channel,
         }
     }
+
+    #[cfg(feature = "userspace")]
+    pub fn send<T: MessageData>(&self, data: T) {
+        crate::syscall::send(*self, data);
+    }
 }
 
 impl PartialSendChannelHandle {
@@ -103,40 +199,40 @@ impl From<ChannelHandle> for PartialReceiveChannelHandle {
 
 pub enum ChannelLimit {
     Unlimited,
-    Limited(NonZeroU64),
+    // Limited(NonZeroU64), // TODO: implement limited channels
 }
 
-impl From<u64> for ChannelLimit {
-    fn from(limit: u64) -> Self {
-        if limit == 0 {
-            Self::Unlimited
-        } else {
-            Self::Limited(NonZeroU64::new(limit).unwrap())
-        }
-    }
-}
+// impl From<u64> for ChannelLimit {
+//     fn from(limit: u64) -> Self {
+//         if limit == 0 {
+//             Self::Unlimited
+//         } else {
+//             Self::Limited(NonZeroU64::new(limit).unwrap())
+//         }
+//     }
+// }
 
 impl From<ChannelLimit> for u64 {
     fn from(limit: ChannelLimit) -> Self {
         match limit {
             ChannelLimit::Unlimited => 0,
-            ChannelLimit::Limited(limit) => limit.get(),
+            // ChannelLimit::Limited(limit) => limit.get(),
         }
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct Message {
+#[derive(Debug)]
+pub struct GenericMessage {
     pub sender: PartialSendChannelHandle,
-    pub data: (u64, u64, u64, u64),
+    pub data: MessageType,
 }
 
-impl MessageData for Message {
-    unsafe fn from_message(message: &Message) -> Option<Self> {
-        Some(message.clone())
+impl MessageData for GenericMessage {
+    unsafe fn from_message(message: GenericMessage) -> Option<Self> {
+        Some(message)
     }
 
-    fn into_message(self) -> (u64, u64, u64, u64) {
+    fn into_message(self) -> MessageType {
         self.data
     }
 }

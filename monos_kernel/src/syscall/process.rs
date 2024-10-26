@@ -1,9 +1,4 @@
-use crate::{
-    fs::Path,
-    mem::VirtualAddress,
-    process::{self, Context},
-    LOWER_HALF_END,
-};
+use crate::{fs::Path, mem::VirtualAddress, process, LOWER_HALF_END};
 use core::arch::asm;
 
 pub fn sys_spawn(arg1: u64, arg2: u64) -> u64 {

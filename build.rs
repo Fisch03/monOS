@@ -93,12 +93,14 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
         cargo
             .arg("rustc")
             .arg("--release")
+            .arg("--bin")
+            .arg(&crate_name)
             .arg("--target")
             .arg(manifest_dir.join("x86_64-monos_user.json"))
-            .arg("-Zbuild-std=core,alloc,compiler_builtins")
-            .arg("-Zbuild-std-features=compiler-builtins-mem")
             .arg("--manifest-path")
             .arg(crate_path.join("Cargo.toml"))
+            .arg("-Zbuild-std=core,alloc,compiler_builtins")
+            .arg("-Zbuild-std-features=compiler-builtins-mem")
             .arg("--")
             .arg("-Clink-arg=--image-base=0x200000")
             .env("CARGO_TARGET_DIR", &target_dir);

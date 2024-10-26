@@ -68,9 +68,9 @@ impl FSData {
         self.data.downcast_ref().unwrap()
     }
 
-    pub(super) fn data_mut<T: 'static>(&mut self) -> &mut T {
-        self.data.downcast_mut().unwrap()
-    }
+    // pub(super) fn data_mut<T: 'static>(&mut self) -> &mut T {
+    //     self.data.downcast_mut().unwrap()
+    // }
 }
 
 impl core::fmt::Debug for FSData {

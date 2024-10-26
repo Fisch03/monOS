@@ -78,9 +78,9 @@ pub fn init() {
     unsafe { gs_base.write(tss_address().as_u64()) };
 }
 
-pub fn user_segments() -> (SegmentSelector, SegmentSelector) {
-    (GDT.1.user_code, GDT.1.user_data)
-}
+// pub fn user_segments() -> (SegmentSelector, SegmentSelector) {
+//     (GDT.1.user_code, GDT.1.user_data)
+// }
 
 pub fn tss_address() -> VirtualAddress {
     let tss_ptr = &*TSS.lock() as *const TaskStateSegment;

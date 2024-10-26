@@ -124,19 +124,20 @@ the following syscalls currently exist:
 | -- | ------------ | ---------------------------- | -------------- | ------------------------------- | ------- | -------------------------------------------------------------------------------------- |
 | 0  | spawn        | file path ptr                | file path len  |                                 |         | spawn a new process of the given binary                                                |
 | 1  | yield        |                              |                |                                 |         | suspend the current process and move it to the end of the process queue                |
-| 2  | serve        | port name ptr                | port name len  | max connections (0 = unlimited) |         | provide a channel on the given port                                                    |
+| 2  | serve        | port name ptr                | port name len  |                                 |         | provide a channel on the given port                                                    |
 | 3  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
 | 4  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                           |
 | 5* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
 | 6* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
 | 7* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
-| 8  | receive_any  |                              |                |                                 |         | block until data is received on any opened channel                                     |
-| 9  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
-| 10 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
-| 11 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
-| 12 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
-| 13 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
-| 14 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 8  | receive_any  | ptr to `Option<Message>`     |                |                                 |         | block until data is received on any opened channel                                     |
+| 9  | req_chunk    | requested size               |                |                                 |         | request a memory chunk of the given size. returns address of chunk or 0 on failure     |
+| 10 | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
+| 11 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
+| 12 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
+| 13 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
+| 14 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
+| 15 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
 
 *it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
 
@@ -145,13 +146,15 @@ inter-process communication in monOS happens over channels. a process can provid
 other processes can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving process (using the `wait_conn` syscall) with a channel handle. 
 both processes can then send and receive messages over the channel using the `send`, `send_sync`, `receive` and `receive_any` syscalls.
 
-a message consists of up to 4 64-bit values. if it is ever needed, i have also planned support for sending a whole 4KiB page. 
+a message is either scalar consisting of 4 64-bit values or a chunked message. a chunked message points to a previously requested (using the `req_chunk` syscall) memory chunk 
+that will then be unmapped from the address space of the sending process and mapped into the address space of the receiving process.
 some messaging related syscalls are a bit special since they use the syscall id to pass some additional parameters:
-| bits  | content               |
-| ----- | --------------------- |
-|  0- 7 | syscall id            |
-|  8-15 | nothing... for now :) |
-| 16-63 | channel handle        |
+| bits  | content                             |
+| ----- | ----------------------------------- |
+|  0- 7 | syscall id                          |
+|     8 | 0 = scalar values, 1 = memory chunk |
+|  9-15 | nothing... for now :)               |
+| 16-63 | channel handle                      |
 
 a channel handle is a 48-bit value consisting of 32 bits target process id, 8 bit target channel id and 8 bit sender channel id.
 there is currently no safety in place for channels, meaning that a process can just send to any channel knowing its channel handle without `connect`ing to it first. i should probably fix that at some point...
@@ -175,9 +178,8 @@ there is currently no safety in place for channels, meaning that a process can j
       - [ ] use a better allocator (maybe)
   - [ ] heap allocation
     - [x] basic implementation
-    - [ ] !!! figure out why the allocator breaks when compiling with `-g`
+    - [ ] figure out why the allocator breaks when compiling with `-g`
     - [ ] implement own allocator
-  - [x] virtual address allocation
 - [x] ACPI
   - [x] basic table parsing
   - [ ] (?)
@@ -197,16 +199,17 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] better text wrapping
     - [x] buttons
     - [x] text input
-    - [ ] scrollable 
+    - [x] scrollable 
     - [ ] "drawing" functionality
     - [ ] only rerender if necessary
   - [ ] rewrite fb drawing code because it is messy as hell
   - [x] boot screen 
   - [ ] kernel panic screen
   - [ ] desktop environment (`rooftop`)
-    - [ ] basic ui
+    - [x] basic ui
     - [x] only rerender necessary parts
-    - [ ] spawning windows
+    - [x] spawning windows
+    - [ ] moving windows
   - [ ] terminal
 - [ ] task management
   - [ ] async executor
@@ -233,9 +236,9 @@ there is currently no safety in place for channels, meaning that a process can j
     - [ ] free on process exit
   - [ ] ipc
     - [x] kernel <-> process
-    - [ ] sending memory chunks
+    - [x] sending memory chunks
     - [ ] block waiting processes
-    - [ ] process <-> process
+    - [x] process <-> process
     - [ ] mpsc/broadcasts (?)
   - [ ] save sse/avx context
   - [ ] running [REDACTED] :)

@@ -28,12 +28,10 @@ impl EntryAction {
             Self::Open { bin, arg: _ } => {
                 // TODO: pass arg
                 match syscall::spawn(bin /* arg*/) {
-                    Some(pid) => {
-                        println!("Spawned process with PID {}", pid);
-                    }
                     None => {
                         println!("Failed to spawn process");
                     }
+                    _ => {}
                 }
             }
         };

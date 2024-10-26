@@ -72,15 +72,18 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
                 DecodedKey::RawKey(key) => ' ' as u64,
             };
 
-            use crate::process::messaging::{send, Message};
-            let message = Message {
-                sender: *CHANNEL_HANDLE
-                    .get()
-                    .expect("keyboard channel not initialized"),
-                data: (key, 0, 0, 0),
-            };
+            use crate::process::messaging::{send, GenericMessage, MessageType};
+            let sender = *CHANNEL_HANDLE
+                .get()
+                .expect("keyboard channel not initialized");
             for listener in LISTENERS.lock().iter() {
-                send(message.clone(), *listener);
+                send(
+                    GenericMessage {
+                        sender,
+                        data: MessageType::Scalar(key, 0, 0, 0),
+                    },
+                    *listener,
+                );
             }
             // match key {
             //     DecodedKey::Unicode('\n') => crate::gfx::framebuffer().confirm_input(),

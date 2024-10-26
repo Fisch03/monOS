@@ -1,7 +1,8 @@
 use super::{Process, CURRENT_PROCESS, PROCESS_QUEUE};
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, vec::Vec};
 pub use monos_std::messaging::{
-    ChannelHandle, Message, MessageData, PartialReceiveChannelHandle, PartialSendChannelHandle,
+    ChannelHandle, GenericMessage, MessageData, MessageType, PartialReceiveChannelHandle,
+    PartialSendChannelHandle,
 };
 use monos_std::ProcessId;
 use spin::{Lazy, RwLock};
@@ -27,10 +28,10 @@ impl Port {
 
 type SystemPortRegisterFn =
     dyn Fn(PartialSendChannelHandle) -> PartialSendChannelHandle + Sync + Send;
-type SystemPortReceiveFn = dyn Fn(Message) + Sync + Send;
+type SystemPortReceiveFn = dyn Fn(GenericMessage) + Sync + Send;
 enum PortType {
     System(Box<SystemPortRegisterFn>),
-    Process(usize),
+    Process(PartialSendChannelHandle),
 }
 
 impl core::fmt::Debug for PortType {
@@ -43,7 +44,7 @@ impl core::fmt::Debug for PortType {
 }
 
 //static NEXT_SYS_HANDLE: AtomicU16 = AtomicU16::new(0);
-pub const SYS_PORT_NO_RECEIVE: Option<fn(Message)> = None; // helper for system ports without receive function to avoid type system shenanigans
+pub const SYS_PORT_NO_RECEIVE: Option<fn(GenericMessage)> = None; // helper for system ports without receive function to avoid type system shenanigans
 
 pub fn add_system_port<F, G>(
     name: &str,
@@ -52,7 +53,7 @@ pub fn add_system_port<F, G>(
 ) -> PartialSendChannelHandle
 where
     F: Fn(PartialSendChannelHandle) -> PartialSendChannelHandle + Sync + Send + 'static,
-    G: Fn(Message) + Sync + Send + 'static,
+    G: Fn(GenericMessage) + Sync + Send + 'static,
 {
     let mut sys_channels = SYS_CHANNELS.write();
     let handle = PartialSendChannelHandle::new(ProcessId(0), sys_channels.len() as u16);
@@ -66,9 +67,18 @@ where
     handle
 }
 
+pub fn add_process_port(name: &str, pid: ProcessId, channel_id: u16) {
+    PORTS.write().push(Port::new(
+        name,
+        PortType::Process(PartialSendChannelHandle::new(pid, channel_id)),
+    ));
+
+    crate::println!("pid {} chan {} opened port '{}'", pid, channel_id, name);
+}
+
 #[derive(Debug)]
 pub struct Mailbox {
-    queue: VecDeque<Message>,
+    queue: VecDeque<GenericMessage>,
 }
 
 impl Mailbox {
@@ -78,14 +88,14 @@ impl Mailbox {
         }
     }
 
-    pub fn send(&mut self, message: Message) {
+    pub fn send(&mut self, message: GenericMessage) {
         if self.queue.len() >= MAX_QUEUE_SIZE {
             todo!("block sender until there is space in the queue")
         }
         self.queue.push_back(message);
     }
 
-    pub fn receive(&mut self) -> Option<Message> {
+    pub fn receive(&mut self) -> Option<GenericMessage> {
         self.queue.pop_front()
     }
 
@@ -116,7 +126,7 @@ pub fn connect(
 
     let to_handle = match &port.port_type {
         PortType::System(register_fn) => register_fn(from_handle),
-        PortType::Process(_pid) => todo!("connect to process port"),
+        PortType::Process(handle) => handle.clone(),
     };
 
     crate::println!(
@@ -134,7 +144,7 @@ pub fn connect(
     ))
 }
 
-pub fn send(message: Message, receiver_handle: PartialSendChannelHandle) {
+pub fn send(message: GenericMessage, receiver_handle: PartialSendChannelHandle) {
     let receiver = receiver_handle.target_process;
 
     if receiver == ProcessId(0) {

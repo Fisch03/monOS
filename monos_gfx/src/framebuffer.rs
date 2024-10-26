@@ -17,21 +17,21 @@ pub enum FramebufferResponse {
 }
 
 impl MessageData for FramebufferRequest<'_> {
-    fn into_message(self) -> (u64, u64, u64, u64) {
+    fn into_message(self) -> MessageType {
         match self {
             FramebufferRequest::Open(fb) => {
                 let fb_ptr = fb as *mut _ as u64;
-                (0, 0, 0, fb_ptr)
+                MessageType::Scalar(0, 0, 0, fb_ptr)
             }
             FramebufferRequest::SubmitFrame(fb) => {
                 let fb_ptr = fb as *const _ as u64;
-                (1, 0, 0, fb_ptr)
+                MessageType::Scalar(1, 0, 0, fb_ptr)
             }
         }
     }
 
-    unsafe fn from_message(message: &Message) -> Option<Self> {
-        match message.data {
+    unsafe fn from_message(message: GenericMessage) -> Option<Self> {
+        match message.data.as_scalar()? {
             (0, 0, 0, fb_ptr) => {
                 let fb = &mut *(fb_ptr as *mut Option<Framebuffer>);
                 Some(FramebufferRequest::Open(fb))
@@ -46,15 +46,15 @@ impl MessageData for FramebufferRequest<'_> {
 }
 
 impl MessageData for FramebufferResponse {
-    fn into_message(self) -> (u64, u64, u64, u64) {
+    fn into_message(self) -> MessageType {
         match self {
-            FramebufferResponse::OK => (0, 0, 0, 0),
+            FramebufferResponse::OK => MessageType::Scalar(0, 0, 0, 0),
         }
     }
 
-    unsafe fn from_message(_message: &Message) -> Option<Self> {
-        match _message.data {
-            (0, 0, 0, 0) => Some(FramebufferResponse::OK),
+    unsafe fn from_message(message: GenericMessage) -> Option<Self> {
+        match message.data {
+            MessageType::Scalar(0, 0, 0, 0) => Some(FramebufferResponse::OK),
             _ => None,
         }
     }
@@ -127,6 +127,9 @@ impl<'a> Framebuffer<'a> {
     #[inline(always)]
     pub fn get_pixel(&self, position: Position) -> Color {
         let byte_offset = self.pos_to_offset(position) as usize;
+        if byte_offset >= self.buffer.len() {
+            return Color::new(0, 0, 0);
+        }
 
         let pixel_bytes = &self.buffer[byte_offset..];
         Color::new(

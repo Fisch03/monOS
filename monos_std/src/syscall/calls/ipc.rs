@@ -1,29 +1,37 @@
-use core::ptr::NonNull;
-use volatile::VolatilePtr;
-
 use super::*;
 use crate::messaging::*;
 
-pub fn serve(port: &str, limit: ChannelLimit) {
+pub fn serve(port: &str) -> Option<PartialReceiveChannelHandle> {
     let ptr = port.as_ptr() as u64;
     let len = port.len() as u64;
 
-    // SAFETY: the parameters come from a valid string slice
-    unsafe { syscall_3(Syscall::new(SyscallType::Serve), ptr, len, limit.into()) };
+    let handle: Option<PartialReceiveChannelHandle> = None;
+
+    let handle_ptr = &handle as *const _;
+    unsafe {
+        syscall_4(
+            Syscall::new(SyscallType::Serve),
+            ptr,
+            len,
+            handle_ptr as u64,
+            ChannelLimit::Unlimited.into(),
+        )
+    };
+
+    handle
 }
 
-pub fn receive_any() -> Option<Message> {
-    let mut message: Option<Message> = None;
+pub fn receive_any() -> Option<GenericMessage> {
+    let mut message: Option<GenericMessage> = None;
 
     let message_ptr = &mut message as *mut _;
     unsafe { syscall_1(Syscall::new(SyscallType::ReceiveAny), message_ptr as u64) };
 
-    let message_ptr = unsafe { VolatilePtr::new(NonNull::new(message_ptr).unwrap()) };
-    message_ptr.read()
+    message
 }
 
-pub fn receive(handle: ChannelHandle) -> Option<Message> {
-    let mut message: Option<Message> = None;
+pub fn receive(handle: ChannelHandle) -> Option<GenericMessage> {
+    let mut message: Option<GenericMessage> = None;
 
     let message_ptr = &mut message as *mut _;
     unsafe {
@@ -33,19 +41,28 @@ pub fn receive(handle: ChannelHandle) -> Option<Message> {
         )
     };
 
-    let message_ptr = unsafe { VolatilePtr::new(NonNull::new(message_ptr).unwrap()) };
-    message_ptr.read()
+    message
 }
 
 pub unsafe fn receive_as<T: MessageData>(handle: ChannelHandle) -> Option<T> {
-    receive(handle).and_then(|msg| T::from_message(&msg))
+    receive(handle).and_then(|msg| T::from_message(msg))
 }
 
 pub fn send<T: MessageData>(handle: ChannelHandle, data: T) {
-    let (a, b, c, d) = data.into_message();
+    let (chunk, a, b, c, d) = match data.into_message() {
+        MessageType::Scalar(a, b, c, d) => (false, a, b, c, d),
+        MessageType::Chunk {
+            address,
+            size,
+            data,
+        } => (true, address, size, data.0, data.1),
+    };
+
     unsafe {
         syscall_4(
-            Syscall::new(SyscallType::Send).with_handle(handle),
+            Syscall::new(SyscallType::Send)
+                .with_handle(handle)
+                .send_chunk(chunk),
             a,
             b,
             c,
@@ -71,6 +88,20 @@ pub fn connect(port: &str) -> Option<ChannelHandle> {
     };
 
     handle
+}
+
+pub fn request_chunk<T: Sized + 'static>() -> Option<MemoryChunk<T>> {
+    let address = unsafe {
+        syscall_1(
+            Syscall::new(SyscallType::RequestChunk),
+            core::mem::size_of::<T>() as u64,
+        )
+    };
+
+    match address {
+        0 => None,
+        _ => Some(unsafe { MemoryChunk::new(address as *mut T) }),
+    }
 }
 
 pub fn print(s: &str) {
