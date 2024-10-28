@@ -6,4 +6,4 @@
 use monos_std::prelude::*;
 
 mod windowing;
-pub use windowing::{WindowClientMessage, WindowServerMessage};
+pub use windowing::{client::*, WindowClientMessage, WindowServerMessage};

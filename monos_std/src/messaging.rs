@@ -156,6 +156,11 @@ impl ChannelHandle {
     pub fn send<T: MessageData>(&self, data: T) {
         crate::syscall::send(*self, data);
     }
+
+    #[cfg(feature = "userspace")]
+    pub unsafe fn receive<T: MessageData>(&self) -> Option<T> {
+        T::from_message(crate::syscall::receive(*self)?)
+    }
 }
 
 impl PartialSendChannelHandle {

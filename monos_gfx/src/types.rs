@@ -107,6 +107,12 @@ impl core::ops::Sub<Position> for Position {
     }
 }
 
+impl core::ops::SubAssign<Position> for Position {
+    fn sub_assign(&mut self, rhs: Position) {
+        *self = *self - rhs;
+    }
+}
+
 impl core::ops::Add<Dimension> for Position {
     type Output = Position;
     fn add(self, rhs: Dimension) -> Position {

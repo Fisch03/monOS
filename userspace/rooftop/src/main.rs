@@ -12,7 +12,7 @@ mod desktop;
 use desktop::Desktop;
 
 mod windowing;
-use windowing::WindowServer;
+use windowing::server::WindowServer;
 
 use monos_std::dev::mouse::MouseState;
 
@@ -106,7 +106,7 @@ fn main() {
 
             desktop.draw(&mut fb, &mut input);
             window_server.draw_window_list(&mut fb, window_list_rect, &mut input);
-            window_server.draw(&mut fb, &mut input);
+            window_server.draw(&mut fb, &mut input, &clear_fb);
 
             draw_cursor(&mut fb, input.mouse.position);
 
@@ -139,6 +139,9 @@ fn create_clear_fb<'a>(main_fb: &Framebuffer, buffer: &'a mut Vec<u8>) -> Frameb
     clear_fb
 }
 
-fn draw_cursor(fb: &mut Framebuffer, pos: Position) {
+fn draw_cursor(fb: &mut Framebuffer, mut pos: Position) {
+    pos.y -= 4;
+    pos.x -= 1;
+
     fb.draw_char::<Cozette>(monos_gfx::Color::new(255, 255, 255), '\u{F55A}', &pos);
 }

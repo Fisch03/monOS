@@ -1,6 +1,7 @@
 pub mod messaging;
 use messaging::{
-    add_process_port, GenericMessage, Mailbox, MessageType, PartialReceiveChannelHandle,
+    add_process_port, ChannelHandle, GenericMessage, Mailbox, MessageType,
+    PartialReceiveChannelHandle,
 };
 
 use crate::arch::registers::CR3;
@@ -33,6 +34,12 @@ pub struct Process {
     channels: Vec<Mailbox>,
     file_handles: Vec<File>,
     memory_chunks: Vec<MemoryChunk>,
+    block_reason: Option<BlockReason>,
+}
+
+#[derive(Debug)]
+pub enum BlockReason {
+    WaitingforSend(ChannelHandle),
 }
 
 struct MemoryChunk {
@@ -147,7 +154,23 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
         processes.push_back(current);
     }
 
-    *current = processes.pop_front();
+    let mut count = 0;
+
+    loop {
+        let candidate = processes.pop_front().unwrap();
+        if candidate.block_reason.is_none() {
+            *current = Some(candidate);
+            break;
+        } else {
+            processes.push_back(candidate);
+        }
+
+        count += 1;
+
+        if count == processes.len() {
+            break;
+        }
+    }
 
     match current.as_ref() {
         Some(current) => {
@@ -165,6 +188,10 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
 }
 
 impl Process {
+    pub fn block(&mut self, reason: BlockReason) {
+        self.block_reason = Some(reason);
+    }
+
     pub fn serve(&mut self, port: &str) -> PartialReceiveChannelHandle {
         let mailbox = Mailbox::new();
         self.channels.push(mailbox);
@@ -502,6 +529,7 @@ impl Process {
                 channels: Vec::new(),
                 file_handles: Vec::new(),
                 memory_chunks: Vec::new(),
+                block_reason: None,
             };
 
             crate::println!(

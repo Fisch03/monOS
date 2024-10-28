@@ -128,23 +128,22 @@ the following syscalls currently exist:
 | 3  | connect      | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | connect to a channel at the given port                                                 |
 | 4  | wait_conn    | port name ptr                | port name len  | ptr to `Option<ChannelHandle>`  |         | wait for a process to connect to a channel on the given port                           |
 | 5* | send         | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel (asynchronously)                                       |
-| 6* | send_sync    | data 1                       | data 2         | data 3                          | data 4  | send data over a opened channel and block waiting for a response                       |
-| 7* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
-| 8  | receive_any  | ptr to `Option<Message>`     |                |                                 |         | block until data is received on any opened channel                                     |
-| 9  | req_chunk    | requested size               |                |                                 |         | request a memory chunk of the given size. returns address of chunk or 0 on failure     |
-| 10 | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
-| 11 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
-| 12 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
-| 13 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
-| 14 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
-| 15 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 6* | receive      | ptr to `Option<Message>`     |                |                                 |         | block until data is received on a given opened channel                                 |
+| 7  | receive_any  | ptr to `Option<Message>`     |                |                                 |         | block until data is received on any opened channel                                     |
+| 8  | req_chunk    | requested size               |                |                                 |         | request a memory chunk of the given size. returns address of chunk or 0 on failure     |
+| 9  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
+| 10 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
+| 11 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
+| 12 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
+| 13 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
+| 14 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
 
-*it is to be noted that the syscall id is a bit special for the `send`, `send_sync` and `receive` syscalls (see the chapter on messaging below).
+*the syscall id is a bit special for the `send`, and `receive` syscalls (see the chapter on messaging below).
 
 #### messaging
 inter-process communication in monOS happens over channels. a process can provide a channel on a port (basically just a unique string) using the `serve` sycall. 
 other processes can then open a connection on the port using the `connect` syscall. this provides both the sending and the receiving process (using the `wait_conn` syscall) with a channel handle. 
-both processes can then send and receive messages over the channel using the `send`, `send_sync`, `receive` and `receive_any` syscalls.
+both processes can then send and receive messages over the channel using the `send`, `receive` and `receive_any` syscalls.
 
 a message is either scalar consisting of 4 64-bit values or a chunked message. a chunked message points to a previously requested (using the `req_chunk` syscall) memory chunk 
 that will then be unmapped from the address space of the sending process and mapped into the address space of the receiving process.
@@ -209,6 +208,8 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] basic ui
     - [x] only rerender necessary parts
     - [x] spawning windows
+    - [x] usable client
+    - [ ] keyboard input
     - [ ] moving windows
   - [ ] terminal
 - [ ] task management

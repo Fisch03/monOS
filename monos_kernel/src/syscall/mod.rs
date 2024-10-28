@@ -160,7 +160,6 @@ extern "C" fn dispatch_syscall(
                 arg3,
                 arg4,
             ),
-            SyscallType::SendSync => panic!("unimplemented syscall {:?}", syscall),
 
             SyscallType::RequestChunk => ret = ipc::sys_request_chunk(arg1),
 

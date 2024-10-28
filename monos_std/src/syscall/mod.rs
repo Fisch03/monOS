@@ -13,7 +13,6 @@ pub enum SyscallType {
     Connect,
     WaitConnect,
     Send,
-    SendSync,
     Receive,
     ReceiveAny,
 

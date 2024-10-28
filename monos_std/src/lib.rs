@@ -53,6 +53,7 @@ pub mod prelude {
 
     pub use alloc::{
         boxed::Box,
+        collections,
         format, // format!() causes a page fault for some reason
         string::{String, ToString},
         vec,
