@@ -14,7 +14,7 @@ use desktop::Desktop;
 mod windowing;
 use windowing::server::WindowServer;
 
-use monos_std::dev::mouse::MouseState;
+use monos_std::dev::{keyboard::KeyEvent, mouse::MouseState};
 
 use monos_gfx::{
     framebuffer::{FramebufferRequest, FramebufferResponse},
@@ -86,8 +86,9 @@ fn main() {
                     mouse_moved = true
                 }
             } else if msg.sender == keyboard_channel {
-                let key = msg.data.as_scalar().unwrap().0 as u8 as char;
-                println!("Key: {:?}", key);
+                if let Some(key_event) = unsafe { KeyEvent::from_message(msg) } {
+                    dbg!(&key_event);
+                }
             } else {
                 // safety: since the only other channel is the window server we know this is a window message
                 unsafe { window_server.handle_message(msg) };

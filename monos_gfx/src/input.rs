@@ -1,36 +1,20 @@
 use crate::types::*;
 
 use alloc::collections::VecDeque;
-pub use pc_keyboard::{DecodedKey as Key, KeyCode as RawKey, KeyState};
 
-pub use monos_std::dev::mouse::{MouseFlags, MouseState};
+pub use monos_std::dev::keyboard::{Key, KeyCode, KeyEvent, KeyState};
+use monos_std::dev::mouse::MouseState;
 
 #[derive(Debug, Default, Clone)]
 pub struct Input {
     pub mouse: MouseInput,
-
-    pub keyboard: VecDeque<KeyEvent>,
+    pub keyboard: KeyboardInput,
 }
 
 impl Input {
     pub fn clear(&mut self) {
         self.mouse.clear();
         self.keyboard.clear();
-    }
-
-    pub fn key_pressed(&self, key: Key) -> bool {
-        self.keyboard
-            .iter()
-            .any(|e| e.key == key && e.state == KeyState::Down)
-    }
-
-    pub fn consume_key(&mut self, key: Key) -> Option<KeyState> {
-        let index = self.keyboard.iter().position(|e| e.key == key);
-        if let Some(index) = index {
-            self.keyboard.remove(index).map(|e| e.state)
-        } else {
-            None
-        }
     }
 }
 
@@ -77,8 +61,32 @@ impl MouseButtonState {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct KeyEvent {
-    pub key: Key,
-    pub state: KeyState,
+#[derive(Debug, Clone, Default)]
+pub struct KeyboardInput {
+    pub keys: VecDeque<KeyEvent>,
+}
+
+impl KeyboardInput {
+    pub fn clear(&mut self) {
+        self.keys.clear();
+    }
+
+    pub fn pressed(&self, key: KeyCode) -> bool {
+        self.keys
+            .iter()
+            .any(|e| e.key.code == key && e.state == KeyState::Down)
+    }
+
+    pub fn consume(&mut self) -> Option<KeyEvent> {
+        self.keys.pop_front()
+    }
+
+    pub fn consume_key(&mut self, key: KeyCode) -> Option<KeyState> {
+        let index = self.keys.iter().position(|e| e.key.code == key);
+        if let Some(index) = index {
+            self.keys.remove(index).map(|e| e.state)
+        } else {
+            None
+        }
+    }
 }

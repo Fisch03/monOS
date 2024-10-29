@@ -10,6 +10,7 @@ use crate::mem::Mapping;
 use crate::process::messaging::{add_system_port, PartialSendChannelHandle, SYS_PORT_NO_RECEIVE};
 
 use alloc::vec::Vec;
+use monos_gfx::input::Key;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use spin::{Lazy, Mutex, Once};
 use x86_64::instructions::port::Port;
@@ -66,33 +67,31 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
     let mut keyboard = KEYBOARD.lock();
 
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-        if let Some(key) = keyboard.process_keyevent(key_event) {
-            let key: u64 = match key {
-                DecodedKey::Unicode(character) => character as u64,
-                DecodedKey::RawKey(key) => ' ' as u64,
-            };
+        let state = key_event.state;
+        let original_key = key_event.code;
+        let sender = *CHANNEL_HANDLE
+            .get()
+            .expect("keyboard channel not initialized");
+        let key = if let Some(key) = keyboard.process_keyevent(key_event) {
+            key
+        } else {
+            DecodedKey::RawKey(original_key)
+        };
 
-            use crate::process::messaging::{send, GenericMessage, MessageType};
-            let sender = *CHANNEL_HANDLE
-                .get()
-                .expect("keyboard channel not initialized");
-            for listener in LISTENERS.lock().iter() {
-                send(
-                    GenericMessage {
-                        sender,
-                        data: MessageType::Scalar(key, 0, 0, 0),
-                    },
-                    *listener,
-                );
-            }
-            // match key {
-            //     DecodedKey::Unicode('\n') => crate::gfx::framebuffer().confirm_input(),
-            //     DecodedKey::Unicode('\u{8}') => crate::gfx::framebuffer().delete_input_char(),
-            //     DecodedKey::Unicode(character) => {
-            //         crate::gfx::framebuffer().add_input_char(character)
-            //     }
-            //     _ => {}
-            // }
+        use crate::process::messaging::{send, GenericMessage, MessageData};
+        for listener in LISTENERS.lock().iter() {
+            use monos_std::dev::keyboard::KeyEvent;
+            send(
+                GenericMessage {
+                    sender,
+                    data: KeyEvent {
+                        key: key.into(),
+                        state,
+                    }
+                    .into_message(),
+                },
+                *listener,
+            );
         }
     }
 

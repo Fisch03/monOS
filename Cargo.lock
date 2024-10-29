@@ -1148,7 +1148,6 @@ dependencies = [
  "hashbrown",
  "micromath",
  "monos_std",
- "pc-keyboard",
  "postcard",
  "rustc-hash",
  "serde",
@@ -1176,6 +1175,7 @@ dependencies = [
  "arrayvec",
  "linked_list_allocator",
  "num_enum",
+ "pc-keyboard",
 ]
 
 [[package]]

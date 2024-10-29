@@ -51,51 +51,51 @@ impl<F: Font> UIElement for Textbox<'_, F> {
         state.cursor = state.cursor.min(self.text.len());
 
         //TODO: check for focus
-        while let Some(event) = context.input.keyboard.pop_front() {
+        while let Some(event) = context.input.keyboard.consume() {
             match event.state {
                 KeyState::Up => continue,
                 _ => (),
             }
 
-            match event.key {
-                Key::Unicode(c) => {
-                    if let Some(limit) = self.char_limit {
-                        if self.text.len() >= limit {
-                            continue;
-                        }
-                    }
-
-                    self.text.insert(state.cursor, c);
-                    state.cursor += 1;
-                }
-
-                Key::RawKey(RawKey::ArrowLeft) => {
+            match event.key.code {
+                KeyCode::ArrowLeft => {
                     if state.cursor > 0 {
                         state.cursor -= 1;
                     }
                 }
-                Key::RawKey(RawKey::ArrowRight) => {
+                KeyCode::ArrowRight => {
                     if state.cursor < self.text.len() {
                         state.cursor += 1;
                     }
                 }
 
-                Key::RawKey(RawKey::Return) => {
+                KeyCode::Return => {
                     submitted = true;
                 }
-                Key::RawKey(RawKey::Backspace) => {
+                KeyCode::Backspace => {
                     if state.cursor > 0 {
                         self.text.remove(state.cursor - 1);
                         state.cursor -= 1;
                     }
                 }
-                Key::RawKey(RawKey::Delete) => {
+                KeyCode::Delete => {
                     if state.cursor < self.text.len() {
                         self.text.remove(state.cursor);
                     }
                 }
 
-                _ => (),
+                _ => {
+                    if let Some(c) = event.key.as_char() {
+                        if let Some(limit) = self.char_limit {
+                            if self.text.len() >= limit {
+                                continue;
+                            }
+                        }
+
+                        self.text.insert(state.cursor, c);
+                        state.cursor += 1;
+                    }
+                }
             }
         }
 
