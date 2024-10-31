@@ -2,10 +2,47 @@ pub use pc_keyboard::{DecodedKey, KeyCode, KeyState};
 
 use crate::messaging::{GenericMessage, MessageData, MessageType};
 
+pub const MODIFIER_SHIFT: u8 = 0b0000_0001;
+pub const MODIFIER_CTRL: u8 = 0b0000_0010;
+pub const MODIFIER_ALT: u8 = 0b0000_0100;
+pub const MODIFIER_GUI: u8 = 0b0000_1000;
+
 #[derive(Debug, Clone)]
 pub struct Key {
     pub code: KeyCode,
-    pub uppercase: bool,
+    modifiers: u8,
+}
+
+impl Key {
+    pub fn new(code: KeyCode, shift: bool, ctrl: bool, alt: bool, gui: bool) -> Self {
+        let mut modifiers = 0;
+        if shift {
+            modifiers |= MODIFIER_SHIFT;
+        }
+        if ctrl {
+            modifiers |= MODIFIER_CTRL;
+        }
+        if alt {
+            modifiers |= MODIFIER_ALT;
+        }
+        if gui {
+            modifiers |= MODIFIER_GUI;
+        }
+
+        Key { code, modifiers }
+    }
+    pub fn shift(&self) -> bool {
+        self.modifiers & MODIFIER_SHIFT != 0
+    }
+    pub fn ctrl(&self) -> bool {
+        self.modifiers & MODIFIER_CTRL != 0
+    }
+    pub fn alt(&self) -> bool {
+        self.modifiers & MODIFIER_ALT != 0
+    }
+    pub fn gui(&self) -> bool {
+        self.modifiers & MODIFIER_GUI != 0
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -18,7 +55,7 @@ impl MessageData for KeyEvent {
     fn into_message(self) -> MessageType {
         MessageType::Scalar(
             self.key.code as u64,
-            self.key.uppercase as u64,
+            self.key.modifiers as u64,
             self.state as u64,
             0,
         )
@@ -30,7 +67,7 @@ impl MessageData for KeyEvent {
         Some(KeyEvent {
             key: Key {
                 code: core::mem::transmute(data.0 as u8),
-                uppercase: data.1 != 0,
+                modifiers: data.1 as u8,
             },
             state: unsafe { core::mem::transmute(data.2 as u8) },
         })
@@ -77,11 +114,41 @@ impl Key {
             KeyCode::Key9 => '9',
             KeyCode::Key0 => '0',
             KeyCode::Spacebar => ' ',
+            KeyCode::OemMinus => '-',
+            KeyCode::OemPlus => '=',
+            KeyCode::OemComma => ',',
+            KeyCode::OemPeriod => '.',
+            KeyCode::Oem1 => ';',
+            KeyCode::Oem2 => '/',
+            KeyCode::Oem4 => '[',
+            KeyCode::Oem6 => ']',
+            KeyCode::Oem5 => '\\',
             _ => return None,
         };
 
-        Some(if self.uppercase {
-            lower.to_ascii_uppercase()
+        Some(if self.shift() {
+            match lower {
+                '1' => '!',
+                '2' => '@',
+                '3' => '#',
+                '4' => '$',
+                '5' => '%',
+                '6' => '^',
+                '7' => '&',
+                '8' => '*',
+                '9' => '(',
+                '0' => ')',
+                '-' => '_',
+                '=' => '+',
+                ',' => '<',
+                '.' => '>',
+                ';' => ':',
+                '/' => '?',
+                '[' => '{',
+                ']' => '}',
+                '\\' => '|',
+                _ => lower.to_ascii_uppercase(),
+            }
         } else {
             lower
         })
@@ -92,62 +159,4 @@ impl AsRef<KeyCode> for Key {
     fn as_ref(&self) -> &KeyCode {
         &self.code
     }
-}
-
-impl From<DecodedKey> for Key {
-    fn from(key: DecodedKey) -> Self {
-        match key {
-            DecodedKey::Unicode(c) => Key {
-                code: keycode_from_char(c).unwrap(),
-                uppercase: c.is_uppercase(),
-            },
-            DecodedKey::RawKey(code) => Key {
-                code,
-                uppercase: false,
-            },
-        }
-    }
-}
-
-fn keycode_from_char(c: char) -> Option<KeyCode> {
-    Some(match c.to_ascii_lowercase() {
-        'a' => KeyCode::A,
-        'b' => KeyCode::B,
-        'c' => KeyCode::C,
-        'd' => KeyCode::D,
-        'e' => KeyCode::E,
-        'f' => KeyCode::F,
-        'g' => KeyCode::G,
-        'h' => KeyCode::H,
-        'i' => KeyCode::I,
-        'j' => KeyCode::J,
-        'k' => KeyCode::K,
-        'l' => KeyCode::L,
-        'm' => KeyCode::M,
-        'n' => KeyCode::N,
-        'o' => KeyCode::O,
-        'p' => KeyCode::P,
-        'q' => KeyCode::Q,
-        'r' => KeyCode::R,
-        's' => KeyCode::S,
-        't' => KeyCode::T,
-        'u' => KeyCode::U,
-        'v' => KeyCode::V,
-        'w' => KeyCode::W,
-        'x' => KeyCode::X,
-        'y' => KeyCode::Y,
-        'z' => KeyCode::Z,
-        '1' => KeyCode::Key1,
-        '2' => KeyCode::Key2,
-        '3' => KeyCode::Key3,
-        '4' => KeyCode::Key4,
-        '5' => KeyCode::Key5,
-        '6' => KeyCode::Key6,
-        '7' => KeyCode::Key7,
-        '8' => KeyCode::Key8,
-        '9' => KeyCode::Key9,
-        '0' => KeyCode::Key0,
-        ' ' => KeyCode::Spacebar,
-        _ => return None,
-    })
 }

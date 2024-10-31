@@ -22,6 +22,7 @@ pub struct WindowServer {
     windows: Vec<Window>,
     close_button: Image,
     window_id: u64,
+    focused_window: Option<u64>,
     recv_handle: PartialReceiveChannelHandle,
 }
 
@@ -37,6 +38,7 @@ impl WindowServer {
             close_button,
             window_id: 1, // window id 0 is reserved for windows with an unknown id
             recv_handle,
+            focused_window: None,
         }
     }
 
@@ -63,6 +65,7 @@ impl WindowServer {
                 chunk.id = id;
                 chunk.dimensions = dimensions;
                 chunk.title = [0; 32];
+                chunk.keyboard_len = 0;
 
                 let target_handle = ChannelHandle::from_parts(sender, self.recv_handle);
 
@@ -76,6 +79,8 @@ impl WindowServer {
                     chunk: None,
                     target_handle,
                 });
+
+                self.focused_window = Some(id);
 
                 println!(
                     "created window {} with dimensions {}x{}",
@@ -103,6 +108,15 @@ impl WindowServer {
 
     pub fn draw(&mut self, fb: &mut Framebuffer, input: &mut Input, clear_fb: &Framebuffer) {
         let mut closed_windows = Vec::new();
+
+        let mut key_amt = input.keyboard.keys.len();
+        if key_amt > 6 {
+            println!(
+                "warning: dropping {} keyboard events",
+                input.keyboard.keys.len() - 6
+            );
+            key_amt = 6;
+        }
 
         for window in &mut self.windows {
             let mut closed = false;
@@ -145,15 +159,16 @@ impl WindowServer {
 
                 fb.clear_region(&full_rect.grow(1), &clear_fb);
             } else {
-                //TODO: make this depend on window
-                //focus instead
-                if window_rect.contains(input.mouse.position) {
-                    let mut mouse = input.mouse.clone();
-                    mouse.position -= window_rect.min;
-                    chunk.mouse = Some(mouse);
-                } else {
-                    chunk.mouse = None;
-                }
+                let mut mouse = input.mouse.clone();
+                mouse.position -= window_rect.min;
+                chunk.mouse = mouse;
+
+                let keyboard_src = &input.keyboard.keys[..key_amt];
+                let keyboard_dest = &mut chunk.keyboard[..keyboard_src.len()];
+                keyboard_dest.clone_from_slice(keyboard_src);
+                chunk.keyboard_len = keyboard_src.len() as u8;
+
+                chunk.focused = self.focused_window == Some(window.id);
 
                 window
                     .target_handle

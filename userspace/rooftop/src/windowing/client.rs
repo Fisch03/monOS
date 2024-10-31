@@ -1,11 +1,11 @@
 use super::*;
-use monos_gfx::{input::MouseInput, Framebuffer};
+use monos_gfx::{input::KeyboardInput, Framebuffer, Input};
 
 struct Window<T> {
     id: u64,
     title: String,
     creation_id: u64,
-    on_render: Box<dyn Fn(&mut T, &mut Framebuffer, Option<MouseInput>)>,
+    on_render: Box<dyn Fn(&mut T, &mut Framebuffer, Input)>,
 }
 
 pub struct WindowClient<T> {
@@ -39,7 +39,7 @@ impl<T> WindowClient<T> {
 
     pub fn create_window<R>(&mut self, title: &str, dimensions: Dimension, on_render: R)
     where
-        R: Fn(&mut T, &mut Framebuffer, Option<MouseInput>) + 'static,
+        R: Fn(&mut T, &mut Framebuffer, Input) + 'static,
     {
         let creation_id = self.next_creation_id;
         self.next_creation_id += 1;
@@ -73,10 +73,15 @@ impl<T> WindowClient<T> {
 
                 chunk.set_title(&window.title);
 
-                let mouse_state = chunk.mouse.clone();
+                let input = Input {
+                    keyboard: KeyboardInput {
+                        keys: chunk.keys().to_vec(),
+                    },
+                    mouse: chunk.mouse.clone(),
+                };
 
                 let mut fb = chunk.fb();
-                (window.on_render)(&mut self.app_data, &mut fb, mouse_state);
+                (window.on_render)(&mut self.app_data, &mut fb, input);
 
                 self.channel.send(WindowClientMessage::SubmitRender(chunk));
             }

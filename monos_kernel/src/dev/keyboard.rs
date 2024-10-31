@@ -10,8 +10,8 @@ use crate::mem::Mapping;
 use crate::process::messaging::{add_system_port, PartialSendChannelHandle, SYS_PORT_NO_RECEIVE};
 
 use alloc::vec::Vec;
-use monos_gfx::input::Key;
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use core::sync::atomic::{AtomicBool, Ordering};
+use pc_keyboard::{layouts, HandleControl, KeyCode, Keyboard, ScancodeSet1};
 use spin::{Lazy, Mutex, Once};
 use x86_64::instructions::port::Port;
 
@@ -22,6 +22,10 @@ static KEYBOARD: Lazy<Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>>> = Lazy::
         HandleControl::Ignore,
     ))
 });
+static MODIFIER_SHIFT: AtomicBool = AtomicBool::new(false);
+static MODIFIER_CTRL: AtomicBool = AtomicBool::new(false);
+static MODIFIER_ALT: AtomicBool = AtomicBool::new(false);
+static MODIFIER_GUI: AtomicBool = AtomicBool::new(false);
 
 static LISTENERS: Lazy<Mutex<Vec<PartialSendChannelHandle>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static CHANNEL_HANDLE: Once<PartialSendChannelHandle> = Once::new();
@@ -67,26 +71,53 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
     let mut keyboard = KEYBOARD.lock();
 
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-        let state = key_event.state;
-        let original_key = key_event.code;
         let sender = *CHANNEL_HANDLE
             .get()
             .expect("keyboard channel not initialized");
-        let key = if let Some(key) = keyboard.process_keyevent(key_event) {
-            key
-        } else {
-            DecodedKey::RawKey(original_key)
+
+        match key_event.code {
+            KeyCode::LShift | KeyCode::RShift => {
+                MODIFIER_SHIFT.store(
+                    key_event.state == pc_keyboard::KeyState::Down,
+                    Ordering::Relaxed,
+                );
+            }
+            KeyCode::LControl | KeyCode::RControl => {
+                MODIFIER_CTRL.store(
+                    key_event.state == pc_keyboard::KeyState::Down,
+                    Ordering::Relaxed,
+                );
+            }
+            KeyCode::LAlt => {
+                MODIFIER_ALT.store(
+                    key_event.state == pc_keyboard::KeyState::Down,
+                    Ordering::Relaxed,
+                );
+            }
+            KeyCode::LWin | KeyCode::RWin => {
+                MODIFIER_GUI.store(
+                    key_event.state == pc_keyboard::KeyState::Down,
+                    Ordering::Relaxed,
+                );
+            }
+            _ => {}
         };
 
         use crate::process::messaging::{send, GenericMessage, MessageData};
         for listener in LISTENERS.lock().iter() {
-            use monos_std::dev::keyboard::KeyEvent;
+            use monos_std::dev::keyboard::{Key, KeyEvent};
             send(
                 GenericMessage {
                     sender,
                     data: KeyEvent {
-                        key: key.into(),
-                        state,
+                        key: Key::new(
+                            key_event.code,
+                            MODIFIER_SHIFT.load(Ordering::Relaxed),
+                            MODIFIER_CTRL.load(Ordering::Relaxed),
+                            MODIFIER_ALT.load(Ordering::Relaxed),
+                            MODIFIER_GUI.load(Ordering::Relaxed),
+                        ),
+                        state: key_event.state,
                     }
                     .into_message(),
                 },

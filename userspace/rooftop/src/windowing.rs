@@ -1,4 +1,7 @@
-use monos_gfx::{input::MouseInput, Dimension, Framebuffer, FramebufferFormat};
+use monos_gfx::{
+    input::{KeyEvent, MouseInput},
+    Dimension, Framebuffer, FramebufferFormat,
+};
 use monos_std::messaging::*;
 
 pub mod client;
@@ -9,7 +12,10 @@ pub struct WindowChunk {
     dimensions: Dimension,
     title: [u8; 32],
     title_len: u8,
-    mouse: Option<MouseInput>,
+    focused: bool,
+    mouse: MouseInput,
+    keyboard: [KeyEvent; 6],
+    keyboard_len: u8,
     data: [u8; 640 * 480 * 3],
 }
 
@@ -37,6 +43,10 @@ impl WindowChunk {
                 a_position: None,
             },
         )
+    }
+
+    pub fn keys(&self) -> &[KeyEvent] {
+        &self.keyboard[..self.keyboard_len as usize]
     }
 }
 

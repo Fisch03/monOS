@@ -87,7 +87,7 @@ fn main() {
                 }
             } else if msg.sender == keyboard_channel {
                 if let Some(key_event) = unsafe { KeyEvent::from_message(msg) } {
-                    dbg!(&key_event);
+                    input.keyboard.keys.push(key_event);
                 }
             } else {
                 // safety: since the only other channel is the window server we know this is a window message

@@ -8,7 +8,7 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
-use monos_gfx::{input::MouseInput, Color, Dimension, Framebuffer};
+use monos_gfx::{Color, Dimension, Framebuffer, Input};
 use rooftop::WindowClient;
 
 use monos_std::collections::VecDeque;
@@ -38,10 +38,8 @@ fn main() {
     }
 }
 
-fn render(app: &mut Terminal, fb: &mut Framebuffer, mouse: Option<MouseInput>) {
+fn render(app: &mut Terminal, fb: &mut Framebuffer, input: Input) {
     fb.clear();
 
-    if let Some(mouse) = mouse {
-        fb.draw_pixel(mouse.position, Color::new(255, 255, 255));
-    }
+    fb.draw_pixel(input.mouse.position, Color::new(255, 255, 255));
 }

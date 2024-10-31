@@ -63,7 +63,7 @@ impl MouseButtonState {
 
 #[derive(Debug, Clone, Default)]
 pub struct KeyboardInput {
-    pub keys: VecDeque<KeyEvent>,
+    pub keys: Vec<KeyEvent>,
 }
 
 impl KeyboardInput {
@@ -78,13 +78,13 @@ impl KeyboardInput {
     }
 
     pub fn consume(&mut self) -> Option<KeyEvent> {
-        self.keys.pop_front()
+        self.keys.pop()
     }
 
     pub fn consume_key(&mut self, key: KeyCode) -> Option<KeyState> {
         let index = self.keys.iter().position(|e| e.key.code == key);
         if let Some(index) = index {
-            self.keys.remove(index).map(|e| e.state)
+            Some(self.keys.remove(index).state)
         } else {
             None
         }
