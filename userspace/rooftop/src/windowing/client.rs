@@ -93,4 +93,12 @@ impl<T> WindowClient<T> {
             None => {}
         }
     }
+
+    pub fn data(&self) -> &T {
+        &self.app_data
+    }
+
+    pub fn data_mut(&mut self) -> &mut T {
+        &mut self.app_data
+    }
 }

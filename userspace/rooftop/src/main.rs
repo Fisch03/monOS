@@ -77,8 +77,6 @@ fn main() {
     fb.clear_with(&clear_fb);
     println!("starting event loop");
     loop {
-        input.clear();
-
         while let Some(msg) = syscall::receive_any() {
             if msg.sender == mouse_channel {
                 if let Some(mouse_state) = unsafe { MouseState::from_message(msg) } {
@@ -106,12 +104,13 @@ fn main() {
             }
 
             desktop.draw(&mut fb, &mut input);
-            window_server.draw_window_list(&mut fb, window_list_rect, &mut input);
+            window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &clear_fb);
             window_server.draw(&mut fb, &mut input, &clear_fb);
 
             draw_cursor(&mut fb, input.mouse.position);
 
             syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
+            input.clear();
         }
 
         syscall::yield_();

@@ -188,6 +188,14 @@ impl<'a> Framebuffer<'a> {
         assert!(self.buffer.len() == fb.buffer.len());
         assert!(self.format == fb.format);
 
+        let rect = Rect {
+            min: Position::new(rect.min.x.max(0), rect.min.y.max(0)),
+            max: Position::new(
+                rect.max.x.min(self.dimensions.width as i64),
+                rect.max.y.min(self.dimensions.height as i64),
+            ),
+        };
+
         let mut line_start = ((rect.min.y * self.format.stride as i64 + rect.min.x)
             * self.format.bytes_per_pixel as i64) as usize;
         let mut line_pos = line_start;

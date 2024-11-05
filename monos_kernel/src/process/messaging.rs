@@ -90,6 +90,11 @@ impl Mailbox {
 
     pub fn send(&mut self, message: GenericMessage) {
         if self.queue.len() >= MAX_QUEUE_SIZE {
+            if message.sender.target_process == ProcessId(0) {
+                // system channels can't block
+                crate::println!("warning: dropping a system message because the queue is full!");
+                return;
+            }
             todo!("block sender until there is space in the queue")
         }
         self.queue.push_back(message);

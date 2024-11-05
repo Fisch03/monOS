@@ -216,6 +216,7 @@ there is currently no safety in place for channels, meaning that a process can j
   - [ ] async executor
   - [x] process spawning
   - [x] scheduler
+  - [ ] process killing
 - [ ] getting to userspace
   - [x] map kernel to upper half
   - [x] it works!
@@ -233,7 +234,7 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] sensible memory structure
     - [x] ondemand paging
     - [ ] figure out why allocation on the heap fails at a certain point
-    - [ ] memory chunks
+    - [x] memory chunks
     - [ ] free on process exit
   - [ ] ipc
     - [x] kernel <-> process
@@ -285,7 +286,7 @@ there is currently no safety in place for channels, meaning that a process can j
 # building/running
 you'll need a working rust installation. install llvm-tools (`rustup component add llvm-tools-preview`) and then do a `cargo build` in the workspace root. the disk image will be in `target/debug/build/monos-xxxxxxxxxxx/out/uefi.img`. if you have qemu installed, you can just do `cargo run` and it will be started automatically after the build :)
 
-running in virtualbox seems to work great too. convert the image into a virtualbox `.vdi` disk image using qemu-img (`qemu-img convert -f raw -O vdi uefi.vdi uefi.iso`) or a similar tool. set the vm type to "Other" and the version to "Other/Unknown (64-bit)". make sure to tick the "Enable EFI (special OSes only)" option at the hardware step or it won't work.
+running in virtualbox seems to work great too. convert the image into a virtualbox `.vdi` disk image using qemu-img (`qemu-img convert uefi.img -f raw -O vdi uefi.vdi`) or a similar tool. set the vm type to "Other" and the version to "Other/Unknown (64-bit)". make sure to tick the "Enable EFI (special OSes only)" option at the hardware step or it won't work.
 
 # big thanks
 - to mono for being cool and based and providing me with lots of entertainment while i wrote this thing :3

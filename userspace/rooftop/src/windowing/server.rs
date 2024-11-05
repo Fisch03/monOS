@@ -22,8 +22,8 @@ pub struct WindowServer {
     windows: Vec<Window>,
     close_button: Image,
     window_id: u64,
-    focused_window: Option<u64>,
     recv_handle: PartialReceiveChannelHandle,
+    drag_start: Option<Position>,
 }
 
 impl WindowServer {
@@ -38,7 +38,7 @@ impl WindowServer {
             close_button,
             window_id: 1, // window id 0 is reserved for windows with an unknown id
             recv_handle,
-            focused_window: None,
+            drag_start: None,
         }
     }
 
@@ -80,8 +80,6 @@ impl WindowServer {
                     target_handle,
                 });
 
-                self.focused_window = Some(id);
-
                 println!(
                     "created window {} with dimensions {}x{}",
                     id, dimensions.width, dimensions.height
@@ -118,7 +116,63 @@ impl WindowServer {
             key_amt = 6;
         }
 
-        for window in &mut self.windows {
+        let focused_window = self.windows.len() - 1;
+        if input.mouse.left_button.pressed {
+            if let Some(drag_start) = self.drag_start {
+                // drag
+                let window = &mut self.windows[focused_window];
+                let chunk = window.chunk.as_ref().unwrap();
+
+                let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
+
+                let header_rect = Rect::new(
+                    Position::new(window_rect.min.x, window_rect.min.y - 16),
+                    Position::new(window_rect.max.x, window_rect.min.y),
+                );
+
+                let full_rect = Rect::new(header_rect.min, window_rect.max).grow(1);
+
+                window.pos += input.mouse.position - drag_start;
+                self.drag_start = Some(input.mouse.position);
+
+                fb.clear_region(&full_rect, &clear_fb);
+            }
+        } else {
+            self.drag_start = None;
+        }
+
+        if input.mouse.left_button.clicked {
+            let new_focused_window =
+                self.windows
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(i, window)| {
+                        let chunk = window.chunk.as_ref().unwrap();
+
+                        let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
+
+                        let header_rect = Rect::new(
+                            Position::new(window_rect.min.x, window_rect.min.y - 16),
+                            Position::new(window_rect.max.x, window_rect.min.y),
+                        );
+
+                        if header_rect.contains(input.mouse.position) {
+                            return Some(i);
+                        }
+
+                        None
+                    });
+
+            if let Some(new_focused_window) = new_focused_window {
+                // drag start + focus
+                self.windows.swap(new_focused_window, focused_window);
+                self.drag_start = Some(input.mouse.position);
+            }
+        }
+
+        for (i, window) in self.windows.iter_mut().enumerate() {
+            let focused = i == focused_window;
             let mut closed = false;
 
             let mut chunk = window.chunk.take().unwrap();
@@ -130,9 +184,14 @@ impl WindowServer {
                 Position::new(window_rect.min.x, window_rect.min.y - 16),
                 Position::new(window_rect.max.x, window_rect.min.y),
             );
-            let full_rect = Rect::new(header_rect.min, window_rect.max);
-            fb.draw_rect(header_rect, Color::new(22, 22, 22));
-            fb.draw_box(full_rect.grow(1), Color::new(22, 22, 22));
+            let full_rect = Rect::new(header_rect.min, window_rect.max).grow(1);
+            let bg_color = if focused {
+                Color::new(22, 22, 22)
+            } else {
+                Color::new(44, 44, 44)
+            };
+            fb.draw_rect(header_rect, bg_color);
+            fb.draw_box(full_rect, bg_color);
 
             fb.draw_fb(&chunk.fb(), window_rect.min);
 
@@ -156,8 +215,9 @@ impl WindowServer {
                 window
                     .target_handle
                     .send(WindowServerMessage::RequestClose { id: window.id });
+                self.drag_start = None;
 
-                fb.clear_region(&full_rect.grow(1), &clear_fb);
+                fb.clear_region(&full_rect, &clear_fb);
             } else {
                 let mut mouse = input.mouse.clone();
                 mouse.position -= window_rect.min;
@@ -168,7 +228,7 @@ impl WindowServer {
                 keyboard_dest.clone_from_slice(keyboard_src);
                 chunk.keyboard_len = keyboard_src.len() as u8;
 
-                chunk.focused = self.focused_window == Some(window.id);
+                chunk.focused = focused;
 
                 window
                     .target_handle
@@ -179,14 +239,39 @@ impl WindowServer {
         self.windows.retain(|w| !closed_windows.contains(&w.id));
     }
 
-    pub fn draw_window_list(&self, fb: &mut Framebuffer, rect: Rect, input: &mut Input) {
-        let mut ui = UIFrame::new(Direction::LeftToRight);
+    pub fn draw_window_list(
+        &mut self,
+        fb: &mut Framebuffer,
+        rect: Rect,
+        input: &mut Input,
+        clear_fb: &Framebuffer,
+    ) {
+        fb.clear_region(&rect, clear_fb);
+
+        let mut new_focused_window = None;
+
+        let mut ui = UIFrame::new_stateless(Direction::LeftToRight);
         ui.draw_frame(fb, rect, input, |ui| {
             ui.margin(MarginMode::Grow);
 
-            for window in &self.windows {
-                ui.button::<font::Cozette>(&window.title);
+            let mut names = self
+                .windows
+                .iter()
+                .enumerate()
+                .map(|(i, w)| (i, w.id, &w.title))
+                .collect::<Vec<_>>();
+            names.sort_by(|a, b| a.1.cmp(&b.1));
+
+            for (i, id, name) in names {
+                if ui.button::<font::Cozette>(name).clicked {
+                    new_focused_window = Some(i);
+                }
             }
         });
+
+        if let Some(new_focused_window) = new_focused_window {
+            let focused_window = self.windows.len() - 1;
+            self.windows.swap(new_focused_window, focused_window);
+        }
     }
 }
