@@ -1,6 +1,4 @@
-use crate::ast::{
-    AssignmentKind, BinaryOp, Block, Expression, HookType, Span, StatementKind, UnaryOp, Value,
-};
+use crate::ast::*;
 use crate::{Interface, Script, ScriptHook};
 
 use alloc::{
@@ -19,7 +17,18 @@ pub struct RuntimeError<'a> {
     span: Span<'a>,
     pub kind: RuntimeErrorKind<'a>,
 }
+pub struct OwnedRuntimeError {
+    span: String,
+    pub kind: OwnedRuntimeErrorKind,
+}
 impl<'a> RuntimeError<'a> {
+    pub fn to_owned(self) -> OwnedRuntimeError {
+        OwnedRuntimeError {
+            span: self.span.fragment().to_string(),
+            kind: self.kind.to_owned(),
+        }
+    }
+
     fn current_line(&self) -> &str {
         let remainder = self.span.fragment();
         remainder.lines().next().unwrap_or("")
@@ -35,7 +44,33 @@ impl core::fmt::Debug for RuntimeError<'_> {
         )?;
         writeln!(f, "at \"{}\"", self.current_line())?;
 
-        match &self.kind {
+        write!(f, "{:?}", self.kind)?;
+
+        Ok(())
+    }
+}
+
+impl OwnedRuntimeError {
+    pub fn borrow<'a>(&'a self) -> RuntimeError<'a> {
+        RuntimeError {
+            span: Span::new(self.span.as_str()),
+            kind: self.kind.borrow(),
+        }
+    }
+
+    pub fn to_short_string(&self) -> String {
+        format!("{:?}", self.kind)
+    }
+}
+impl core::fmt::Debug for OwnedRuntimeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.borrow().fmt(f)
+    }
+}
+
+impl core::fmt::Debug for RuntimeErrorKind<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
             RuntimeErrorKind::UndefinedVariable(ident) => {
                 writeln!(f, "tried to access undefined variable: \"{}\"", ident)?;
             }
@@ -63,16 +98,65 @@ impl core::fmt::Debug for RuntimeError<'_> {
                     to.print_type()
                 )?;
             }
-        }
+        };
 
         Ok(())
     }
 }
+
 pub enum RuntimeErrorKind<'a> {
     UndefinedVariable(&'a str),
     MissingArgument(usize, &'a str),
     InvalidOperation(Value<'a>, Value<'a>),
     InvalidConversion(Value<'a>, Value<'a>),
+}
+pub enum OwnedRuntimeErrorKind {
+    UndefinedVariable(String),
+    MissingArgument(usize, String),
+    InvalidOperation(OwnedValue, OwnedValue),
+    InvalidConversion(OwnedValue, OwnedValue),
+}
+impl RuntimeErrorKind<'_> {
+    pub fn to_owned(self) -> OwnedRuntimeErrorKind {
+        match self {
+            RuntimeErrorKind::UndefinedVariable(ident) => {
+                OwnedRuntimeErrorKind::UndefinedVariable(ident.to_string())
+            }
+            RuntimeErrorKind::MissingArgument(index, ident) => {
+                OwnedRuntimeErrorKind::MissingArgument(index, ident.to_string())
+            }
+            RuntimeErrorKind::InvalidOperation(got, expected) => {
+                OwnedRuntimeErrorKind::InvalidOperation(got.to_owned(), expected.to_owned())
+            }
+            RuntimeErrorKind::InvalidConversion(from, to) => {
+                OwnedRuntimeErrorKind::InvalidConversion(from.to_owned(), to.to_owned())
+            }
+        }
+    }
+}
+impl OwnedRuntimeErrorKind {
+    pub fn borrow<'a>(&'a self) -> RuntimeErrorKind<'a> {
+        match self {
+            OwnedRuntimeErrorKind::UndefinedVariable(ident) => {
+                RuntimeErrorKind::UndefinedVariable(ident)
+            }
+            OwnedRuntimeErrorKind::MissingArgument(index, ident) => {
+                RuntimeErrorKind::MissingArgument(*index, ident.as_str())
+            }
+            OwnedRuntimeErrorKind::InvalidOperation(got, expected) => {
+                RuntimeErrorKind::InvalidOperation(got.borrow(), expected.borrow())
+            }
+            OwnedRuntimeErrorKind::InvalidConversion(from, to) => {
+                RuntimeErrorKind::InvalidConversion(from.borrow(), to.borrow())
+            }
+        }
+    }
+}
+
+impl core::fmt::Debug for OwnedRuntimeErrorKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.borrow().fmt(f)
+    }
 }
 
 #[derive(Debug)]
@@ -103,6 +187,19 @@ impl<'a> ScopeStack<'a> {
         Self {
             root: Scope {
                 variables: HashMap::with_hasher(rustc_hash::FxBuildHasher::default()),
+                is_new_scope: false,
+            },
+            stack: Vec::new(),
+        }
+    }
+
+    pub fn from_owned(owned: &'a [(String, OwnedValue)]) -> Self {
+        Self {
+            root: Scope {
+                variables: owned
+                    .iter()
+                    .map(|(k, v)| (k.as_str(), v.borrow()))
+                    .collect(),
                 is_new_scope: false,
             },
             stack: Vec::new(),
@@ -182,6 +279,22 @@ impl<'a> ScopeStack<'a> {
             .rev()
             .take_while(|scope| !scope.is_new_scope)
             .flat_map(|scope| scope.variables.iter().map(|(k, v)| (*k, v.clone())))
+            .collect()
+    }
+
+    pub fn get_owned_local_scope(mut self) -> Vec<(String, OwnedValue)> {
+        self.stack
+            .drain(..)
+            .rev()
+            .take_while(|scope| !scope.is_new_scope)
+            .chain(core::iter::once(self.root))
+            .flat_map(|mut scope| {
+                scope
+                    .variables
+                    .drain()
+                    .map(|(k, v)| (k.to_string(), v.to_owned()))
+                    .collect::<Vec<_>>()
+            })
             .collect()
     }
 }
@@ -418,70 +531,112 @@ impl<'a> Block<'a> {
         interface: &mut I,
     ) -> Result<Value<'a>, RuntimeError<'a>> {
         for statement in self.statements.iter() {
-            match &statement.kind {
-                StatementKind::Assignment {
-                    ident,
-                    expression,
-                    kind,
-                } => {
-                    let expr_value = expression
-                        .evaluate(scope, interface)
-                        .with_span(statement.span)?;
-                    match kind {
-                        AssignmentKind::Assign => scope.assign(ident, expr_value),
-                        _ => {
-                            let current_value = scope.get(ident).with_span(statement.span)?;
-                            let new_value = match kind {
-                                AssignmentKind::AddAssign => {
-                                    current_value.add(&expr_value).with_span(statement.span)?
-                                }
-                                AssignmentKind::SubAssign => {
-                                    current_value.sub(&expr_value).with_span(statement.span)?
-                                }
-                                AssignmentKind::MulAssign => {
-                                    current_value.mul(&expr_value).with_span(statement.span)?
-                                }
-                                AssignmentKind::DivAssign => {
-                                    current_value.div(&expr_value).with_span(statement.span)?
-                                }
-                                AssignmentKind::Assign => unreachable!(),
-                            };
-                            scope.assign(ident, new_value);
-                        }
-                    };
-                }
-                StatementKind::Hook { kind, block } => match kind {
-                    HookType::Window => {
-                        interface.spawn_window(ScriptHook {
-                            block: block.clone(),
-                            local_scope: scope.get_local_scope(),
-                        });
+            let res = statement.run(scope, interface)?;
+
+            if res.should_return {
+                return Ok(res.to_value());
+            }
+        }
+
+        Ok(Value::None)
+    }
+}
+
+pub struct StatementResult<'a> {
+    value: Value<'a>,
+    should_return: bool,
+}
+impl<'a> StatementResult<'a> {
+    fn new(value: Value<'a>) -> Self {
+        Self {
+            value,
+            should_return: false,
+        }
+    }
+    fn return_value(value: Value<'a>) -> Self {
+        Self {
+            value,
+            should_return: true,
+        }
+    }
+
+    pub fn to_value(self) -> Value<'a> {
+        self.value
+    }
+}
+
+impl<'a> Statement<'a> {
+    pub fn run<I: Interface<'a>>(
+        &self,
+        scope: &mut ScopeStack<'a>,
+        interface: &mut I,
+    ) -> Result<StatementResult<'a>, RuntimeError<'a>> {
+        let res = match &self.kind {
+            StatementKind::Assignment {
+                ident,
+                expression,
+                kind,
+            } => {
+                let expr_value = expression.evaluate(scope, interface).with_span(self.span)?;
+                match kind {
+                    AssignmentKind::Assign => scope.assign(ident, expr_value),
+                    _ => {
+                        let current_value = scope.get(ident).with_span(self.span)?;
+                        let new_value = match kind {
+                            AssignmentKind::AddAssign => {
+                                current_value.add(&expr_value).with_span(self.span)?
+                            }
+                            AssignmentKind::SubAssign => {
+                                current_value.sub(&expr_value).with_span(self.span)?
+                            }
+                            AssignmentKind::MulAssign => {
+                                current_value.mul(&expr_value).with_span(self.span)?
+                            }
+                            AssignmentKind::DivAssign => {
+                                current_value.div(&expr_value).with_span(self.span)?
+                            }
+                            AssignmentKind::Assign => unreachable!(),
+                        };
+                        scope.assign(ident, new_value);
                     }
-                    HookType::Key(char) => interface.on_key(
+                };
+                StatementResult::new(Value::None)
+            }
+            StatementKind::Hook { kind, block } => match kind {
+                HookType::Window => {
+                    interface.spawn_window(ScriptHook {
+                        block: block.clone(),
+                        local_scope: scope.get_local_scope(),
+                    });
+                    StatementResult::new(Value::None)
+                }
+                HookType::Key(char) => {
+                    interface.on_key(
                         *char,
                         ScriptHook {
                             block: block.clone(),
                             local_scope: scope.get_local_scope(),
                         },
-                    ),
-                },
-                StatementKind::Expression(expr) => {
-                    expr.evaluate(scope, interface).with_span(statement.span)?;
+                    );
+                    StatementResult::new(Value::None)
                 }
-                StatementKind::Return { expression } => match expression {
-                    Some(expr) => {
-                        let value = expr.evaluate(scope, interface).with_span(statement.span)?;
-                        return Ok(value);
-                    }
-                    None => return Ok(Value::None),
-                },
-                StatementKind::If { .. } => {
-                    todo!("if statement")
+            },
+            StatementKind::Expression(expr) => {
+                StatementResult::new(expr.evaluate(scope, interface).with_span(self.span)?)
+            }
+            StatementKind::Return { expression } => match expression {
+                Some(expr) => {
+                    let value = expr.evaluate(scope, interface).with_span(self.span)?;
+                    StatementResult::return_value(value)
                 }
-            };
-        }
+                None => StatementResult::return_value(Value::None),
+            },
+            StatementKind::If { .. } => {
+                todo!("if statement")
+            }
+        };
 
-        Ok(Value::None)
+        Ok(res)
     }
 }
 

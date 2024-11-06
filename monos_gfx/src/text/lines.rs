@@ -23,6 +23,32 @@ pub struct Line<'a> {
     pub hyphenated: bool,
 }
 
+pub enum ColorMode<'a> {
+    Single(Color),
+    PerLine(&'a [Color]),
+}
+
+impl core::default::Default for ColorMode<'_> {
+    fn default() -> Self {
+        ColorMode::Single(Color::new(255, 255, 255))
+    }
+}
+
+impl From<Color> for ColorMode<'_> {
+    fn from(color: Color) -> Self {
+        ColorMode::Single(color)
+    }
+}
+
+impl core::fmt::Debug for ColorMode<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ColorMode::Single(color) => f.debug_tuple("Single").field(&color).finish(),
+            ColorMode::PerLine(_) => f.debug_tuple("PerLine").finish(),
+        }
+    }
+}
+
 impl<'a> Line<'a> {
     pub fn width<F: Font>(&self) -> u32 {
         self.text
@@ -263,9 +289,17 @@ impl<'a, F: Font> Lines<'a, F> {
         }
     }
 
-    pub fn draw(&self, fb: &mut Framebuffer, position: Position, color: Color) {
+    pub fn draw<C: Into<ColorMode<'a>>>(&self, fb: &mut Framebuffer, position: Position, color: C) {
         let mut curr_position = position;
-        for line in self.iter() {
+        let color = color.into();
+
+        for (i, line) in self.iter().enumerate() {
+            let color = match color {
+                ColorMode::Single(color) => color,
+                ColorMode::PerLine(colors) => {
+                    colors.get(i).copied().unwrap_or(Color::new(255, 255, 255))
+                }
+            };
             fb.draw_str::<F>(color, line.text, curr_position);
             curr_position.x += F::CHAR_WIDTH as i64 * line.text.len() as i64;
             if line.hyphenated {
@@ -276,14 +310,7 @@ impl<'a, F: Font> Lines<'a, F> {
         }
     }
 
-    pub fn draw_clipped(
-        &self,
-        fb: &mut Framebuffer,
-        rect: Rect,
-        offset: Position,
-        origin: Origin,
-        color: Color,
-    ) {
+    fn prepare_draw(&self, rect: Rect, offset: Position, origin: Origin) -> PreparedDraw {
         let visible_lines = rect.height() as usize / F::CHAR_HEIGHT as usize;
 
         let (start_line, end_line) = match origin {
@@ -301,7 +328,7 @@ impl<'a, F: Font> Lines<'a, F> {
             }
         };
 
-        let mut curr_position = Position {
+        let curr_position = Position {
             x: rect.min.x + offset.x,
             y: match origin {
                 Origin::Top => rect.min.y - (offset.y % F::CHAR_HEIGHT as i64),
@@ -313,9 +340,65 @@ impl<'a, F: Font> Lines<'a, F> {
             },
         };
 
-        for line in self.lines[start_line..end_line].iter() {
+        PreparedDraw {
+            start_line,
+            end_line,
+            curr_position,
+        }
+    }
+
+    pub fn draw_clipped<C: Into<ColorMode<'a>>>(
+        &self,
+        fb: &mut Framebuffer,
+        rect: Rect,
+        offset: Position,
+        origin: Origin,
+        color: C,
+    ) {
+        let color = color.into();
+
+        let PreparedDraw {
+            start_line,
+            end_line,
+            mut curr_position,
+        } = self.prepare_draw(rect, offset, origin);
+
+        for (i, line) in self.lines[start_line..end_line].iter().enumerate() {
+            let color = match color {
+                ColorMode::Single(color) => color,
+                ColorMode::PerLine(ref colors) => {
+                    colors.get(i).copied().unwrap_or(Color::new(255, 255, 255))
+                }
+            };
+
             fb.draw_str_clipped::<F>(color, &line.text, curr_position, rect);
             curr_position.y += F::CHAR_HEIGHT as i64;
         }
     }
+
+    pub fn draw_colored_clipped(
+        &self,
+        fb: &mut Framebuffer,
+        rect: Rect,
+        offset: Position,
+        origin: Origin,
+        colors: impl Iterator<Item = Color> + Clone,
+    ) {
+        let PreparedDraw {
+            start_line,
+            end_line,
+            mut curr_position,
+        } = self.prepare_draw(rect, offset, origin);
+
+        for (line, color) in self.lines[start_line..end_line].iter().zip(colors.cycle()) {
+            fb.draw_str_clipped::<F>(color, &line.text, curr_position, rect);
+            curr_position.y += F::CHAR_HEIGHT as i64;
+        }
+    }
+}
+
+struct PreparedDraw {
+    start_line: usize,
+    end_line: usize,
+    curr_position: Position,
 }

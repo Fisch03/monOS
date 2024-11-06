@@ -12,11 +12,25 @@ pub struct WindowChunk {
     dimensions: Dimension,
     title: [u8; 32],
     title_len: u8,
+    update_frequency: UpdateFrequency,
     focused: bool,
     mouse: MouseInput,
     keyboard: [KeyEvent; 6],
     keyboard_len: u8,
     data: [u8; 640 * 480 * 3],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum UpdateFrequency {
+    Manual,
+    Always,
+    OnInput,
+}
+
+impl core::default::Default for UpdateFrequency {
+    fn default() -> Self {
+        UpdateFrequency::OnInput
+    }
 }
 
 impl WindowChunk {

@@ -71,7 +71,7 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
                         state.x as u64,
                         state.y as u64,
                         state.flags.as_u8() as u64,
-                        0,
+                        state.scroll as u64,
                     ),
                 },
                 *listener,
@@ -101,8 +101,10 @@ impl Mouse {
     const GET_STATUS: u8 = 0x20;
     const SET_STATUS: u8 = 0x60;
 
-    const COMMAND_SET_DEFAULTS: u8 = 0xF6;
+    // const COMMAND_GET_DEVICE_ID: u8 = 0xF2;
+    const COMMAND_SET_SAMPLE_RATE: u8 = 0xF3;
     const COMMAND_ENABLE_PACKET_STREAM: u8 = 0xF4;
+    const COMMAND_SET_DEFAULTS: u8 = 0xF6;
 
     pub fn new() -> Self {
         Self {
@@ -127,6 +129,27 @@ impl Mouse {
         self.write_command(Self::SET_STATUS)?;
         self.write_data(status)?;
         self.send_command(Self::COMMAND_SET_DEFAULTS)?;
+
+        // enable scrolling
+        crate::println!("setting sample rate to 200");
+        self.send_command(Self::COMMAND_SET_SAMPLE_RATE)?;
+        self.send_command(200)?;
+
+        crate::println!("setting sample rate to 100");
+        self.send_command(Self::COMMAND_SET_SAMPLE_RATE)?;
+        self.send_command(100)?;
+
+        crate::println!("setting sample rate to 80");
+        self.send_command(Self::COMMAND_SET_SAMPLE_RATE)?;
+        self.send_command(80)?;
+
+        // TODO: fix this and enable scroll depending on id
+        // crate::println!("getting device id");
+        // self.write_command(0xD4)?;
+        // self.write_command(Self::COMMAND_GET_DEVICE_ID)?;
+        // crate::dbg!(self.read_data()?);
+        // crate::dbg!(self.read_data()?);
+
         self.send_command(Self::COMMAND_ENABLE_PACKET_STREAM)?;
         Ok(())
     }
@@ -134,6 +157,11 @@ impl Mouse {
     fn send_command(&mut self, command: u8) -> Result<(), MouseError> {
         self.write_command(0xD4)?;
         self.write_data(command)?;
+        self.read_ack()?;
+        Ok(())
+    }
+
+    fn read_ack(&mut self) -> Result<(), MouseError> {
         if self.read_data()? != 0xFA {
             return Err(MouseError::NoResponse);
         }
@@ -167,15 +195,19 @@ impl Mouse {
                     };
                 }
             }
+            3 => {
+                // safety: we know that this is a scroll packet which saves values in i8 format
+                self.state.scroll = unsafe { core::mem::transmute::<u8, i8>(packet) } as i16;
+            }
             _ => unreachable!(),
         }
-        let r = if self.packet_type == 2 {
+        let r = if self.packet_type == 3 {
             Some(self.state.clone())
         } else {
             None
         };
 
-        self.packet_type = (self.packet_type + 1) % 3;
+        self.packet_type = (self.packet_type + 1) % 4;
 
         r
     }

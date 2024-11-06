@@ -1,7 +1,5 @@
 use crate::types::*;
 
-use alloc::collections::VecDeque;
-
 pub use monos_std::dev::keyboard::{Key, KeyCode, KeyEvent, KeyState};
 use monos_std::dev::mouse::MouseState;
 
@@ -15,6 +13,13 @@ impl Input {
     pub fn clear(&mut self) {
         self.mouse.clear();
         self.keyboard.clear();
+    }
+
+    pub fn any(&self) -> bool {
+        self.mouse.left_button.clicked
+            || self.mouse.right_button.clicked
+            || self.mouse.middle_button.clicked
+            || !self.keyboard.keys.is_empty()
     }
 }
 

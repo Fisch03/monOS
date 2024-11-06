@@ -1,6 +1,10 @@
 #![no_std]
 
 extern crate alloc;
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 use core::str;
 
 pub mod ast;
@@ -13,7 +17,10 @@ use execute::RuntimeError;
 pub use execute::ScriptContext;
 
 pub mod interface;
-pub use interface::{Interface, ScriptHook};
+pub use interface::{Interface, ReplInterface, ScriptHook};
+
+pub mod repl;
+pub use repl::ReplContext;
 
 pub fn parse<'a>(code: &'a str) -> Result<Script<'a>, ParseError<'a>> {
     let code = ast::Block::parse(code.into());
@@ -35,8 +42,21 @@ pub struct ParseError<'a> {
     span: Span<'a>,
     kind: ParseErrorKind,
 }
+pub struct OwnedParseError {
+    span: String,
+    kind: ParseErrorKind,
+}
+#[derive(Clone, Copy)]
 pub enum ParseErrorKind {
     UnexpectedToken,
+}
+
+impl OwnedParseError {
+    pub fn to_short_string(&self) -> String {
+        match self.kind {
+            ParseErrorKind::UnexpectedToken => format!("unexpected token at \"{}\"", self.span),
+        }
+    }
 }
 
 impl<'a> ParseError<'a> {
@@ -51,6 +71,13 @@ impl<'a> ParseError<'a> {
     fn current_line(&self) -> &str {
         let remainder = self.span.fragment();
         remainder.lines().next().unwrap_or("")
+    }
+
+    pub fn to_owned(&self) -> OwnedParseError {
+        OwnedParseError {
+            span: self.span.fragment().to_string(),
+            kind: self.kind,
+        }
     }
 }
 
@@ -70,6 +97,17 @@ impl core::fmt::Debug for ParseError<'_> {
             }
         }
 
+        Ok(())
+    }
+}
+impl core::fmt::Debug for OwnedParseError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(f, "at \"{}\"", self.span)?;
+        match self.kind {
+            ParseErrorKind::UnexpectedToken => {
+                writeln!(f, "unexpected token")?;
+            }
+        }
         Ok(())
     }
 }

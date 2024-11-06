@@ -8,21 +8,71 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
-use monos_gfx::{font, Color, Dimension, Framebuffer, Input, Position, Rect};
+use monos_gfx::{
+    font::{self, Font},
+    text::Origin,
+    ui::{widgets, Direction, TextWrap, UIFrame},
+    Color, Dimension, Framebuffer, Input, Rect,
+};
+use monoscript::{ast, ReplContext, ReplInterface};
 use rooftop::WindowClient;
 
 use monos_std::collections::VecDeque;
 
 struct Terminal {
+    interface: TerminalInterface,
+    input: String,
+    ui: UIFrame,
+    context: ReplContext,
+}
+
+enum LineType {
+    Input,
+    Output,
+    Error,
+}
+impl LineType {
+    fn color(&self) -> Color {
+        match self {
+            LineType::Input => Color::new(255, 255, 255),
+            LineType::Output => Color::new(150, 150, 150),
+            LineType::Error => Color::new(255, 0, 0),
+        }
+    }
+}
+
+struct TerminalInterface {
     lines: VecDeque<String>,
-    frames: u64,
+    line_colors: VecDeque<Color>,
+}
+impl TerminalInterface {
+    fn add_line(&mut self, line: String, line_type: LineType) {
+        let line = match line_type {
+            LineType::Input => format!("> {}", line),
+            LineType::Error => format!("! {}", line),
+            LineType::Output => line,
+            _ => line,
+        };
+        self.lines.push_back(line);
+        self.line_colors.push_back(line_type.color());
+    }
+}
+impl ReplInterface for TerminalInterface {
+    fn print(&mut self, message: &str) {
+        self.add_line(message.to_string(), LineType::Output);
+    }
 }
 
 impl Terminal {
     fn new() -> Self {
         Terminal {
-            lines: VecDeque::new(),
-            frames: 0,
+            ui: UIFrame::new(Direction::BottomToTop),
+            input: String::new(),
+            context: ReplContext::new(),
+            interface: TerminalInterface {
+                lines: VecDeque::new(),
+                line_colors: VecDeque::new(),
+            },
         }
     }
 }
@@ -32,9 +82,7 @@ fn main() {
     println!("terminal started!");
 
     let mut window_client = WindowClient::new("desktop.windows", Terminal::new()).unwrap();
-    window_client.create_window("terminal1", Dimension::new(100, 100), render1);
-    window_client.create_window("terminal2", Dimension::new(100, 100), render2);
-    window_client.create_window("terminal3", Dimension::new(100, 100), render3);
+    window_client.create_window("terminal", Dimension::new(320, 240), render);
 
     loop {
         window_client.update();
@@ -42,39 +90,41 @@ fn main() {
     }
 }
 
-fn render1(app: &mut Terminal, fb: &mut Framebuffer, input: Input) {
-    app.frames += 1;
+fn render(app: &mut Terminal, fb: &mut Framebuffer, mut input: Input) {
+    fb.clear();
 
-    fb.draw_rect(
-        Rect::from_dimensions(fb.dimensions()),
-        Color::new(255, 0, 0),
-    );
+    let rect = Rect::from_dimensions(fb.dimensions()).shrink(2);
 
-    fb.draw_str::<font::Glean>(
-        Color::new(255, 255, 255),
-        "good mononing!",
-        Position::new(15, (app.frames % 100) as i64),
-    );
-}
+    app.ui.draw_frame(fb, rect, &mut input, |ui| {
+        ui.gap(0);
 
-fn render2(app: &mut Terminal, fb: &mut Framebuffer, input: Input) {
-    fb.draw_rect(
-        Rect::from_dimensions(fb.dimensions()),
-        Color::new(0, 255, 0),
-    );
+        let textbox = widgets::Textbox::<font::Glean>::new(&mut app.input)
+            .wrap(TextWrap::Enabled { hyphenate: false });
+        if ui.add(textbox).submitted {
+            app.interface.add_line(app.input.clone(), LineType::Input);
 
-    fb.draw_str::<font::Glean>(
-        Color::new(255, 255, 255),
-        "hello term2!",
-        Position::new(15, ((app.frames + 50) % 100) as i64),
-    );
-}
+            match app.context.execute(&app.input, &mut app.interface) {
+                Ok(ast::OwnedValue::None) => {}
+                Ok(value) => {
+                    app.interface
+                        .add_line(format!("{:?}", value), LineType::Output);
+                }
+                Err(err) => {
+                    app.interface.add_line(format!("{}", err), LineType::Error);
+                }
+            }
 
-fn render3(app: &mut Terminal, fb: &mut Framebuffer, input: Input) {
-    fb.draw_rect(
-        Rect::from_dimensions(fb.dimensions()),
-        Color::new((app.frames % 255) as u8, 0, 255),
-    );
+            app.input.clear();
+        }
 
-    fb.draw_str::<font::Glean>(Color::new(255, 255, 255), "=w=", Position::new(40, 45));
+        ui.add(
+            widgets::ScrollableLabel::<font::Glean, _>::new_iter(
+                app.interface.lines.iter().map(|line| line.as_str()),
+                Origin::Bottom,
+            )
+            .wrap(TextWrap::Enabled { hyphenate: false })
+            .scroll_y(rect.height() - font::Glean::CHAR_HEIGHT - 4)
+            .text_colors(app.interface.line_colors.make_contiguous()),
+        );
+    });
 }

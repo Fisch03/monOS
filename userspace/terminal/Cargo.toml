@@ -6,5 +6,6 @@ edition = "2021"
 [dependencies]
 monos_std = { path = "../../monos_std" }
 monos_gfx = { path = "../../monos_gfx" }
-rooftop = { path = "../rooftop" }
 
+monoscript = { path = "../../monoscript" }
+rooftop = { path = "../rooftop" }

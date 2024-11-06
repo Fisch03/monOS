@@ -66,6 +66,7 @@ impl WindowServer {
                 chunk.dimensions = dimensions;
                 chunk.title = [0; 32];
                 chunk.keyboard_len = 0;
+                chunk.update_frequency = UpdateFrequency::default();
 
                 let target_handle = ChannelHandle::from_parts(sender, self.recv_handle);
 
@@ -175,7 +176,7 @@ impl WindowServer {
             let focused = i == focused_window;
             let mut closed = false;
 
-            let mut chunk = window.chunk.take().unwrap();
+            let mut chunk = window.chunk.as_mut().unwrap();
             window.title = String::from(chunk.title());
 
             let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
@@ -219,20 +220,30 @@ impl WindowServer {
 
                 fb.clear_region(&full_rect, &clear_fb);
             } else {
-                let mut mouse = input.mouse.clone();
-                mouse.position -= window_rect.min;
-                chunk.mouse = mouse;
+                let should_send = match chunk.update_frequency {
+                    UpdateFrequency::Always => true,
+                    UpdateFrequency::OnInput => input.any(),
+                    UpdateFrequency::Manual => false,
+                }; //TODO: manual updates
 
-                let keyboard_src = &input.keyboard.keys[..key_amt];
-                let keyboard_dest = &mut chunk.keyboard[..keyboard_src.len()];
-                keyboard_dest.clone_from_slice(keyboard_src);
-                chunk.keyboard_len = keyboard_src.len() as u8;
+                if should_send {
+                    let mut mouse = input.mouse.clone();
+                    mouse.position -= window_rect.min;
+                    chunk.mouse = mouse;
 
-                chunk.focused = focused;
+                    let keyboard_src = &input.keyboard.keys[..key_amt];
+                    let keyboard_dest = &mut chunk.keyboard[..keyboard_src.len()];
+                    keyboard_dest.clone_from_slice(keyboard_src);
+                    chunk.keyboard_len = keyboard_src.len() as u8;
 
-                window
-                    .target_handle
-                    .send(WindowServerMessage::RequestRender(chunk));
+                    chunk.focused = focused;
+
+                    window
+                        .target_handle
+                        .send(WindowServerMessage::RequestRender(
+                            window.chunk.take().unwrap(),
+                        ));
+                }
             }
         }
 
@@ -262,7 +273,7 @@ impl WindowServer {
                 .collect::<Vec<_>>();
             names.sort_by(|a, b| a.1.cmp(&b.1));
 
-            for (i, id, name) in names {
+            for (i, _, name) in names {
                 if ui.button::<font::Cozette>(name).clicked {
                     new_focused_window = Some(i);
                 }

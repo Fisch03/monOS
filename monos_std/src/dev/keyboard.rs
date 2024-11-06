@@ -120,9 +120,11 @@ impl Key {
             KeyCode::OemPeriod => '.',
             KeyCode::Oem1 => ';',
             KeyCode::Oem2 => '/',
+            KeyCode::Oem3 => '`',
             KeyCode::Oem4 => '[',
             KeyCode::Oem6 => ']',
             KeyCode::Oem5 => '\\',
+            KeyCode::Oem7 => '\'',
             _ => return None,
         };
 
@@ -147,6 +149,7 @@ impl Key {
                 '[' => '{',
                 ']' => '}',
                 '\\' => '|',
+                '\'' => '"',
                 _ => lower.to_ascii_uppercase(),
             }
         } else {
