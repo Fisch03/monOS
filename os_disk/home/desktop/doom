@@ -1,0 +1,3 @@
+name=doom
+icon=data/icons/test.ppm
+open=bin/doom

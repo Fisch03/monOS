@@ -20,7 +20,6 @@ use monos_gfx::{
     framebuffer::{FramebufferRequest, FramebufferResponse},
     input::Input,
     text::font::Cozette,
-    ui::*,
     Color, Framebuffer, Position, Rect,
 };
 
@@ -76,6 +75,8 @@ fn main() {
 
     fb.clear_with(&clear_fb);
     println!("starting event loop");
+
+    syscall::spawn("bin/doom");
     loop {
         while let Some(msg) = syscall::receive_any() {
             if msg.sender == mouse_channel {

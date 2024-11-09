@@ -57,7 +57,11 @@ impl Write for RamDisk {
 }
 
 impl Seek for RamDisk {
-    fn seek(&self, pos: usize) {
+    fn set_pos(&self, pos: usize) {
         self.pos.store(pos, Ordering::Relaxed);
+    }
+
+    fn get_pos(&self) -> usize {
+        self.pos.load(Ordering::Relaxed)
     }
 }

@@ -164,7 +164,8 @@ extern "C" fn dispatch_syscall(
             SyscallType::RequestChunk => ret = ipc::sys_request_chunk(arg1),
 
             SyscallType::Open => fs::sys_open(arg1, arg2, arg3),
-            SyscallType::Seek => panic!("unimplemented syscall {:?}", syscall),
+            SyscallType::Close => fs::sys_close(arg1),
+            SyscallType::Seek => ret = fs::sys_seek(arg1, arg2, arg3),
             SyscallType::Read => ret = fs::sys_read(arg1, arg2, arg3),
             SyscallType::Write => panic!("unimplemented syscall {:?}", syscall),
 

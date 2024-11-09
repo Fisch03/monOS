@@ -4,9 +4,12 @@ use monos_gfx::{
 };
 use monos_std::messaging::*;
 
+#[cfg(feature = "client")]
 pub mod client;
+#[cfg(not(feature = "client"))]
 pub mod server;
 
+#[allow(dead_code)]
 pub struct WindowChunk {
     id: u64,
     dimensions: Dimension,
@@ -38,12 +41,6 @@ impl WindowChunk {
         core::str::from_utf8(&self.title).unwrap_or("<empty>")
     }
 
-    pub fn set_title(&mut self, title: &str) {
-        let title_slice = self.title[0..title.len()].as_mut();
-        title_slice.copy_from_slice(title.as_bytes());
-        self.title_len = title.len() as u8;
-    }
-
     pub fn fb(&mut self) -> Framebuffer {
         Framebuffer::new(
             &mut self.data[..self.dimensions.width as usize * self.dimensions.height as usize * 3],
@@ -57,6 +54,15 @@ impl WindowChunk {
                 a_position: None,
             },
         )
+    }
+}
+
+#[cfg(feature = "client")]
+impl WindowChunk {
+    pub fn set_title(&mut self, title: &str) {
+        let title_slice = self.title[0..title.len()].as_mut();
+        title_slice.copy_from_slice(title.as_bytes());
+        self.title_len = title.len() as u8;
     }
 
     pub fn keys(&self) -> &[KeyEvent] {

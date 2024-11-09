@@ -54,7 +54,7 @@ impl Fat16File {
         }
 
         let pos = fs.cluster_offset(cluster as u32) as usize + cluster_pos;
-        fs.ramdisk.seek(pos as usize);
+        fs.ramdisk.set_pos(pos as usize);
         let read = fs.ramdisk.read(&mut buf[..read_size]);
         if read == 0 {
             return 0;

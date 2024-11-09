@@ -44,9 +44,11 @@ pub unsafe fn init(physical_mem_offset: VirtualAddress, boot_info: &BootInfo) {
         Mutex::new(mapper)
     });
     FRAME_ALLOCATOR.call_once(|| {
-        let start_frame = Frame::around(PhysicalAddress::new(
-            boot_info.kernel_addr + boot_info.kernel_len,
-        ));
+        // let start_frame = Frame::around(PhysicalAddress::new(
+        //     boot_info.kernel_addr + boot_info.kernel_len,
+        // ));
+        let start_frame = Frame::around(PhysicalAddress::new(0x0));
+
         let frame_allocator = FrameAllocator::new(&boot_info.memory_regions, start_frame);
 
         Mutex::new(frame_allocator)

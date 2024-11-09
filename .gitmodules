@@ -1,0 +1,3 @@
+[submodule "userspace/doom/doomgeneric"]
+	path = userspace/doom/doomgeneric
+	url = https://github.com/isif00/doomgeneric/

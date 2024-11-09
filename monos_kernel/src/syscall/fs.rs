@@ -2,6 +2,7 @@ use crate::LOWER_HALF_END;
 
 use crate::fs::{fs, ArrayPath, FileHandle, Path, PathBuf};
 use core::mem::MaybeUninit;
+use monos_std::io::SeekMode;
 
 pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
     assert!(arg1 + arg2 < LOWER_HALF_END);
@@ -15,7 +16,7 @@ pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
         .expect("invalid utf8 string")
     };
     let path = Path::new(path);
-    crate::println!("sys_open: {:?}", path);
+    crate::print!("SYS: sys_open: {:?}", path);
 
     let file_handle_ptr = arg3 as *mut Option<FileHandle>;
     let file_handle = unsafe { &mut *file_handle_ptr };
@@ -24,6 +25,40 @@ pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
     let current_proc = current_proc.as_mut().unwrap();
 
     *file_handle = current_proc.open(path);
+
+    if let Some(file_handle) = file_handle {
+        crate::print!(" -> {:?}\n", file_handle);
+    } else {
+        crate::print!(" -> failed!\n");
+    }
+}
+
+pub fn sys_close(arg1: u64) {
+    let file_handle = FileHandle::new(arg1);
+    crate::println!("sys_close: {:?}", file_handle);
+
+    let mut current_proc = crate::process::CURRENT_PROCESS.write();
+    let current_proc = current_proc.as_mut().unwrap();
+    match current_proc.close(file_handle) {
+        Ok(_) => (),
+        Err(e) => crate::println!(
+            "sys_close: failed to close file handle {:?}: {:?}",
+            file_handle,
+            e
+        ),
+    }
+}
+
+pub fn sys_seek(arg1: u64, arg2: u64, arg3: u64) -> u64 {
+    let file_handle = FileHandle::new(arg1);
+    let offset = arg2 as i64;
+    let seek_mode = SeekMode::try_from(arg3 as u8).expect("invalid seek mode");
+
+    crate::println!("sys_seek: {:?} {} {:?}", file_handle, offset, seek_mode);
+
+    let mut current_proc = crate::process::CURRENT_PROCESS.write();
+    let current_proc = current_proc.as_mut().unwrap();
+    current_proc.seek(file_handle, offset, seek_mode) as u64
 }
 
 pub fn sys_read(arg1: u64, arg2: u64, arg3: u64) -> u64 {

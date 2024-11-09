@@ -16,7 +16,7 @@ pub fn lookup_allocation(fs: &Fat16Fs, cluster: u16) -> AllocationType {
 
     let mut fat_entry = [0u8; 2];
     fs.ramdisk
-        .seek(fs.sector_offset(fat_sector) as usize + fat_offset as usize);
+        .set_pos(fs.sector_offset(fat_sector) as usize + fat_offset as usize);
     fs.ramdisk.read(&mut fat_entry);
 
     let fat_entry = u16::from_le_bytes(fat_entry);

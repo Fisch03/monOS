@@ -1,3 +1,13 @@
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
+#[derive(Debug, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
+pub enum SeekMode {
+    Start = 0,
+    End = 1,
+    Current = 2,
+}
+
 pub trait Read {
     fn read(&self, buf: &mut [u8]) -> usize;
 
@@ -31,7 +41,18 @@ pub trait Write {
 }
 
 pub trait Seek {
-    fn seek(&self, pos: usize);
+    fn set_pos(&self, pos: usize);
+    fn get_pos(&self) -> usize;
+
+    fn seek(&self, offset: i64, mode: SeekMode) -> usize {
+        let new_pos = match mode {
+            SeekMode::Start => offset,
+            SeekMode::End => (self.get_pos() as i64).saturating_add(offset),
+            SeekMode::Current => (self.get_pos() as i64).saturating_add(offset),
+        };
+        self.set_pos(new_pos as usize);
+        new_pos as usize
+    }
 }
 
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -60,7 +81,11 @@ impl Read for SliceReader<'_> {
 }
 
 impl Seek for SliceReader<'_> {
-    fn seek(&self, pos: usize) {
+    fn set_pos(&self, pos: usize) {
         self.pos.store(pos, Ordering::Relaxed);
+    }
+
+    fn get_pos(&self) -> usize {
+        self.pos.load(Ordering::Relaxed)
     }
 }

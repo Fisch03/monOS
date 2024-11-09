@@ -9,9 +9,11 @@ pub struct BitArray<const NUM_BYTES: usize> {
 
 impl<const NUM_BYTES: usize> BitArray<NUM_BYTES> {
     #[inline]
-    pub fn new() -> Self {
+    pub fn new(initial: bool) -> Self {
+        let initial = if initial { 0xff } else { 0x00 };
+
         Self {
-            data: [0; NUM_BYTES],
+            data: [initial; NUM_BYTES],
         }
     }
 

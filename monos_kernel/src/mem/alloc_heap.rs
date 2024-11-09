@@ -6,8 +6,8 @@ use linked_list_allocator::LockedHeap;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-// const HEAP_SIZE: u64 = 4096 * 1024; // 4 MiB
 use crate::HEAP_START;
+// const HEAP_SIZE: u64 = 4096 * 1024; // 4 MiB
 const HEAP_SIZE: u64 = 4096 * 4096; // 16 MiB
 
 pub fn init() {
@@ -22,17 +22,19 @@ pub fn init() {
     );
 
     while start_page != end_page {
-        let frame = alloc_frame().unwrap();
+        let frame = alloc_frame().expect("failed to allocate frame for heap");
+
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe { map_to(&start_page, &frame, flags).unwrap() };
 
         start_page = start_page.next();
     }
 
+    unsafe { core::ptr::write_bytes(HEAP_START.as_mut_ptr::<u8>(), 0, HEAP_SIZE as usize) };
+
     unsafe {
         ALLOCATOR
             .lock()
-            // .init(heap_start.as_u64() as usize, HEAP_SIZE as usize);
             .init(HEAP_START.as_mut_ptr(), HEAP_SIZE as usize);
     }
 }

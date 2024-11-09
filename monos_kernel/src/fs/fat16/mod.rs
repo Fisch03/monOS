@@ -32,7 +32,7 @@ pub enum Fat16Error {
 impl Fat16Fs {
     pub fn new(ramdisk: RamDisk) -> Result<Self, Fat16Error> {
         let mut bios_parameter_block = [0u8; mem::size_of::<BiosParameterBlock>()];
-        ramdisk.seek(mem::offset_of!(BootSector, bios_parameter_block));
+        ramdisk.set_pos(mem::offset_of!(BootSector, bios_parameter_block));
         ramdisk.read(&mut bios_parameter_block);
 
         // safety: we check that the parameter block is valid before using it in any way
@@ -73,7 +73,7 @@ impl Fat16Fs {
     #[inline]
     fn seek(&self, sector: u32, offset: u32) {
         self.ramdisk
-            .seek((self.sector_offset(sector) + offset) as usize);
+            .set_pos((self.sector_offset(sector) + offset) as usize);
     }
 
     #[inline]
@@ -102,6 +102,11 @@ impl FileSystem for Fat16Fs {
         };
 
         Ok(Fat16File::new(self, node))
+    }
+
+    fn close(&self, _file: File) -> Result<(), CloseError> {
+        //TODO: maybe do something here
+        Ok(())
     }
 
     fn list(self: Arc<Fat16Fs>, node: Arc<VFSNode>) {
@@ -145,7 +150,7 @@ impl FileSystem for Fat16Fs {
         Fat16File::write(file, self, buf)
     }
     fn seek(&self, file: &File, pos: usize) {
-        file.seek(pos);
+        file.set_pos(pos);
     }
 
     fn mount(self, node: &VFSNode) {

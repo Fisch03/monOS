@@ -12,9 +12,12 @@ use crate::mem::{
     alloc_frame, copy_pagetable, create_user_demand_pages, empty_page_table, physical_mem_offset,
     Frame, MapTo, Mapper, Page, PageSize4K, PageTableFlags, VirtualAddress, KERNEL_PAGE_TABLE,
 };
-use monos_std::ProcessId;
+use monos_std::{
+    io::{Seek, SeekMode},
+    ProcessId,
+};
 
-use crate::fs::{FileHandle, Path};
+use crate::fs::{CloseError, FileHandle, Path};
 use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
 use core::sync::atomic::{AtomicU32, Ordering};
 use object::{Object, ObjectSegment};
@@ -32,7 +35,8 @@ pub struct Process {
     memory: ProcessMemory,
     context_addr: VirtualAddress,
     channels: Vec<Mailbox>,
-    file_handles: Vec<File>,
+    next_handle: u64,
+    file_handles: Vec<(FileHandle, File)>,
     memory_chunks: Vec<MemoryChunk>,
     block_reason: Option<BlockReason>,
 }
@@ -358,7 +362,10 @@ impl Process {
     }
 
     //TODO: return result instead of option
-    pub fn open<'p, P: Into<Path<'p>>>(&mut self, path: P) -> Option<FileHandle> {
+    pub fn open<'p, P: Into<Path<'p>> + core::fmt::Debug>(
+        &mut self,
+        path: P,
+    ) -> Option<FileHandle> {
         let node = fs().get(path)?;
 
         if !node.is_file() {
@@ -367,15 +374,46 @@ impl Process {
 
         let file = node.open().ok()?;
 
-        self.file_handles.push(file);
+        let handle = FileHandle::new(self.next_handle);
+        self.next_handle += 1;
+        self.file_handles.push((handle, file));
 
-        Some(FileHandle::new(self.file_handles.len() as u64 - 1))
+        Some(handle)
+    }
+
+    pub fn close(&mut self, handle: FileHandle) -> Result<(), CloseError> {
+        let index = match self.file_handles.iter().position(|(h, _)| *h == handle) {
+            Some(index) => index,
+            None => return Err(CloseError::NotOpen),
+        };
+
+        let (_, file) = self.file_handles.remove(index);
+        file.close()
+    }
+
+    pub fn seek(&mut self, handle: FileHandle, offset: i64, mode: SeekMode) -> usize {
+        let handle = self.file_handles.iter().find(|(h, _)| *h == handle);
+        if let Some((_, file)) = handle {
+            crate::println!(
+                "current pos: {:#x}, offset: {:#x}, mode: {:?}",
+                file.get_pos(),
+                offset,
+                mode
+            );
+            let ret = file.seek(offset, mode);
+            crate::println!("new pos: {:#x}", file.get_pos());
+
+            ret
+        } else {
+            crate::println!("seek: file handle not found");
+            0
+        }
     }
 
     pub fn read(&self, handle: FileHandle, buf: &mut [u8]) -> Option<usize> {
-        let handle = self.file_handles.get(handle.as_u64() as usize)?;
+        let handle = self.file_handles.iter().find(|(h, _)| *h == handle)?;
 
-        Some(handle.read_all(buf))
+        Some(handle.1.read_all(buf))
     }
 
     fn new(elf: &[u8]) -> Result<ProcessId, SpawnError> {
@@ -527,6 +565,7 @@ impl Process {
                 },
                 context_addr,
                 channels: Vec::new(),
+                next_handle: 3, // 0, 1, 2 are reserved if we ever do stdin/stdout/stderr
                 file_handles: Vec::new(),
                 memory_chunks: Vec::new(),
                 block_reason: None,

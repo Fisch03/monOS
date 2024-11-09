@@ -1,6 +1,6 @@
 use monos_gfx::{
     font::Cozette,
-    ui::{Direction, MarginMode, PaddingMode, UIFrame},
+    ui::{Direction, MarginMode, UIFrame},
     Framebuffer, Image, Input, Rect,
 };
 

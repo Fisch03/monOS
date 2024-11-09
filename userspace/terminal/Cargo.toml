@@ -8,4 +8,4 @@ monos_std = { path = "../../monos_std" }
 monos_gfx = { path = "../../monos_gfx" }
 
 monoscript = { path = "../../monoscript" }
-rooftop = { path = "../rooftop" }
+rooftop = { path = "../rooftop", features = ["client"] }

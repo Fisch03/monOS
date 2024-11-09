@@ -1,5 +1,6 @@
 use super::*;
 use crate::fs::*;
+use crate::io::SeekMode;
 
 use alloc::vec::Vec;
 use core::mem::MaybeUninit;
@@ -24,6 +25,26 @@ pub fn open<'p, P: Into<Path<'p>>>(path: P, _flags: FileFlags) -> Option<FileHan
     }
 
     file_handle
+}
+
+pub fn close(handle: &FileHandle) {
+    unsafe {
+        syscall_1(Syscall::new(SyscallType::Close), handle.as_u64());
+    }
+}
+
+pub fn seek(handle: &FileHandle, offset: i64, mode: SeekMode) -> u64 {
+    let mode: u8 = mode.into();
+    let offset = offset as u64;
+    let new_offset = unsafe {
+        syscall_3(
+            Syscall::new(SyscallType::Seek),
+            handle.as_u64(),
+            offset,
+            mode as u64,
+        )
+    };
+    new_offset
 }
 
 pub fn read(handle: &FileHandle, buf: &mut [u8]) -> usize {

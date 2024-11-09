@@ -7,3 +7,6 @@ edition = "2021"
 monos_std = { path = "../../monos_std" }
 monos_gfx = { path = "../../monos_gfx" }
 
+[features]
+default = []
+client = []

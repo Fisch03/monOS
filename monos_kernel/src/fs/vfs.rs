@@ -219,6 +219,7 @@ pub enum MountError {
 
 pub trait FileSystem: Send + Sync + core::fmt::Debug {
     fn open(self: Arc<Self>, node: &VFSNode) -> Result<File, OpenError>;
+    fn close(&self, file: File) -> Result<(), CloseError>;
     fn list(self: Arc<Self>, node: Arc<VFSNode>);
     // fn create(self: Arc<Self>, parent: &VFSNode, name: &str) -> Result<VFSNode, CreateError>;
     // fn mkdir(self: Arc<Self>, parent: &VFSNode, name: &str) -> Result<VFSNode, CreateError>;
@@ -236,6 +237,12 @@ pub trait FileSystem: Send + Sync + core::fmt::Debug {
 pub enum OpenError {
     NotFound,
     NotAFile,
+}
+
+#[derive(Debug)]
+pub enum CloseError {
+    NotOpen,
+    InUse,
 }
 
 #[derive(Debug)]
@@ -300,6 +307,11 @@ impl File {
     pub(super) fn data_mut<T: 'static>(&mut self) -> &mut T {
         self.fs.data.downcast_mut().unwrap()
     }
+
+    pub fn close(self) -> Result<(), CloseError> {
+        let fs = self.fs.fs.clone();
+        fs.close(self)
+    }
 }
 
 impl Read for File {
@@ -316,8 +328,12 @@ impl Write for File {
 }
 
 impl Seek for File {
-    fn seek(&self, pos: usize) {
-        self.fs.fs.seek(self, pos);
+    fn set_pos(&self, pos: usize) {
         self.pos.store(pos, Ordering::Relaxed);
+        self.fs.fs.seek(self, pos);
+    }
+
+    fn get_pos(&self) -> usize {
+        self.pos.load(Ordering::Relaxed)
     }
 }

@@ -19,6 +19,7 @@ pub enum SyscallType {
     RequestChunk,
 
     Open,
+    Close,
     Seek,
     Read,
     Write,

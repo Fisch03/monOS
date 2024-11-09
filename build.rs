@@ -16,6 +16,11 @@ const MB: u64 = 1024 * 1024;
 const DISK_SIZE_PAD: u64 = 3 * MB; // ~size that the size that the user gets in the ramdisk
 
 fn main() {
+    std::process::Command::new("git")
+        .args(&["submodule", "update", "--init", "--recursive"])
+        .status()
+        .unwrap();
+
     #[allow(unused_mut)]
     let mut config = BootConfig::default();
     // config.log_level = LevelFilter::Off;
@@ -89,6 +94,7 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
         let user_crate = user_crate.unwrap();
         let crate_name = user_crate.file_name().into_string().unwrap();
         let crate_path = user_crate.path();
+
         let mut cargo = std::process::Command::new("cargo");
         cargo
             .arg("rustc")

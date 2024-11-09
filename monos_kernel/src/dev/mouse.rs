@@ -131,15 +131,10 @@ impl Mouse {
         self.send_command(Self::COMMAND_SET_DEFAULTS)?;
 
         // enable scrolling
-        crate::println!("setting sample rate to 200");
         self.send_command(Self::COMMAND_SET_SAMPLE_RATE)?;
         self.send_command(200)?;
-
-        crate::println!("setting sample rate to 100");
         self.send_command(Self::COMMAND_SET_SAMPLE_RATE)?;
         self.send_command(100)?;
-
-        crate::println!("setting sample rate to 80");
         self.send_command(Self::COMMAND_SET_SAMPLE_RATE)?;
         self.send_command(80)?;
 

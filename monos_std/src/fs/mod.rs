@@ -2,12 +2,13 @@ mod path;
 pub use path::*;
 
 #[cfg(feature = "userspace")]
-use crate::io::{Read, Seek, Write};
+use crate::io::{Read, Seek, SeekMode, Write};
 
 #[cfg(feature = "userspace")]
 use crate::syscall;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct FileHandle(u64);
 
 #[derive(Debug, Clone)]
@@ -26,6 +27,14 @@ impl FileHandle {
         syscall::open(path.into(), FileFlags)
     }
 
+    /// close the file handle.
+    /// doesnt actually need to be called since the file will be closed when the handle is dropped.
+    /// but can be used to close the file handle early or be a bit more explicit
+    #[cfg(feature = "userspace")]
+    pub fn close(self) {
+        core::mem::drop(self);
+    }
+
     pub const fn as_u64(&self) -> u64 {
         self.0
     }
@@ -35,6 +44,23 @@ impl FileHandle {
         syscall::stat(&self)
     }
 }
+
+#[cfg(feature = "userspace")]
+impl core::ops::Drop for FileHandle {
+    fn drop(&mut self) {
+        syscall::close(self);
+    }
+}
+
+#[cfg(not(feature = "userspace"))]
+impl Clone for FileHandle {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+#[cfg(not(feature = "userspace"))]
+impl Copy for FileHandle {}
 
 #[cfg(feature = "userspace")]
 impl Read for FileHandle {
@@ -52,8 +78,16 @@ impl Write for FileHandle {
 
 #[cfg(feature = "userspace")]
 impl Seek for FileHandle {
-    fn seek(&self, _pos: usize) {
-        todo!()
+    fn set_pos(&self, pos: usize) {
+        syscall::seek(self, pos as i64, SeekMode::Start);
+    }
+
+    fn get_pos(&self) -> usize {
+        syscall::seek(self, 0, SeekMode::Current) as usize
+    }
+
+    fn seek(&self, offset: i64, mode: SeekMode) -> usize {
+        syscall::seek(self, offset, mode) as usize
     }
 }
 

@@ -51,7 +51,6 @@ impl TerminalInterface {
             LineType::Input => format!("> {}", line),
             LineType::Error => format!("! {}", line),
             LineType::Output => line,
-            _ => line,
         };
         self.lines.push_back(line);
         self.line_colors.push_back(line_type.color());

@@ -66,12 +66,12 @@ impl Image {
     }
 
     pub fn detect_format<T: Read + Seek>(data: T) -> Option<Image> {
-        data.seek(0);
+        data.set_pos(0);
         if let Some(image) = Image::from_ppm(&data) {
             return Some(image);
         }
 
-        data.seek(0);
+        data.set_pos(0);
         if let Some(image) = Image::from_pbm(&data) {
             return Some(image);
         }

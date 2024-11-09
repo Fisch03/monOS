@@ -132,6 +132,7 @@ the following syscalls currently exist:
 | 7  | receive_any  | ptr to `Option<Message>`     |                |                                 |         | block until data is received on any opened channel                                     |
 | 8  | req_chunk    | requested size               |                |                                 |         | request a memory chunk of the given size. returns address of chunk or 0 on failure     |
 | 9  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
+| 10 | close        | `FileHandle`                 |                |                                 |         | close a opened file                                                                    |
 | 10 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
 | 11 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
 | 12 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |

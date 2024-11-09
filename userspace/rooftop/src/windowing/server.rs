@@ -176,7 +176,7 @@ impl WindowServer {
             let focused = i == focused_window;
             let mut closed = false;
 
-            let mut chunk = window.chunk.as_mut().unwrap();
+            let chunk = window.chunk.as_mut().unwrap();
             window.title = String::from(chunk.title());
 
             let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
