@@ -83,12 +83,12 @@ pub fn unmap(page: &Page<PageSize4K>) -> Result<(), UnmapError> {
         .unmap(page)
 }
 
-pub fn alloc_frame() -> Option<Frame<PageSize4K>> {
+pub fn alloc_frame(reason: &str) -> Option<Frame<PageSize4K>> {
     FRAME_ALLOCATOR
         .get()
         .expect("memory hasn't been initialized yet")
         .lock()
-        .allocate_frame()
+        .allocate_frame(reason)
 }
 
 pub fn alloc_frames(count: usize) -> Option<Frame<PageSize4K>> {
@@ -100,7 +100,8 @@ pub fn alloc_frames(count: usize) -> Option<Frame<PageSize4K>> {
 }
 
 pub fn empty_page_table() -> (*mut PageTable, Frame) {
-    let page_table_frame = alloc_frame().expect("failed to alloc frame for process page table");
+    let page_table_frame =
+        alloc_frame("new empty page table").expect("failed to alloc frame for process page table");
     let page_table_page = Page::<PageSize4K>::around(
         super::physical_mem_offset() + page_table_frame.start_address().as_u64(),
     );
@@ -168,7 +169,7 @@ pub fn create_user_demand_pages(
     start: VirtualAddress,
     size: u64,
 ) -> Result<(), MapToError> {
-    let initial_frame = alloc_frame().ok_or(MapToError::OutOfMemory)?;
+    let initial_frame = alloc_frame("user demand pages").ok_or(MapToError::OutOfMemory)?;
 
     let mut page = Page::around(start);
     let end_page: Page<PageSize4K> = Page::around(page.start_address() + size).next();
@@ -220,7 +221,7 @@ pub fn alloc_demand_page(virt: VirtualAddress) -> Result<(), &'static str> {
         return Err("page is not demand-allocated");
     }
 
-    let frame = alloc_frame().ok_or("failed to allocate frame for demand page")?;
+    let frame = alloc_frame("new demand page").ok_or("failed to allocate frame for demand page")?;
 
     unsafe {
         entry.set_addr(frame.start_address());

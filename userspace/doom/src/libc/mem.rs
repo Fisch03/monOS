@@ -8,6 +8,10 @@ pub unsafe extern "C" fn malloc(size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub unsafe extern "C" fn free(ptr: *mut c_void) {
+    if ptr.is_null() {
+        return;
+    }
+
     let layout = core::alloc::Layout::from_size_align(1, 1).unwrap();
     alloc::alloc::dealloc(ptr as *mut u8, layout);
 }

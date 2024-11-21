@@ -12,6 +12,7 @@ use crate::mem::{
     alloc_frame, copy_pagetable, create_user_demand_pages, empty_page_table, physical_mem_offset,
     Frame, MapTo, Mapper, Page, PageSize4K, PageTableFlags, VirtualAddress, KERNEL_PAGE_TABLE,
 };
+use alloc::string::{String, ToString};
 use monos_std::{
     io::{Seek, SeekMode},
     ProcessId,
@@ -30,6 +31,7 @@ static NEXT_PID: AtomicU32 = AtomicU32::new(1); // 0 is reserved for the kernel
 #[derive(Debug)]
 pub struct Process {
     id: ProcessId,
+    name: String,
     mapper: Mapper<'static>,
     page_table_frame: Frame,
     memory: ProcessMemory,
@@ -75,6 +77,10 @@ struct ProcessMemory {
 impl Process {
     pub fn id(&self) -> ProcessId {
         self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn mapper(&mut self) -> &mut Mapper<'static> {
@@ -129,6 +135,8 @@ pub enum SpawnError {
 
 pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Result<ProcessId, SpawnError> {
     let path = path.into();
+    let name = path.as_str().to_string();
+
     let binary = {
         let file = fs().get(path).unwrap().open().unwrap();
 
@@ -137,7 +145,7 @@ pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Result<ProcessId, SpawnError> {
         data
     };
 
-    Process::new(&binary.as_slice())
+    Process::new(name, &binary.as_slice())
 }
 
 pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
@@ -179,7 +187,6 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
     match current.as_ref() {
         Some(current) => {
             gdt::set_kernel_stack(current.memory.kernel_stack_end);
-
             let (_, flags) = CR3::read();
             unsafe {
                 CR3::write(current.page_table_frame, flags);
@@ -327,7 +334,7 @@ impl Process {
 
         let mut current = start;
         loop {
-            let frame = alloc_frame()?;
+            let frame = alloc_frame("process chunk")?;
             unsafe {
                 self.mapper
                     .map_to(
@@ -394,16 +401,7 @@ impl Process {
     pub fn seek(&mut self, handle: FileHandle, offset: i64, mode: SeekMode) -> usize {
         let handle = self.file_handles.iter().find(|(h, _)| *h == handle);
         if let Some((_, file)) = handle {
-            crate::println!(
-                "current pos: {:#x}, offset: {:#x}, mode: {:?}",
-                file.get_pos(),
-                offset,
-                mode
-            );
-            let ret = file.seek(offset, mode);
-            crate::println!("new pos: {:#x}", file.get_pos());
-
-            ret
+            file.seek(offset, mode)
         } else {
             crate::println!("seek: file handle not found");
             0
@@ -416,7 +414,7 @@ impl Process {
         Some(handle.1.read_all(buf))
     }
 
-    fn new(elf: &[u8]) -> Result<ProcessId, SpawnError> {
+    fn new(name: String, elf: &[u8]) -> Result<ProcessId, SpawnError> {
         if &elf[0..4] != &ELF_BYTES {
             return Err(SpawnError::NotABinary);
         }
@@ -454,7 +452,7 @@ impl Process {
 
             loop {
                 let user_stack_frame =
-                    alloc_frame().expect("failed to alloc frame for process stack");
+                    alloc_frame("process stack").expect("failed to alloc frame for process stack");
 
                 unsafe {
                     process_mapper
@@ -488,7 +486,8 @@ impl Process {
                 let mut page = Page::around(start_addr);
                 let end_page = Page::around(end_addr.align_up(0x1000));
 
-                let mut frame = alloc_frame().expect("failed to alloc frame for process");
+                let mut frame =
+                    alloc_frame("process segment").expect("failed to alloc frame for process");
 
                 loop {
                     unsafe {
@@ -508,7 +507,8 @@ impl Process {
                     }
 
                     page = page.next();
-                    frame = alloc_frame().expect("failed to alloc frame for process");
+                    frame =
+                        alloc_frame("process segment").expect("failed to alloc frame for process");
                 }
 
                 let dest = start_addr.as_mut_ptr::<u8>();
@@ -550,8 +550,11 @@ impl Process {
             context.r10 = user_heap_addr.as_u64();
             context.r11 = USER_HEAP_SIZE as u64 - 1;
 
+            crate::println!("name ptr: {:#x}", name.as_ptr() as u64);
+
             let process = Self {
                 id,
+                name,
                 mapper: process_mapper,
                 page_table_frame,
                 memory: ProcessMemory {

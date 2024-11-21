@@ -10,7 +10,8 @@ use monos_std::prelude::*;
 
 #[no_mangle]
 fn main() {
+    println!("Hello, World!");
     loop {
-        println!("Hello, World!");
+        syscall::yield_();
     }
 }

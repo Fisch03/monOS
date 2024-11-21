@@ -31,6 +31,12 @@ impl<T> Mapping<T> {
     /// unsafe: the physical address needs to point to the given structure and there needs to be
     /// enough room in the virtual address space
     pub unsafe fn new(phys: PhysicalAddress, size: usize) -> Result<Self, MapToError> {
+        crate::println!(
+            "mapping new: {:#x} - {:#x}",
+            phys.as_u64(),
+            phys.as_u64() + size as u64
+        );
+
         let virt = alloc_vmem(size as u64);
 
         let start_frame = Frame::around(phys);

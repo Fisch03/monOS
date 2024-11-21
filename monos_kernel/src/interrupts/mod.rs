@@ -1,4 +1,4 @@
-mod handlers;
+pub mod handlers;
 pub use handlers::InterruptIndex;
 
 pub mod apic;

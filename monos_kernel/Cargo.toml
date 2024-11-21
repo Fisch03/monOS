@@ -3,8 +3,13 @@ name = "monos_kernel"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "test_kernel"
+path = "src/test_main.rs"
+
 [dependencies]
 bootloader_api = "0.11"
+linkme = "0.3.29"
 object = { version = "0.36.0", default-features = false, features = ["read"] }
 pc-keyboard = "0.7.0"
 spin = "0.9.8"
@@ -12,4 +17,6 @@ uart_16550 = "0.3.0"
 x86_64 = "0.15.1"
 monos_gfx = { path = "../monos_gfx", default-features = false }
 monos_std = { path = "../monos_std", default-features = false, features = ["syscall"] }
+monos_test = { path = "../monos_test" }
 linked_list_allocator = "0.10.5"
+

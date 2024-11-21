@@ -22,7 +22,7 @@ pub fn init() {
     );
 
     while start_page != end_page {
-        let frame = alloc_frame().expect("failed to allocate frame for heap");
+        let frame = alloc_frame("heap").expect("failed to allocate frame for heap");
 
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe { map_to(&start_page, &frame, flags).unwrap() };
@@ -36,5 +36,41 @@ pub fn init() {
         ALLOCATOR
             .lock()
             .init(HEAP_START.as_mut_ptr(), HEAP_SIZE as usize);
+    }
+}
+
+mod test {
+    use monos_test::kernel_test;
+
+    #[kernel_test]
+    fn test_heap_alloc_all(boot_info: &bootloader_api::BootInfo) -> bool {
+        use alloc::vec::Vec;
+
+        unsafe { crate::mem::init(boot_info) };
+
+        let allocations = super::HEAP_SIZE / core::mem::size_of::<usize>() as u64;
+
+        let mut vec = Vec::new();
+        for i in 0..allocations {
+            if i % 100 == 0 {
+                crate::print!("allocating {}/{}\x1b[0K...\r", i, allocations);
+            }
+            vec.push(42);
+        }
+
+        for n in &vec {
+            if *n != 42 {
+                crate::println!("failed to allocate all heap memory");
+                return false;
+            }
+        }
+
+        crate::print!("\n");
+
+        crate::println!("deallocating all heap memory...");
+        vec.clear();
+        vec.shrink_to_fit();
+
+        true
     }
 }

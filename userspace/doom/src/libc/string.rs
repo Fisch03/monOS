@@ -13,20 +13,52 @@ pub unsafe extern "C" fn puts(s: *const i8) {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn toupper(c: i32) -> i32 {
+    let c = c as u8 as char;
+    c.to_ascii_uppercase() as i32
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn strcmp(s1: *const i8, s2: *const i8) -> i32 {
-    let s1 = CStr::from_ptr(s1);
-    let s2 = CStr::from_ptr(s2);
-    s1.to_str().unwrap().cmp(s2.to_str().unwrap()) as i32
+    strncmp(s1, s2, core::usize::MAX)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn strncmp(s1: *const i8, s2: *const i8, n: usize) -> i32 {
+    let s1 = core::slice::from_raw_parts(s1 as *const u8, n as usize);
+    let s2 = core::slice::from_raw_parts(s2 as *const u8, n as usize);
+
+    for (&a, &b) in s1.iter().zip(s2.iter()) {
+        let val = a - b;
+        if a != b || a == 0 {
+            return val as i32;
+        }
+    }
+
+    0
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn strcasecmp(s1: *const i8, s2: *const i8) -> i32 {
-    let s1 = CStr::from_ptr(s1);
-    let s2 = CStr::from_ptr(s2);
-    s1.to_str()
-        .unwrap()
-        .to_lowercase()
-        .cmp(&s2.to_str().unwrap().to_lowercase()) as i32
+    strncasecmp(s1, s2, core::usize::MAX)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn strncasecmp(s1: *const i8, s2: *const i8, n: usize) -> i32 {
+    let s1 = core::slice::from_raw_parts(s1 as *const u8, n);
+    let s2 = core::slice::from_raw_parts(s2 as *const u8, n);
+
+    for (&a, &b) in s1.iter().zip(s2.iter()) {
+        let a = a.to_ascii_lowercase();
+        let b = b.to_ascii_lowercase();
+
+        let val = a - b;
+        if a != b || a == 0 {
+            return val as i32;
+        }
+    }
+
+    0
 }
 
 #[no_mangle]

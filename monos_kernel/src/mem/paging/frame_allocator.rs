@@ -22,18 +22,6 @@ impl FrameAllocator {
 
         for region in mem_map
             .iter()
-            .filter(|r| r.kind != MemoryRegionKind::Usable)
-        {
-            crate::println!(
-                "region: {:#x} - {:#x} {:?}",
-                region.start,
-                region.end,
-                region.kind
-            );
-        }
-
-        for region in mem_map
-            .iter()
             .filter(|r| r.kind == MemoryRegionKind::Usable)
             .filter(|r| r.start <= map_end)
             .filter(|r| r.end >= start_frame.start_address().as_u64())
@@ -43,7 +31,7 @@ impl FrameAllocator {
             let end = PhysicalAddress::new(region.end).align(4096);
 
             let mut curr: Frame<PageSize4K> = Frame::around(start);
-            while curr.start_address().as_u64() <= end.as_u64() {
+            while curr.start_address().as_u64() < end.as_u64() {
                 let curr_num = curr.number() as usize;
                 if curr_num >= start_frame_number {
                     map.set(curr_num - start_frame_number, false);
@@ -59,7 +47,7 @@ impl FrameAllocator {
         }
     }
 
-    pub fn allocate_frame(&mut self) -> Option<Frame> {
+    pub fn allocate_frame(&mut self, _reason: &str) -> Option<Frame> {
         let frame = if let Some(position) = self.map.iter_from(self.last_allocated).position(|b| !b)
         {
             position + self.last_allocated
@@ -70,6 +58,13 @@ impl FrameAllocator {
         self.last_allocated = frame + 1;
 
         let frame_addr = self.start + (frame as u64 * 4096);
+
+        // crate::println!(
+        //     "allocated {:#x} - {:#x} for {}",
+        //     frame_addr.as_u64(),
+        //     frame_addr.as_u64() + 4096,
+        //     reason
+        // );
 
         Some(Frame::new(frame_addr).unwrap())
     }
@@ -122,4 +117,120 @@ impl FrameAllocator {
     //         curr = Frame::new(curr.end_address()).unwrap();
     //     }
     // }
+}
+
+mod test {
+    use monos_test::kernel_test;
+
+    #[kernel_test]
+    fn test_frame_alloc_all(boot_info: &bootloader_api::BootInfo) -> bool {
+        use crate::mem::{Frame, PhysicalAddress};
+        use bootloader_api::info::*;
+
+        let start_frame = Frame::around(PhysicalAddress::new(0x0));
+        let mut allocator = super::FrameAllocator::new(&boot_info.memory_regions, start_frame);
+
+        crate::println!("unusable regions:");
+        for region in boot_info
+            .memory_regions
+            .iter()
+            .filter(|r| r.kind != MemoryRegionKind::Usable)
+        {
+            crate::println!(
+                "region: {:#x} - {:#x} {:?}",
+                region.start,
+                region.end,
+                region.kind
+            );
+        }
+
+        let mut unusable_regions: [(u64, u64); 100] = [(0, 0); 100];
+        let mut unusable_count = 0;
+        for region in boot_info.memory_regions.iter() {
+            if region.kind != MemoryRegionKind::Usable {
+                unusable_regions[unusable_count] = (region.start, region.end);
+                unusable_count += 1;
+            }
+        }
+
+        let mut count = 0;
+        while let Some(frame) = allocator.allocate_frame("test") {
+            let frame_start = frame.start_address().as_u64();
+            let frame_end = frame.end_address().as_u64();
+
+            if count % 100 == 0 {
+                crate::print!(
+                    "allocated frame no. {} at {:#x} - {:#x}\x1b[0K\r",
+                    count,
+                    frame_start,
+                    frame_end
+                );
+            }
+
+            for (region_start, region_end) in unusable_regions.iter().take(unusable_count) {
+                if frame_start >= *region_start && frame.end_address().as_u64() <= *region_end {
+                    crate::println!(
+                        "frame {:#x} - {:#x} overlaps with unusable region {:#x} - {:#x}",
+                        frame.start_address().as_u64(),
+                        frame.end_address().as_u64(),
+                        *region_start,
+                        *region_end
+                    );
+
+                    return false;
+                }
+            }
+            count += 1;
+        }
+        crate::print!("\n");
+
+        crate::println!("successfully allocated {} frames", count);
+
+        true
+    }
+
+    #[kernel_test]
+    fn test_frame_write_all(boot_info: &bootloader_api::BootInfo) -> bool {
+        use crate::mem::{Frame, PhysicalAddress, VirtualAddress};
+
+        let start_frame = Frame::around(PhysicalAddress::new(0x0));
+        let mut allocator = super::FrameAllocator::new(&boot_info.memory_regions, start_frame);
+
+        let phys_mem_offset = boot_info.physical_memory_offset.as_ref().unwrap();
+        let phys_mem_offset = VirtualAddress::new(*phys_mem_offset);
+
+        let mut print_div = 0;
+
+        while let Some(frame) = allocator.allocate_frame("test") {
+            let frame_start = frame.start_address().as_u64();
+            let frame_end = frame.end_address().as_u64();
+            let frame_virt = phys_mem_offset + frame_start;
+
+            print_div += 1;
+            if print_div % 100 == 0 {
+                crate::print!(
+                    "writing to frame at {:#x} - {:#x}\x1b[0K...\r",
+                    frame_start,
+                    frame_end
+                );
+            }
+
+            let frame_ptr = frame_virt.as_mut_ptr::<u8>();
+            unsafe { core::ptr::write_bytes(frame_ptr, 0x00, 4096) };
+            for i in 0..4096 {
+                if unsafe { *frame_ptr.add(i) } != 0x00 {
+                    crate::println!(
+                        "frame at {:#x} - {:#x} was not written correctly",
+                        frame_start,
+                        frame_end
+                    );
+                    return false;
+                }
+            }
+        }
+
+        crate::print!("\n");
+        crate::println!("successfully wrote to all allocated frames");
+        true
+    }
 }

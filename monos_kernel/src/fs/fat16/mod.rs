@@ -150,7 +150,7 @@ impl FileSystem for Fat16Fs {
         Fat16File::write(file, self, buf)
     }
     fn seek(&self, file: &File, pos: usize) {
-        file.set_pos(pos);
+        // file.set_pos(pos); // already done in the file!
     }
 
     fn mount(self, node: &VFSNode) {

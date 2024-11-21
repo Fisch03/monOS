@@ -144,10 +144,10 @@ extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, e
     let error_code = PageFaultErrorCode::from_bits_truncate(error_code);
     let cr2 = crate::arch::registers::CR2::read();
 
-    if error_code
-        == (PageFaultErrorCode::PROTECTION_VIOLATION
-            | PageFaultErrorCode::CAUSED_BY_WRITE
-            | PageFaultErrorCode::USER_MODE)
+    if error_code.contains(PageFaultErrorCode::CAUSED_BY_WRITE)
+        && error_code.contains(PageFaultErrorCode::PROTECTION_VIOLATION)
+        && (cr2.as_u64() <= crate::LOWER_HALF_END
+            || error_code.contains(PageFaultErrorCode::USER_MODE))
     {
         // probably a ondemand page access, try allocating it
         if let Err(msg) = alloc_demand_page(cr2) {
@@ -240,7 +240,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     }
 }
 
-extern "C" fn timer_interrupt_handler_inner(context_addr: u64) -> u64 {
+pub extern "C" fn timer_interrupt_handler_inner(context_addr: u64) -> u64 {
     let context_addr = VirtualAddress::new(context_addr);
 
     // let context = unsafe { &*(context_addr.as_ptr::<crate::process::Context>()) };

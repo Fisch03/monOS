@@ -6,7 +6,7 @@ pub use paging::*;
 
 mod alloc_heap;
 
-use bootloader_api::info::BootInfo;
+use bootloader_api::info::{BootInfo, MemoryRegionKind};
 use core::arch::asm;
 
 use spin::Once;
@@ -19,6 +19,8 @@ pub unsafe fn init(boot_info: &BootInfo) {
     let phys_mem_offset = boot_info.physical_memory_offset.as_ref().unwrap();
     let phys_mem_offset = VirtualAddress::new(*phys_mem_offset);
     PHYSICAL_MEM_OFFSET.call_once(|| phys_mem_offset.as_u64());
+
+    crate::println!("physical memory offset: {:#x}", phys_mem_offset.as_u64());
 
     paging::init(phys_mem_offset, boot_info);
 

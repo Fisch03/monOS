@@ -1,0 +1,9 @@
+[package]
+name = "monos_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+derive = { path = "./derive" }
+bootloader_api = "0.11"
+linkme = "0.3.29"

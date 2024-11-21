@@ -313,7 +313,7 @@ impl PageManager {
     ) -> Result<&'a mut PageTable, MapToError> {
         let new_frame = !entry.is_present();
         if new_frame {
-            if let Some(frame) = alloc_frame() {
+            if let Some(frame) = alloc_frame("new mapper page table") {
                 entry.set_frame(&frame);
                 entry.set_flags(&flags);
             } else {

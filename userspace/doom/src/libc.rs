@@ -11,6 +11,20 @@ pub unsafe extern "C" fn unimplemented(s: *const i8) {
     println!("unimplemented: {}", s.to_str().unwrap());
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn system(s: *const i8) {
+    let s = CStr::from_ptr(s);
+    println!("system: {}", s.to_str().unwrap());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn exit(code: i32) {
+    println!("exit: {}", code);
+
+    todo!("exit syscall")
+    // monos_std::syscall::exit(code);
+}
+
 unsafe fn match_format<F: FnOnce(Arguments<'_>)>(c: u8, ap: &mut VaList, out: F) {
     match c {
         b'd' | b'i' => {

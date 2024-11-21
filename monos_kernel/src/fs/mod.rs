@@ -22,16 +22,22 @@ use spin::Once;
 static FS_ROOT_NODE: Once<VFS> = Once::new();
 
 pub fn init(boot_info: &BootInfo) {
+    let ramdisk_start = VirtualAddress::new(
+        boot_info
+            .ramdisk_addr
+            .into_option()
+            .expect("no ramdisk found"),
+    );
+    let ramdisk_size = boot_info.ramdisk_len;
+
+    crate::println!(
+        "new ramdisk: {:#x} - {:#x}",
+        ramdisk_start.as_u64(),
+        ramdisk_start.as_u64() + ramdisk_size as u64,
+    );
+
     FS_ROOT_NODE.call_once(|| {
         let fs = VFS::new();
-
-        let ramdisk_start = VirtualAddress::new(
-            boot_info
-                .ramdisk_addr
-                .into_option()
-                .expect("no ramdisk found"),
-        );
-        let ramdisk_size = boot_info.ramdisk_len;
 
         let ram_disk = unsafe { RamDisk::new(ramdisk_start, ramdisk_size as usize) };
         fs.mount(Fat16Fs::new(ram_disk).expect("failed to initialize FAT16 filesystem"))

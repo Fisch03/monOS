@@ -11,12 +11,14 @@ glob = "0.3.1"
 fatfs = "0.3.6"
 
 monos_kernel = { path = "monos_kernel", artifact = "bin", target = "x86_64-unknown-none" }
+
 monoscript = { path = "monoscript", artifact = "bin:mono", target = "x86_64-unknown-none" }
 
 [dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
 ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
 resolver = "2"
-members = [ "monos_gfx", "monos_kernel", "monos_std", "monoscript", "userspace/*"]
-exclude = [ "monoscript_emu", "font_gen" ]
+members = [ "monos_gfx", "monos_kernel", "monos_std", "monos_test", "monoscript", "userspace/*"]
+exclude = [ "monoscript_emu", "font_gen", "monos_test/derive" ]

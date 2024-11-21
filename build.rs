@@ -21,6 +21,15 @@ fn main() {
         .status()
         .unwrap();
 
+    std::env::vars().for_each(|(k, v)| {
+        println!("{}: {}", k, v);
+    });
+
+    make_kernel("monos_kernel");
+    make_kernel("test_kernel");
+}
+
+fn make_kernel(dependency: &str) {
     #[allow(unused_mut)]
     let mut config = BootConfig::default();
     // config.log_level = LevelFilter::Off;
@@ -29,8 +38,9 @@ fn main() {
     config.frame_buffer.wanted_framebuffer_height = Some(480);
 
     let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    let kernel =
-        PathBuf::from(std::env::var_os("CARGO_BIN_FILE_MONOS_KERNEL_monos_kernel").unwrap());
+    let kernel = PathBuf::from(
+        std::env::var_os(format!("CARGO_BIN_FILE_MONOS_KERNEL_{}", dependency)).unwrap(),
+    );
 
     let os_disk_in_dir =
         PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("os_disk");
@@ -43,7 +53,7 @@ fn main() {
     let ramdisk_img_path = build_disk(&os_disk_in_dir, &out_dir);
 
     // create an UEFI disk image
-    let uefi_path = out_dir.join("uefi.img");
+    let uefi_path = out_dir.join(format!("{}_uefi.img", dependency));
     bootloader::UefiBoot::new(&kernel)
         .set_boot_config(&config)
         .set_ramdisk(&ramdisk_img_path)
@@ -58,7 +68,11 @@ fn main() {
     //     .unwrap();
 
     // pass the disk image paths as env variables to the `main.rs`
-    println!("cargo:rustc-env=UEFI_PATH={}", uefi_path.display());
+    println!(
+        "cargo:rustc-env=UEFI_PATH_{}={}",
+        dependency.to_uppercase(),
+        uefi_path.display()
+    );
     // println!("cargo:rustc-env=BIOS_PATH={}", bios_path.display());
 }
 

@@ -1,5 +1,5 @@
 use super::string::printf;
-use core::ffi::{c_char, c_long, c_void, CStr, VaList};
+use core::ffi::{c_char, c_void, CStr, VaList};
 
 const STDOUT: usize = 1;
 const STDERR: usize = 2;
@@ -27,7 +27,41 @@ pub unsafe extern "C" fn fclose(stream: *mut u32) -> i32 {
 #[no_mangle]
 pub unsafe extern "C" fn ftell(stream: *mut u32) -> i64 {
     let file = &*(stream as *mut File);
-    dbg!(file.get_pos()) as i64
+    file.get_pos() as i64
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fseek(stream: *mut u32, offset: i64, whence: i32) -> i32 {
+    use monos_std::io::SeekMode;
+
+    let file = &*(stream as *mut File);
+    match whence {
+        0 => file.seek(offset, SeekMode::Start),
+        1 => file.seek(offset, SeekMode::Current),
+        2 => file.seek(offset, SeekMode::End),
+        _ => return -1,
+    };
+    0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fread(
+    ptr: *mut c_void,
+    size: usize,
+    count: usize,
+    stream: *mut c_void,
+) -> i32 {
+    match stream as usize {
+        STDOUT | STDERR => {
+            unimplemented!("fread from stdout or stderr");
+        }
+        _ => {
+            let file = &mut *(stream as *mut File);
+            let buf = core::slice::from_raw_parts_mut(ptr as *mut u8, size * count);
+            let read = file.read(buf);
+            read as i32
+        }
+    }
 }
 
 #[no_mangle]

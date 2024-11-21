@@ -2,24 +2,13 @@
 #![no_main]
 #![feature(naked_functions)]
 
-use bootloader_api::{config, BootInfo, BootloaderConfig};
+use bootloader_api::BootInfo;
 use core::arch::asm;
 
 use monos_kernel::*;
 
 extern crate alloc;
 
-pub static BOOTLOADER_CONFIG: BootloaderConfig = {
-    let mut config = BootloaderConfig::new_default();
-
-    config.mappings.physical_memory = Some(config::Mapping::Dynamic);
-    config.mappings.dynamic_range_start = Some(0xffff_8000_0000_0000);
-
-    // currently the frame allocator bitmap lives fully on the stack, so we need a bigger stack
-    config.kernel_stack_size = 1024 * 1024;
-
-    config
-};
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
@@ -31,7 +20,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     // start the desktop environment
     interrupts::without_interrupts(|| {
-        process::spawn("bin/rooftop").expect("failed to start desktop environment");
+        process::spawn("bin/doom").expect("failed to start desktop environment");
     });
 
     loop {
@@ -69,26 +58,10 @@ fn draw_boot_logo(raw_fb: &mut bootloader_api::info::FrameBuffer) {
     }
 }
 
-#[cfg(not(test))]
 use core::panic::PanicInfo;
-#[cfg(not(test))] // avoid stupid duplicate lang item error
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    interrupts::disable();
-
-    println!("oh noes, the kernel panicked!\n {:#?}", info);
-
-    if let Some(mut fb_guard) = framebuffer::get() {
-        let _fb = unsafe { fb_guard.now_or_never() };
-
-        // TODO
-
-        fb_guard.submit_kernel_frame();
-    }
-
-    loop {
-        unsafe {
-            asm!("hlt", options(nomem, nostack, preserves_flags));
-        }
-    }
+    print!("\n\n");
+    println!("oh noes, the kernel panicked!");
+    kernel_panic(info)
 }
