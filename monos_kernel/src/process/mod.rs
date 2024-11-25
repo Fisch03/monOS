@@ -225,6 +225,8 @@ impl Process {
             .find(|p| p.id() == sender)?
             .as_mut();
 
+        crate::println!("{:?}", chunk_address);
+
         let chunk_index = sender
             .memory_chunks
             .iter()
@@ -276,15 +278,15 @@ impl Process {
             end_page: current_receiver,
         });
 
-        // crate::println!(
-        //     "sent chunk from pid {} at {:#x} to {:#x} -> pid {} at {:#x} to {:#x}",
-        //     sender.id().as_u32(),
-        //     chunk.start_page.start_address().as_u64(),
-        //     chunk.end_page.start_address().as_u64(),
-        //     self.id().as_u32(),
-        //     start.start_address().as_u64(),
-        //     current_receiver.start_address().as_u64()
-        // );
+        crate::println!(
+            "sent chunk from pid {} at {:#x} to {:#x} -> pid {} at {:#x} to {:#x}",
+            sender.id().as_u32(),
+            chunk.start_page.start_address().as_u64(),
+            chunk.end_page.start_address().as_u64(),
+            self.id().as_u32(),
+            start.start_address().as_u64(),
+            current_receiver.start_address().as_u64()
+        );
 
         Some(start.start_address())
     }

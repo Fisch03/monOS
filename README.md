@@ -138,6 +138,7 @@ the following syscalls currently exist:
 | 12 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
 | 13 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
 | 14 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 15 | get_time     |                              |                |                                 |         | returns time in ms since the os started up                                             |
 
 *the syscall id is a bit special for the `send`, and `receive` syscalls (see the chapter on messaging below).
 

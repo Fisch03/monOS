@@ -38,6 +38,22 @@ impl VirtualAddress {
     }
 
     #[inline]
+    pub unsafe fn read<T>(&self) -> T
+    where
+        T: Copy,
+    {
+        *(self.as_ptr::<T>())
+    }
+
+    #[inline]
+    pub unsafe fn write<T>(&self, value: T)
+    where
+        T: Copy,
+    {
+        *(self.as_mut_ptr::<T>()) = value;
+    }
+
+    #[inline]
     pub fn align(&self, align: u64) -> Self {
         Self::new(self.0 & !(align - 1))
     }

@@ -14,6 +14,7 @@ pub enum InterruptIndex {
     Keyboard = 0x21,
     Mouse = 0x22,
 
+    // HPET = 0x28,
     SpuriousInterrupt = 0xFF,
 }
 impl InterruptIndex {

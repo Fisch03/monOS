@@ -13,6 +13,5 @@ pub fn print(arg1: u64, arg2: u64) {
 }
 
 pub fn get_system_time() -> u64 {
-    // crate::time::get_system_time()
-    0
+    crate::dev::HPET.boot_time_ms()
 }

@@ -6,7 +6,7 @@ pub use paging::*;
 
 mod alloc_heap;
 
-use bootloader_api::info::{BootInfo, MemoryRegionKind};
+use bootloader_api::info::BootInfo;
 use core::arch::asm;
 
 use spin::Once;

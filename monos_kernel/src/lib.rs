@@ -8,7 +8,7 @@ extern crate alloc;
 
 mod acpi;
 mod arch;
-mod dev;
+pub mod dev;
 pub mod framebuffer;
 pub mod fs;
 pub mod gdt;
