@@ -569,7 +569,7 @@ impl Process {
                 context_addr,
                 channels: Vec::new(),
                 next_handle: 3, // 0, 1, 2 are reserved if we ever do stdin/stdout/stderr
-                file_handles: Vec::new(),
+                file_handles: Vec::with_capacity(4),
                 memory_chunks: Vec::new(),
                 block_reason: None,
             };

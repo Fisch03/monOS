@@ -1,5 +1,7 @@
 use core::ffi::c_void;
 
+extern crate alloc;
+
 #[no_mangle]
 pub unsafe extern "C" fn malloc(size: usize) -> *mut c_void {
     let layout = core::alloc::Layout::from_size_align(size, 1).unwrap();

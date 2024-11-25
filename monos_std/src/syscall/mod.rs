@@ -27,6 +27,7 @@ pub enum SyscallType {
     List,
 
     Print,
+    GetSystemTime,
 }
 
 #[repr(C, packed)]
@@ -129,10 +130,12 @@ mod calls {
 
     mod fs;
     mod ipc;
+    mod os;
     mod process;
 
     pub use fs::*;
     pub use ipc::*;
+    pub use os::*;
     pub use process::*;
 
     #[inline(always)]

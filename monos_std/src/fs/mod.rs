@@ -89,6 +89,10 @@ impl Seek for FileHandle {
     fn seek(&self, offset: i64, mode: SeekMode) -> usize {
         syscall::seek(self, offset, mode) as usize
     }
+
+    fn max_pos(&self) -> usize {
+        usize::MAX
+    }
 }
 
 pub struct FileFlags;

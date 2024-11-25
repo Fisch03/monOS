@@ -9,7 +9,7 @@ pub unsafe extern "C" fn putchar(c: i32) {
 #[no_mangle]
 pub unsafe extern "C" fn puts(s: *const i8) {
     let s = CStr::from_ptr(s);
-    println!("{}", s.to_str().unwrap());
+    println!("{}", s.to_string_lossy());
 }
 
 #[no_mangle]
@@ -114,6 +114,11 @@ pub unsafe extern "C" fn printf(format: *const u8, mut ap: ...) -> i32 {
             i += 1;
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn snprintf(s: *mut i8, n: u32, format: *const u8, mut ap: ...) -> i32 {
+    vsnprintf(s, n, format, ap.as_va_list())
 }
 
 #[no_mangle]

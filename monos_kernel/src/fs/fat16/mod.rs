@@ -150,11 +150,15 @@ impl FileSystem for Fat16Fs {
         Fat16File::write(file, self, buf)
     }
     fn seek(&self, file: &File, pos: usize) {
-        // file.set_pos(pos); // already done in the file!
+        Fat16File::seek(file, pos)
     }
 
     fn mount(self, node: &VFSNode) {
         node.set_fs(FSData::new(self, Fat16NodeData::RootDir));
+    }
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
     }
 }
 

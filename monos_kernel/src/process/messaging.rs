@@ -179,6 +179,7 @@ pub fn send(message: GenericMessage, receiver_handle: PartialSendChannelHandle) 
     } else if let Some(process) = process_queue.iter_mut().find(|p| p.id == receiver) {
         process.as_mut()
     } else {
+        crate::println!("process {} not found", receiver);
         todo!("handle blocked process / process not found")
     };
 

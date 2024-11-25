@@ -36,9 +36,9 @@ pub unsafe extern "C" fn fseek(stream: *mut u32, offset: i64, whence: i32) -> i3
 
     let file = &*(stream as *mut File);
     match whence {
-        0 => file.seek(offset, SeekMode::Start),
+        2 => file.seek(offset, SeekMode::Start),
         1 => file.seek(offset, SeekMode::Current),
-        2 => file.seek(offset, SeekMode::End),
+        0 => file.seek(offset, SeekMode::End),
         _ => return -1,
     };
     0

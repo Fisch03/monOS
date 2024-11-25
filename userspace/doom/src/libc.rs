@@ -44,6 +44,14 @@ unsafe fn match_format<F: FnOnce(Arguments<'_>)>(c: u8, ap: &mut VaList, out: F)
             let x: i32 = ap.arg();
             out(format_args!("{:x}", x))
         }
+        b'u' => {
+            let x: u32 = ap.arg();
+            out(format_args!("{}", x))
+        }
+        b'f' => {
+            let x: f64 = ap.arg();
+            out(format_args!("{}", x))
+        }
         _ => {
             print!("unknown format specifier: {}", c as char);
         }

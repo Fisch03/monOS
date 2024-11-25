@@ -9,6 +9,7 @@ use core::arch::asm;
 
 mod fs;
 mod ipc;
+mod os;
 mod process;
 
 const IA32_EFER_MSR: u32 = 0xC0000080;
@@ -171,20 +172,8 @@ extern "C" fn dispatch_syscall(
 
             SyscallType::List => ret = fs::sys_list(arg1, arg2, arg3, arg4),
 
-            SyscallType::Print => {
-                assert!(arg1 < crate::LOWER_HALF_END);
-                assert!(arg1 + arg2 < crate::LOWER_HALF_END);
-
-                let s = unsafe {
-                    core::str::from_utf8(core::slice::from_raw_parts(
-                        arg1 as *const u8,
-                        arg2 as usize,
-                    ))
-                    .expect("invalid utf8 string")
-                };
-
-                crate::print!("{}", s);
-            }
+            SyscallType::Print => os::print(arg1, arg2),
+            SyscallType::GetSystemTime => ret = os::get_system_time(),
         }
     } else {
         crate::println!(

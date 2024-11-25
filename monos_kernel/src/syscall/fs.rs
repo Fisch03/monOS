@@ -56,7 +56,16 @@ pub fn sys_seek(arg1: u64, arg2: u64, arg3: u64) -> u64 {
 
     let mut current_proc = crate::process::CURRENT_PROCESS.write();
     let current_proc = current_proc.as_mut().unwrap();
-    current_proc.seek(file_handle, offset, seek_mode) as u64
+    let pos = current_proc.seek(file_handle, offset, seek_mode) as u64;
+    // crate::println!(
+    //     "sys_seek: {:?}: {} from {:?} -> {}",
+    //     FileHandle::new(arg1),
+    //     offset,
+    //     SeekMode::try_from(arg3 as u8).expect("invalid seek mode"),
+    //     pos
+    // );
+
+    pos
 }
 
 pub fn sys_read(arg1: u64, arg2: u64, arg3: u64) -> u64 {
@@ -68,7 +77,7 @@ pub fn sys_read(arg1: u64, arg2: u64, arg3: u64) -> u64 {
     let mut current_proc = crate::process::CURRENT_PROCESS.write();
     let current_proc = current_proc.as_mut().unwrap();
 
-    crate::println!("sys_read: {} bytes from {:?}", buf.len(), file_handle);
+    // crate::println!("sys_read: {} bytes from {:?}", buf.len(), file_handle);
     if let Some(read) = current_proc.read(file_handle, &mut buf) {
         return read as u64;
     } else {

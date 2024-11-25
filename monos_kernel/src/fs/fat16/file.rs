@@ -72,9 +72,15 @@ impl Fat16File {
         todo!()
     }
 
-    pub fn seek(file: &File, _pos: usize) {
-        let _data = file.data::<Self>();
+    pub fn seek(file: &File, pos: usize) {
+        let data = file.data::<Self>();
+        let fs: &Fat16Fs = file.fs().as_any().downcast_ref::<Fat16Fs>().unwrap();
 
-        todo!("update current cluster based on pos");
+        let cluster_size = fs.cluster_size() as usize;
+        let cluster = pos / cluster_size as usize;
+
+        data.current_cluster
+            .store(data.first_cluster + cluster as u16, Ordering::Relaxed);
+        file.pos.store(pos, Ordering::Relaxed);
     }
 }

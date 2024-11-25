@@ -43,12 +43,15 @@ pub trait Write {
 pub trait Seek {
     fn set_pos(&self, pos: usize);
     fn get_pos(&self) -> usize;
+    fn max_pos(&self) -> usize;
 
     fn seek(&self, offset: i64, mode: SeekMode) -> usize {
         let new_pos = match mode {
             SeekMode::Start => offset,
-            SeekMode::End => (self.get_pos() as i64).saturating_add(offset),
-            SeekMode::Current => (self.get_pos() as i64).saturating_add(offset),
+            SeekMode::End => (self.max_pos() as i64) - offset,
+            SeekMode::Current => (self.get_pos() as i64)
+                .saturating_add(offset)
+                .max(self.max_pos() as i64),
         };
         self.set_pos(new_pos as usize);
         new_pos as usize
@@ -87,5 +90,9 @@ impl Seek for SliceReader<'_> {
 
     fn get_pos(&self) -> usize {
         self.pos.load(Ordering::Relaxed)
+    }
+
+    fn max_pos(&self) -> usize {
+        self.data.len()
     }
 }

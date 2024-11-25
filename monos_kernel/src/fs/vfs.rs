@@ -231,6 +231,8 @@ pub trait FileSystem: Send + Sync + core::fmt::Debug {
     fn seek(&self, file: &File, pos: usize);
 
     fn mount(self, node: &VFSNode);
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(Debug)]
@@ -300,6 +302,10 @@ impl File {
         self.size
     }
 
+    pub fn fs(&self) -> &Arc<dyn FileSystem> {
+        &self.fs.fs
+    }
+
     pub fn data<T: 'static>(&self) -> &T {
         self.fs.data.downcast_ref().unwrap()
     }
@@ -329,11 +335,14 @@ impl Write for File {
 
 impl Seek for File {
     fn set_pos(&self, pos: usize) {
-        self.pos.store(pos, Ordering::Relaxed);
         self.fs.fs.seek(self, pos);
     }
 
     fn get_pos(&self) -> usize {
         self.pos.load(Ordering::Relaxed)
+    }
+
+    fn max_pos(&self) -> usize {
+        self.size
     }
 }

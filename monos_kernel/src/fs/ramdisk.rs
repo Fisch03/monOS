@@ -64,4 +64,8 @@ impl Seek for RamDisk {
     fn get_pos(&self) -> usize {
         self.pos.load(Ordering::Relaxed)
     }
+
+    fn max_pos(&self) -> usize {
+        self.size
+    }
 }

@@ -30,9 +30,9 @@ char *strchr(const char *s, int c) { unimplemented("strchr"); }
 int fprintf(FILE *restrict, const char *restrict, ...) {
   unimplemented("fprintf");
 }
-int snprintf(char *restrict s, size_t n, const char *restrict format, ...) {
-  unimplemented("snprintf");
-}
+// int snprintf(char *restrict s, size_t n, const char *restrict format, ...) {
+//   unimplemented("snprintf");
+// }
 
 int rename(const char *old, const char *new) { unimplemented("rename"); }
 int remove(const char *pathname) { unimplemented("remove"); }
