@@ -288,6 +288,9 @@ there is currently no safety in place for channels, meaning that a process can j
 # building/running
 you'll need a working rust installation. install llvm-tools (`rustup component add llvm-tools-preview`) and then do a `cargo build` in the workspace root. the disk image will be in `target/debug/build/monos-xxxxxxxxxxx/out/uefi.img`. if you have qemu installed, you can just do `cargo run` and it will be started automatically after the build :)
 
+## doom
+compiling the doom executable also requires the `x86_64-elf-gcc` compiler to be installed on your system which may cause the build to fail. install it or skip the doom build by temporarily (re)moving the `userspace/doom` directory!
+
 running in virtualbox seems to work great too. convert the image into a virtualbox `.vdi` disk image using qemu-img (`qemu-img convert uefi.img -f raw -O vdi uefi.vdi`) or a similar tool. set the vm type to "Other" and the version to "Other/Unknown (64-bit)". make sure to tick the "Enable EFI (special OSes only)" option at the hardware step or it won't work.
 
 # big thanks

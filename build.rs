@@ -6,30 +6,47 @@ extern crate bootloader_boot_config;
 extern crate fatfs;
 extern crate glob;
 
+use build_print::info;
 use glob::glob;
 
 use bootloader::BootConfig;
 #[allow(unused_imports)]
 use bootloader_boot_config::LevelFilter;
 
-const MB: u64 = 1024 * 1024;
+const KB: u64 = 1024;
+const MB: u64 = KB * 1024;
 const DISK_SIZE_PAD: u64 = 3 * MB; // ~size that the size that the user gets in the ramdisk
 
+#[derive(Debug)]
+struct KernelOptions {
+    bin_glob: Option<String>,
+}
+
+impl Default for KernelOptions {
+    fn default() -> Self {
+        KernelOptions { bin_glob: None }
+    }
+}
+
 fn main() {
+    info!("updating submodules");
     std::process::Command::new("git")
         .args(&["submodule", "update", "--init", "--recursive"])
         .status()
         .unwrap();
 
-    std::env::vars().for_each(|(k, v)| {
-        println!("{}: {}", k, v);
-    });
-
-    make_kernel("monos_kernel");
-    make_kernel("test_kernel");
+    make_kernel(
+        "test_kernel",
+        KernelOptions {
+            bin_glob: Some(String::from("test_*")),
+        },
+    );
+    make_kernel("monos_kernel", KernelOptions::default());
 }
 
-fn make_kernel(dependency: &str) {
+fn make_kernel(dependency: &str, options: KernelOptions) {
+    info!("building kernel {}", dependency);
+
     #[allow(unused_mut)]
     let mut config = BootConfig::default();
     // config.log_level = LevelFilter::Off;
@@ -37,35 +54,29 @@ fn make_kernel(dependency: &str) {
     config.frame_buffer.wanted_framebuffer_width = Some(640);
     config.frame_buffer.wanted_framebuffer_height = Some(480);
 
-    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join(dependency);
     let kernel = PathBuf::from(
         std::env::var_os(format!("CARGO_BIN_FILE_MONOS_KERNEL_{}", dependency)).unwrap(),
     );
 
-    let os_disk_in_dir =
-        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("os_disk");
-    println!("cargo:rerun-if-changed={}", os_disk_in_dir.display());
-
+    let os_disk_in = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("os_disk");
     let userspace_prog_dir =
         PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("userspace");
 
-    build_userspace(&userspace_prog_dir, &os_disk_in_dir.join("bin"));
-    let ramdisk_img_path = build_disk(&os_disk_in_dir, &out_dir);
+    println!("cargo:rerun-if-changed={}", os_disk_in.display());
+    let os_disk_out = out_dir.join("os_disk");
+    copy_dir_all(&os_disk_in, &os_disk_out).unwrap();
+    build_userspace(&userspace_prog_dir, &os_disk_out.join("bin"), &options);
+    let ramdisk_path = build_disk(&os_disk_out, &out_dir);
 
-    // create an UEFI disk image
+    info!("  └> creating UEFI disk image");
     let uefi_path = out_dir.join(format!("{}_uefi.img", dependency));
+
     bootloader::UefiBoot::new(&kernel)
         .set_boot_config(&config)
-        .set_ramdisk(&ramdisk_img_path)
+        .set_ramdisk(&ramdisk_path)
         .create_disk_image(&uefi_path)
         .unwrap();
-
-    // create a BIOS disk image
-    // let bios_path = out_dir.join("bios.img");
-    // bootloader::BiosBoot::new(&kernel)
-    //     .set_boot_config(&config)
-    //     .create_disk_image(&bios_path)
-    //     .unwrap();
 
     // pass the disk image paths as env variables to the `main.rs`
     println!(
@@ -73,41 +84,32 @@ fn make_kernel(dependency: &str) {
         dependency.to_uppercase(),
         uefi_path.display()
     );
-    // println!("cargo:rustc-env=BIOS_PATH={}", bios_path.display());
+
+    info!("  └> done! path: '{}'", uefi_path.display());
 }
 
-fn build_userspace(crates_dir: &Path, out_dir: &Path) {
+fn build_userspace(crates_dir: &Path, out_dir: &Path, options: &KernelOptions) {
+    info!("  └> building userspace");
     let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let target_dir = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest_dir.join("target"))
         .join("userspace");
 
-    //let profile = std::env::var("PROFILE").unwrap();
-
-    println!(
-        "cargo:rerun-if-changed={}",
-        manifest_dir.join("monos_std").display()
-    );
-
-    println!(
-        "cargo:rerun-if-changed={}",
-        manifest_dir.join("monos_gfx").display()
-    );
-
     println!(
         "cargo:rerun-if-changed={}",
         manifest_dir.join("x86_64-monos_user.json").display()
     );
 
-    for user_crate in fs::read_dir(crates_dir).unwrap() {
-        println!(
-            "cargo:rerun-if-changed={}",
-            user_crate.as_ref().unwrap().path().display()
-        );
+    let crates_glob = options.bin_glob.as_ref().map_or("*", |g| g.as_str());
+    let crates_dir = crates_dir.join(crates_glob);
+
+    for user_crate in glob(&crates_dir.to_str().unwrap()).unwrap() {
         let user_crate = user_crate.unwrap();
-        let crate_name = user_crate.file_name().into_string().unwrap();
-        let crate_path = user_crate.path();
+        println!("cargo:rerun-if-changed={}", user_crate.display());
+        let crate_name = String::from(user_crate.file_name().unwrap().to_string_lossy());
+
+        info!("      └> building bin '{}'", crate_name);
 
         let mut cargo = std::process::Command::new("cargo");
         cargo
@@ -118,7 +120,7 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
             .arg("--target")
             .arg(manifest_dir.join("x86_64-monos_user.json"))
             .arg("--manifest-path")
-            .arg(crate_path.join("Cargo.toml"))
+            .arg(user_crate.join("Cargo.toml"))
             .arg("-Zbuild-std=core,alloc,compiler_builtins")
             .arg("-Zbuild-std-features=compiler-builtins-mem")
             .arg("--")
@@ -142,6 +144,7 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path) {
 }
 
 fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
+    info!("  └> building disk image");
     let disk_image_path = out_dir.join("disk.img");
     let _ = fs::remove_file(&disk_image_path);
 
@@ -163,6 +166,7 @@ fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
     const MB: u64 = 1024 * 1024;
     let fat_size = ((file_size) / MB + 1) * MB + MB;
     disk_image.set_len(fat_size + DISK_SIZE_PAD).unwrap();
+    info!("      └> disk size: {} KB", fat_size / KB);
 
     fatfs::format_volume(
         &mut disk_image,
@@ -203,4 +207,19 @@ fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
     }
 
     disk_image_path
+}
+
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+    fs::remove_dir_all(&dst).ok();
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }

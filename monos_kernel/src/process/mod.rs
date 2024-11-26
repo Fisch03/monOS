@@ -552,8 +552,6 @@ impl Process {
             context.r10 = user_heap_addr.as_u64();
             context.r11 = USER_HEAP_SIZE as u64 - 1;
 
-            crate::println!("name ptr: {:#x}", name.as_ptr() as u64);
-
             let process = Self {
                 id,
                 name,

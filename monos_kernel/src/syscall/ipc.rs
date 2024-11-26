@@ -44,7 +44,11 @@ pub fn sys_connect(name_ptr: u64, name_len: u64, handle_ptr: u64) {
     let mut current_proc = crate::process::CURRENT_PROCESS.write();
     let current_proc = current_proc.as_mut().unwrap();
 
-    *handle = connect(port, current_proc.as_mut()).ok();
+    let res = connect(port, current_proc.as_mut());
+    if let Err(ref err) = res {
+        crate::println!("sys_connect: failed: {:?}", err);
+    }
+    *handle = res.ok();
 }
 
 pub fn sys_receive(handle: ChannelHandle, message_ptr: u64) {

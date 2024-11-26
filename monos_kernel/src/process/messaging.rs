@@ -7,7 +7,7 @@ pub use monos_std::messaging::{
 use monos_std::ProcessId;
 use spin::{Lazy, RwLock};
 
-const MAX_QUEUE_SIZE: usize = 65;
+const MAX_QUEUE_SIZE: usize = 1024;
 
 static PORTS: Lazy<RwLock<Vec<Port>>> = Lazy::new(|| RwLock::new(Vec::new()));
 static SYS_CHANNELS: Lazy<RwLock<Vec<Option<Box<SystemPortReceiveFn>>>>> =
@@ -84,7 +84,7 @@ pub struct Mailbox {
 impl Mailbox {
     pub fn new() -> Mailbox {
         Mailbox {
-            queue: VecDeque::with_capacity(MAX_QUEUE_SIZE),
+            queue: VecDeque::with_capacity(MAX_QUEUE_SIZE), //TODO: once heap corruption is fixed, use smaller initial capacity
         }
     }
 
@@ -118,8 +118,18 @@ pub fn connect(
     port: &str,
     connecting_process: &mut Process,
 ) -> Result<ChannelHandle, ConnectError> {
+    let ports = crate::process::messaging::PORTS.read();
+
+    if ports.len() > 3 {
+        assert_eq!(ports[3].name, "desktop.windows");
+    }
+
     connecting_process.channels.push(Mailbox::new());
     let channel_id = connecting_process.channels.len() as u16 - 1;
+
+    if ports.len() > 3 {
+        assert_eq!(ports[3].name, "desktop.windows");
+    }
 
     let from_handle = PartialSendChannelHandle::new(connecting_process.id(), channel_id);
 

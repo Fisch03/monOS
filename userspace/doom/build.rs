@@ -105,6 +105,7 @@ fn main() {
 
     cc::Build::new()
         .file("libc/libc.c")
+        .compiler("x86_64-elf-gcc")
         .opt_level(2)
         .include("libc/include")
         .flag("-w")
