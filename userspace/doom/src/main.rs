@@ -12,7 +12,8 @@ use monos_std::prelude::*;
 mod libc;
 
 use monos_gfx::{Dimension, Framebuffer, FramebufferFormat, Input};
-use rooftop::WindowClient;
+use rooftop::{Window, WindowClient};
+use syscall::yield_;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -64,19 +65,24 @@ fn main() {
     unsafe { doomgeneric_Create(args.len() as i32, args.as_ptr() as *const *const u8) };
 
     let mut window_client = WindowClient::new("desktop.windows", ()).unwrap();
-    window_client.create_window("terminal", Dimension::new(320, 200), render);
+    let window = window_client.create_window("terminal", Dimension::new(320, 200), render);
 
     loop {
         window_client.update();
+
+        unsafe { doomgeneric_Tick() };
+        if FRAME_READY.load(Ordering::Relaxed) {
+            FRAME_READY.store(false, Ordering::Relaxed);
+            println!("frame ready");
+
+            window_client.request_render(window);
+        }
+
+        yield_();
     }
 }
 
-fn render(_app: &mut (), fb: &mut Framebuffer, _input: Input) {
-    while !FRAME_READY.load(Ordering::Relaxed) {
-        unsafe { doomgeneric_Tick() };
-    }
-    println!("frame ready");
-
+fn render(window: &mut Window, _app: &mut (), _input: Input) {
     FRAME_READY.store(false, Ordering::Relaxed);
 
     let doom_fb = unsafe { core::slice::from_raw_parts_mut(DG_ScreenBuffer, 320 * 200 * 3) };
@@ -93,5 +99,5 @@ fn render(_app: &mut (), fb: &mut Framebuffer, _input: Input) {
         },
     );
 
-    fb.clear_with(&doom_fb);
+    window.clear_with(&doom_fb);
 }

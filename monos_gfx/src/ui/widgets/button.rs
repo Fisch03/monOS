@@ -45,8 +45,10 @@ impl<F: Font> UIElement for Button<'_, F> {
             Color::new(255, 255, 255)
         };
 
-        context.fb.draw_rect(result.rect, bg_color);
-        lines.draw(context.fb, lines_rect.min, Color::new(0, 0, 0));
+        if let Some(fb) = &mut context.fb {
+            fb.draw_rect(result.rect, bg_color);
+            lines.draw(*fb, lines_rect.min, Color::new(0, 0, 0));
+        }
 
         result
     }
@@ -67,7 +69,9 @@ impl UIElement for ImageButton<'_> {
         let result = context.alloc_space(self.image.dimensions());
         let image_rect = Rect::centered_in(result.rect, self.image.dimensions());
 
-        context.fb.draw_img(&self.image, image_rect.min);
+        if let Some(fb) = &mut context.fb {
+            fb.draw_img(&self.image, image_rect.min);
+        }
 
         result
     }

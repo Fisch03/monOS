@@ -12,14 +12,14 @@ use monos_gfx::{
     font::{self, Font},
     text::Origin,
     ui::{widgets, Direction, TextWrap, UIFrame},
-    Color, Dimension, Framebuffer, Input, Rect,
+    Color, Dimension, Input, Rect,
 };
 use monoscript::{ast, ReplContext, ReplInterface};
-use rooftop::WindowClient;
+use rooftop::{Window, WindowClient};
 
 use monos_std::collections::VecDeque;
 
-struct Terminal {
+struct TerminalState {
     interface: TerminalInterface,
     input: String,
     ui: UIFrame,
@@ -62,9 +62,9 @@ impl ReplInterface for TerminalInterface {
     }
 }
 
-impl Terminal {
+impl TerminalState {
     fn new() -> Self {
-        Terminal {
+        TerminalState {
             ui: UIFrame::new(Direction::BottomToTop),
             input: String::new(),
             context: ReplContext::new(),
@@ -80,7 +80,7 @@ impl Terminal {
 fn main() {
     println!("terminal started!");
 
-    let mut window_client = WindowClient::new("desktop.windows", Terminal::new()).unwrap();
+    let mut window_client = WindowClient::new("desktop.windows", TerminalState::new()).unwrap();
     window_client.create_window("terminal", Dimension::new(320, 240), render);
 
     loop {
@@ -89,41 +89,49 @@ fn main() {
     }
 }
 
-fn render(app: &mut Terminal, fb: &mut Framebuffer, mut input: Input) {
-    fb.clear();
+fn render(window: &mut Window, terminal: &mut TerminalState, mut input: Input) {
+    window.clear();
 
-    let rect = Rect::from_dimensions(fb.dimensions()).shrink(2);
+    let rect = Rect::from_dimensions(window.dimensions()).shrink(2);
 
-    app.ui.draw_frame(fb, rect, &mut input, |ui| {
+    terminal.ui.draw_frame(window, rect, &mut input, |ui| {
         ui.gap(0);
 
-        let textbox = widgets::Textbox::<font::Glean>::new(&mut app.input)
+        let textbox = widgets::Textbox::<font::Glean>::new(&mut terminal.input)
             .wrap(TextWrap::Enabled { hyphenate: false });
         if ui.add(textbox).submitted {
-            app.interface.add_line(app.input.clone(), LineType::Input);
+            terminal
+                .interface
+                .add_line(terminal.input.clone(), LineType::Input);
 
-            match app.context.execute(&app.input, &mut app.interface) {
+            match terminal
+                .context
+                .execute(&terminal.input, &mut terminal.interface)
+            {
                 Ok(ast::OwnedValue::None) => {}
                 Ok(value) => {
-                    app.interface
+                    terminal
+                        .interface
                         .add_line(format!("{:?}", value), LineType::Output);
                 }
                 Err(err) => {
-                    app.interface.add_line(format!("{}", err), LineType::Error);
+                    terminal
+                        .interface
+                        .add_line(format!("{}", err), LineType::Error);
                 }
             }
 
-            app.input.clear();
+            terminal.input.clear();
         }
 
         ui.add(
             widgets::ScrollableLabel::<font::Glean, _>::new_iter(
-                app.interface.lines.iter().map(|line| line.as_str()),
+                terminal.interface.lines.iter().map(|line| line.as_str()),
                 Origin::Bottom,
             )
             .wrap(TextWrap::Enabled { hyphenate: false })
             .scroll_y(rect.height() - font::Glean::CHAR_HEIGHT - 4)
-            .text_colors(app.interface.line_colors.make_contiguous()),
+            .text_colors(terminal.interface.line_colors.make_contiguous()),
         );
     });
 }

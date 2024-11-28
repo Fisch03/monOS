@@ -99,8 +99,14 @@ impl<F: Font> UIElement for Textbox<'_, F> {
             }
         }
 
-        let max_dimensions =
-            Dimension::new(context.placer.max_width(), context.fb.dimensions().height);
+        let max_dimensions = Dimension::new(
+            context.placer.max_width(),
+            context
+                .fb
+                .as_ref()
+                .map(|fb| fb.dimensions().height)
+                .unwrap_or(u32::MAX),
+        );
 
         let lines = Lines::<F>::layout(self.text, self.wrap, max_dimensions);
 
@@ -111,14 +117,16 @@ impl<F: Font> UIElement for Textbox<'_, F> {
 
         let lines_rect = Rect::centered_in(result.rect, line_dimensions);
 
-        lines.draw(context.fb, lines_rect.min, Color::new(255, 255, 255));
+        if let Some(fb) = &mut context.fb {
+            lines.draw(*fb, lines_rect.min, Color::new(255, 255, 255));
 
-        let cursor_pos = lines_rect.min + lines.char_position(state.cursor);
-        let cursor_rect = Rect::new(
-            cursor_pos,
-            Position::new(cursor_pos.x + 1, cursor_pos.y + F::CHAR_HEIGHT as i64),
-        );
-        context.fb.draw_rect(cursor_rect, Color::new(255, 255, 255));
+            let cursor_pos = lines_rect.min + lines.char_position(state.cursor);
+            let cursor_rect = Rect::new(
+                cursor_pos,
+                Position::new(cursor_pos.x + 1, cursor_pos.y + F::CHAR_HEIGHT as i64),
+            );
+            fb.draw_rect(cursor_rect, Color::new(255, 255, 255));
+        }
 
         context.state_insert(id, state);
 

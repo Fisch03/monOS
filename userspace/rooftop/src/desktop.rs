@@ -1,6 +1,6 @@
 use monos_gfx::{
     font::Cozette,
-    ui::{Direction, MarginMode, UIFrame},
+    ui::{Direction, MarginMode, UIContext, UIFrame},
     Framebuffer, Image, Input, Rect,
 };
 
@@ -53,6 +53,18 @@ impl Desktop {
 
     pub fn draw(&mut self, fb: &mut Framebuffer, input: &mut Input) {
         self.ui.draw_frame(fb, self.bounds, input, |ui| {
+            ui.margin(MarginMode::AtLeast(50));
+            for entry in &self.entries {
+                if ui.img_button(&entry.icon).clicked {
+                    entry.action.execute();
+                };
+                ui.label::<Cozette>(&entry.name);
+            }
+        })
+    }
+
+    pub fn layout(&mut self, input: &mut Input) {
+        self.ui.layout_frame(self.bounds, input, |ui| {
             ui.margin(MarginMode::AtLeast(50));
             for entry in &self.entries {
                 if ui.img_button(&entry.icon).clicked {

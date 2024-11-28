@@ -145,6 +145,8 @@ fn build_userspace(crates_dir: &Path, out_dir: &Path, options: &KernelOptions) {
 
 fn build_disk(in_dir: &Path, out_dir: &Path) -> PathBuf {
     info!("  └> building disk image");
+    println!("cargo:rerun-if-changed={}", in_dir.display());
+
     let disk_image_path = out_dir.join("disk.img");
     let _ = fs::remove_file(&disk_image_path);
 

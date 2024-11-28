@@ -14,7 +14,7 @@ pub trait UIElement {
 #[derive(Debug)]
 pub struct UIContext<'a, 'fb> {
     pub placer: Placer,
-    pub fb: &'a mut Framebuffer<'fb>,
+    pub fb: Option<&'a mut Framebuffer<'fb>>,
     pub input: &'a mut Input,
     state: &'a mut Option<UIStateMap>,
     auto_id_source: u32,
@@ -156,13 +156,28 @@ impl UIFrame {
         }
     }
 
+    pub fn layout_frame<F>(&mut self, area: Rect, input: &mut Input, f: F)
+    where
+        F: FnOnce(&mut UIContext),
+    {
+        let mut context = UIContext {
+            placer: Placer::new(area, self.direction),
+            fb: None,
+            input,
+            auto_id_source: 0,
+            state: &mut self.state,
+        };
+
+        f(&mut context);
+    }
+
     pub fn draw_frame<F>(&mut self, fb: &mut Framebuffer<'_>, area: Rect, input: &mut Input, f: F)
     where
         F: FnOnce(&mut UIContext),
     {
         let mut context = UIContext {
             placer: Placer::new(area, self.direction),
-            fb,
+            fb: Some(fb),
             input,
             auto_id_source: 0,
             state: &mut self.state,

@@ -7,6 +7,7 @@ use monos_gfx::{
 use super::*;
 
 const SCREEN_RECT: Rect = Rect::new(Position::new(0, 0), Position::new(640, 480));
+const RENDER_TIMEOUT: u64 = 33;
 
 #[derive(Debug)]
 pub struct Window {
@@ -14,8 +15,12 @@ pub struct Window {
     title: String,
     // icon: Image,
     pos: Position,
+    dimensions: Dimension,
     chunk: Option<MemoryChunk<WindowChunk>>,
+    last_send: u64,
     target_handle: ChannelHandle,
+    update_frequency: UpdateFrequency,
+    request_render: bool,
 }
 
 pub struct WindowServer {
@@ -66,7 +71,6 @@ impl WindowServer {
                 chunk.dimensions = dimensions;
                 chunk.title = [0; 32];
                 chunk.keyboard_len = 0;
-                chunk.update_frequency = UpdateFrequency::default();
 
                 let target_handle = ChannelHandle::from_parts(sender, self.recv_handle);
 
@@ -77,8 +81,12 @@ impl WindowServer {
                     id,
                     title: format!("window {}", id),
                     pos: rect.min,
+                    dimensions,
                     chunk: None,
                     target_handle,
+                    update_frequency: UpdateFrequency::default(),
+                    request_render: false,
+                    last_send: syscall::get_time(),
                 });
 
                 println!(
@@ -92,6 +100,20 @@ impl WindowServer {
                 // );
             }
 
+            WindowClientMessage::SetUpdateFrequency { id, frequency } => {
+                let window = self.windows.iter_mut().find(|w| w.id == id);
+                if let Some(window) = window {
+                    window.update_frequency = frequency;
+                }
+            }
+
+            WindowClientMessage::RequestRender(id) => {
+                let window = self.windows.iter_mut().find(|w| w.id == id);
+                if let Some(window) = window {
+                    window.request_render = true;
+                }
+            }
+
             WindowClientMessage::SubmitRender(chunk) => {
                 let window = self.windows.iter_mut().find(|w| w.id == chunk.id);
                 if let Some(window) = window {
@@ -102,7 +124,11 @@ impl WindowServer {
     }
 
     pub fn ready_to_render(&self) -> bool {
-        !self.windows.iter().any(|w| w.chunk.is_none())
+        let time = syscall::get_time();
+        !self
+            .windows
+            .iter()
+            .any(|w| w.chunk.is_none() && time - w.last_send < RENDER_TIMEOUT)
     }
 
     pub fn draw(&mut self, fb: &mut Framebuffer, input: &mut Input, clear_fb: &Framebuffer) {
@@ -122,21 +148,28 @@ impl WindowServer {
             if let Some(drag_start) = self.drag_start {
                 // drag
                 let window = &mut self.windows[focused_window];
-                let chunk = window.chunk.as_ref().unwrap();
 
-                let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
+                // moving the window will force its entire area to be cleared
+                // which can lead to flickering if the window is slow to render.
+                // we therefore only move the window if we have its chunk to render it
+                if let Some(chunk) = &window.chunk {
+                    let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
 
-                let header_rect = Rect::new(
-                    Position::new(window_rect.min.x, window_rect.min.y - 16),
-                    Position::new(window_rect.max.x, window_rect.min.y),
-                );
+                    let header_rect = Rect::new(
+                        Position::new(window_rect.min.x, window_rect.min.y - 16),
+                        Position::new(window_rect.max.x, window_rect.min.y),
+                    );
 
-                let full_rect = Rect::new(header_rect.min, window_rect.max).grow(1);
+                    let full_rect = Rect::new(header_rect.min, window_rect.max).grow(1);
 
-                window.pos += input.mouse.position - drag_start;
-                self.drag_start = Some(input.mouse.position);
+                    let movement = input.mouse.position - drag_start;
+                    window.pos += movement;
+                    self.drag_start = Some(input.mouse.position);
 
-                fb.clear_region(&full_rect, &clear_fb);
+                    if movement != Position::new(0, 0) {
+                        fb.clear_region(&full_rect, &clear_fb);
+                    }
+                }
             }
         } else {
             self.drag_start = None;
@@ -149,9 +182,13 @@ impl WindowServer {
                     .enumerate()
                     .rev()
                     .find_map(|(i, window)| {
-                        let chunk = window.chunk.as_ref().unwrap();
+                        let dimensions = window
+                            .chunk
+                            .as_ref()
+                            .map(|c| c.dimensions)
+                            .unwrap_or(window.dimensions);
 
-                        let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
+                        let window_rect = Rect::new(window.pos, window.pos + dimensions);
 
                         let header_rect = Rect::new(
                             Position::new(window_rect.min.x, window_rect.min.y - 16),
@@ -172,14 +209,18 @@ impl WindowServer {
             }
         }
 
+        let time = syscall::get_time();
+
         for (i, window) in self.windows.iter_mut().enumerate() {
             let focused = i == focused_window;
             let mut closed = false;
 
-            let chunk = window.chunk.as_mut().unwrap();
-            window.title = String::from(chunk.title());
+            if let Some(chunk) = &window.chunk {
+                window.title = String::from(chunk.title());
+                window.dimensions = chunk.dimensions;
+            }
 
-            let window_rect = Rect::new(window.pos, window.pos + chunk.dimensions);
+            let window_rect = Rect::new(window.pos, window.pos + window.dimensions);
 
             let header_rect = Rect::new(
                 Position::new(window_rect.min.x, window_rect.min.y - 16),
@@ -193,8 +234,6 @@ impl WindowServer {
             };
             fb.draw_rect(header_rect, bg_color);
             fb.draw_box(full_rect, bg_color);
-
-            fb.draw_fb(&chunk.fb(), window_rect.min);
 
             let mut title_ui = UIFrame::new_stateless(Direction::LeftToRight);
             title_ui.draw_frame(fb, header_rect, input, |ui| {
@@ -219,12 +258,19 @@ impl WindowServer {
                 self.drag_start = None;
 
                 fb.clear_region(&full_rect, &clear_fb);
-            } else {
-                let should_send = match chunk.update_frequency {
-                    UpdateFrequency::Always => true,
-                    UpdateFrequency::OnInput => input.any(),
-                    UpdateFrequency::Manual => false,
-                }; //TODO: manual updates
+
+                //TODO: free chunk
+            } else if let Some(chunk) = &mut window.chunk {
+                fb.draw_fb(&chunk.fb(), window_rect.min);
+
+                let should_send = window.request_render
+                    || match window.update_frequency {
+                        UpdateFrequency::Always => true,
+                        UpdateFrequency::OnInput => input.any(),
+                        UpdateFrequency::Manual => false,
+                    }; //TODO: manual updates
+
+                window.request_render = false;
 
                 if should_send {
                     let mut mouse = input.mouse.clone();
@@ -237,6 +283,8 @@ impl WindowServer {
                     chunk.keyboard_len = keyboard_src.len() as u8;
 
                     chunk.focused = focused;
+
+                    window.last_send = time;
 
                     window
                         .target_handle

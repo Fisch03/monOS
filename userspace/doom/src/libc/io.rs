@@ -5,7 +5,7 @@ const STDOUT: usize = 1;
 const STDERR: usize = 2;
 
 #[no_mangle]
-pub unsafe extern "C" fn fopen(filename: *const c_char, mode: *const c_char) -> *mut u32 {
+pub unsafe extern "C" fn fopen(filename: *const c_char, _mode: *const c_char) -> *mut u32 {
     let filename = CStr::from_ptr(filename);
     let filename = filename.to_str().unwrap();
 

@@ -8,4 +8,4 @@ use monos_std::prelude::*;
 mod windowing;
 
 #[cfg(feature = "client")]
-pub use windowing::{client::*, WindowClientMessage, WindowServerMessage};
+pub use windowing::{client::*, UpdateFrequency, WindowClientMessage, WindowServerMessage};

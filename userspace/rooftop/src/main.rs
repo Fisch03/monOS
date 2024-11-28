@@ -43,7 +43,7 @@ fn main() {
     );
 
     let mut clear_fb_buffer = vec![0; fb.buffer().len()];
-    let clear_fb = create_clear_fb(&fb, &mut clear_fb_buffer);
+    let mut clear_fb = create_clear_fb(&fb, &mut clear_fb_buffer);
 
     let mouse_channel = syscall::connect("sys.mouse").unwrap();
     let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
@@ -58,7 +58,10 @@ fn main() {
         ),
     )
     .shrink(10);
+
+    //TODO: refresh desktop entries every once in a while
     let mut desktop = Desktop::new(desktop_rect);
+    desktop.draw(&mut clear_fb, &mut input);
 
     let window_list_rect = Rect::new(
         Position::new(2, fb.dimensions().height as i64 - 22),
@@ -103,7 +106,10 @@ fn main() {
                 mouse_moved = false;
             }
 
-            desktop.draw(&mut fb, &mut input);
+            //TODO: only redraw desktop if it changed
+            //this requires being able to seperate ui placement from ui rendering
+            desktop.layout(&mut input);
+
             window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &clear_fb);
             window_server.draw(&mut fb, &mut input, &clear_fb);
 

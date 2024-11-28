@@ -138,7 +138,7 @@ pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Result<ProcessId, SpawnError> {
     let name = path.as_str().to_string();
 
     let binary = {
-        let file = fs().get(path).unwrap().open().unwrap();
+        let file = fs().get(path).expect("file not found").open().unwrap();
 
         let mut data = alloc::vec![0u8; file.size()];
         file.read_all(data.as_mut_slice());
@@ -225,7 +225,7 @@ impl Process {
             .find(|p| p.id() == sender)?
             .as_mut();
 
-        crate::println!("{:?}", chunk_address);
+        //crate::println!("{:?}", chunk_address);
 
         let chunk_index = sender
             .memory_chunks
@@ -278,6 +278,7 @@ impl Process {
             end_page: current_receiver,
         });
 
+        /*
         crate::println!(
             "sent chunk from pid {} at {:#x} to {:#x} -> pid {} at {:#x} to {:#x}",
             sender.id().as_u32(),
@@ -287,6 +288,7 @@ impl Process {
             start.start_address().as_u64(),
             current_receiver.start_address().as_u64()
         );
+        */
 
         Some(start.start_address())
     }

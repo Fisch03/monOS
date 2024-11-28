@@ -81,8 +81,14 @@ where
     I: Iterator<Item = &'a str>,
 {
     fn draw(self, context: &mut UIContext) -> UIResult {
-        let max_dimensions =
-            Dimension::new(context.placer.max_width(), context.fb.dimensions().height);
+        let max_dimensions = Dimension::new(
+            context.placer.max_width(),
+            context
+                .fb
+                .as_ref()
+                .map(|fb| fb.dimensions().height)
+                .unwrap_or(u32::MAX),
+        );
 
         let lines = Lines::<F>::layout_iter(self.text, self.wrap, max_dimensions);
         let line_dimensions = lines.dimensions();
@@ -90,7 +96,9 @@ where
         let result = context.alloc_space(line_dimensions);
         let lines_rect = Rect::centered_in(result.rect, line_dimensions);
 
-        lines.draw(context.fb, lines_rect.min, self.color);
+        if let Some(fb) = &mut context.fb {
+            lines.draw(*fb, lines_rect.min, self.color);
+        }
 
         result
     }
@@ -171,7 +179,13 @@ where
             } else {
                 u32::MAX
             }
-            .min(context.fb.dimensions().height),
+            .min(
+                context
+                    .fb
+                    .as_ref()
+                    .map(|fb| fb.dimensions().height)
+                    .unwrap_or(u32::MAX),
+            ),
         );
 
         let max_text_dimensions = Dimension::new(
@@ -232,34 +246,30 @@ where
                 .max(0),
         );
 
-        if result.hovered && line_dimensions.height > lines_rect.height() as u32 {
-            let scroll_pct = state.offset.y as f32 / line_dimensions.height as f32;
+        if let Some(fb) = &mut context.fb {
+            if result.hovered && line_dimensions.height > lines_rect.height() as u32 {
+                let scroll_pct = state.offset.y as f32 / line_dimensions.height as f32;
 
-            let lines_height = lines_rect.height() as f32;
-            let scroll_len = (lines_height as f32
-                * (lines_height as f32 / line_dimensions.height as f32))
-                as i64;
+                let lines_height = lines_rect.height() as f32;
+                let scroll_len = (lines_height as f32
+                    * (lines_height as f32 / line_dimensions.height as f32))
+                    as i64;
 
-            let scroll_y = (lines_rect.height() as f32 * scroll_pct) as i64;
-            let scroll_y = match self.origin {
-                Origin::Top => lines_rect.min.y + scroll_y,
-                Origin::Bottom => lines_rect.max.y - scroll_y - scroll_len,
-            };
+                let scroll_y = (lines_rect.height() as f32 * scroll_pct) as i64;
+                let scroll_y = match self.origin {
+                    Origin::Top => lines_rect.min.y + scroll_y,
+                    Origin::Bottom => lines_rect.max.y - scroll_y - scroll_len,
+                };
 
-            context.fb.draw_vert_line(
-                Position::new(lines_rect.max.x - 1, scroll_y),
-                scroll_len,
-                Color::new(255, 255, 255),
-            );
+                fb.draw_vert_line(
+                    Position::new(lines_rect.max.x - 1, scroll_y),
+                    scroll_len,
+                    Color::new(255, 255, 255),
+                );
+            }
+
+            lines.draw_clipped(*fb, lines_rect, state.offset, self.origin, self.label.color);
         }
-
-        lines.draw_clipped(
-            context.fb,
-            lines_rect,
-            state.offset,
-            self.origin,
-            self.label.color,
-        );
 
         context.state_insert(id, state);
 

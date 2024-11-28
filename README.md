@@ -59,12 +59,15 @@ this makes things a lot less painful than writing everything from scratch direct
 BIOS boot is currently utterly broken and will not be supported going forward, sorry. maybe sometime later...
 
 ### project structure
+some of these have additional documentation in their respective readmes so i highly recommend looking around if youre interested!
 - [`monos_kernel`](https://github.com/Fisch03/monOS/tree/master/monos_kernel) contains the kernel code (aka the main thing)
 - [`monos_std`](https://github.com/Fisch03/monOS/tree/master/monos_std) is the library that userspace programs link against.
 - [`monos_gfx`](https://github.com/Fisch03/monOS/tree/master/monos_gfx) is the ui library used by graphical applications
 - the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) contains the included userspace programs that get shipped together with the kernel. these currently include:
   - [`hello_world`](https://github.com/Fisch03/monOS/tree/master/userspace/hello_world) basic template application
-  - [`rooftop`](https://github.com/Fisch03/monOS/tree/master/userspace/rooftop) monOS's desktop environment
+  - [`rooftop`](https://github.com/Fisch03/monOS/tree/master/userspace/rooftop) monOS's desktop environment. also provides a library for window clients!
+  - [`terminal`](https://github.com/Fisch03/monOS/tree/master/userspace/terminal) monOS's terminal. its basically just a monoscript repl with a buncha additional inbuilt functions!
+  - [`doom`](https://github.com/Fisch03/monOS/tree/master/userspace/doom) would it really be a complete operating system without being able to run doom?
 - the [`os_disk` directory](https://github.com/Fisch03/monOS/tree/master/os_disk) will be used to construct the ramdisk (see below)
 - [`monoscript`](https://github.com/Fisch03/monOS/tree/master/monoscript) is a (platform independent) library containing the monoscript parser and runtime
 - [`monoscript_emu`](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) contains a minimal monoscript runner for windows/linux/macOS
@@ -93,8 +96,8 @@ monOS currently uses the following algorithms for allocating memory:
 | type of memory    | allocation algorithm  |
 | ----------------- | --------------------- |
 | pages             | bitmap allocator      | 
-| heap memory       | buddy system          |
-| userspace heap    | buddy system          |
+| heap memory       | linked list           |
+| userspace heap    | linked list           |
 
 these were basically all just chosen because they were the easiest to implement. memory performance really isn't a big concern for this OS. 
 

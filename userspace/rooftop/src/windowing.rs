@@ -3,11 +3,14 @@ use monos_gfx::{
     Dimension, Framebuffer, FramebufferFormat,
 };
 use monos_std::messaging::*;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[cfg(feature = "client")]
 pub mod client;
 #[cfg(not(feature = "client"))]
 pub mod server;
+
+const MAX_DIMENSION: usize = 320 * 240;
 
 #[allow(dead_code)]
 pub struct WindowChunk {
@@ -15,15 +18,15 @@ pub struct WindowChunk {
     dimensions: Dimension,
     title: [u8; 32],
     title_len: u8,
-    update_frequency: UpdateFrequency,
     focused: bool,
     mouse: MouseInput,
     keyboard: [KeyEvent; 6],
     keyboard_len: u8,
-    data: [u8; 640 * 480 * 3],
+    data: [u8; MAX_DIMENSION * 3],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, TryFromPrimitive, IntoPrimitive)]
+#[repr(u64)]
 pub enum UpdateFrequency {
     Manual,
     Always,
@@ -120,6 +123,11 @@ pub enum WindowClientMessage {
         dimensions: Dimension,
         creation_id: u64,
     },
+    SetUpdateFrequency {
+        id: u64,
+        frequency: UpdateFrequency,
+    },
+    RequestRender(u64),
     SubmitRender(MemoryChunk<WindowChunk>),
 }
 
@@ -135,6 +143,10 @@ impl MessageData for WindowClientMessage {
                 dimensions.height as u64,
                 creation_id,
             ),
+            WindowClientMessage::SetUpdateFrequency { id, frequency } => {
+                MessageType::Scalar(1, id, frequency.into(), 0)
+            }
+            WindowClientMessage::RequestRender(id) => MessageType::Scalar(2, id, 0, 0),
             WindowClientMessage::SubmitRender(chunk) => chunk.as_message(0, 0),
         }
     }
@@ -147,6 +159,11 @@ impl MessageData for WindowClientMessage {
                     creation_id,
                 })
             }
+            MessageType::Scalar(1, id, frequency, _) => {
+                let frequency = UpdateFrequency::try_from_primitive(frequency).ok()?;
+                Some(WindowClientMessage::SetUpdateFrequency { id, frequency })
+            }
+            MessageType::Scalar(2, id, _, _) => Some(WindowClientMessage::RequestRender(id)),
             MessageType::Chunk { data: (0, _), .. } => {
                 let chunk = msg.data.as_chunk::<WindowChunk>();
                 chunk.map(|chunk| WindowClientMessage::SubmitRender(chunk))

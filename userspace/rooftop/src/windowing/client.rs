@@ -1,18 +1,83 @@
 use super::*;
 use monos_gfx::{input::KeyboardInput, Framebuffer, Input};
 
-struct Window<T> {
+pub struct Window<'fb> {
+    id: u64,
+    pub fb: Framebuffer<'fb>,
+    change_update_frequency: Option<UpdateFrequency>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum WindowHandle {
+    CreationId(u64),
+    Id(u64),
+}
+
+impl<'fb> Window<'fb> {
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn set_update_frequency(&mut self, frequency: UpdateFrequency) {
+        self.change_update_frequency = Some(frequency);
+    }
+}
+
+impl<'fb> core::ops::Deref for Window<'fb> {
+    type Target = Framebuffer<'fb>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.fb
+    }
+}
+
+impl<'fb> core::ops::DerefMut for Window<'fb> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.fb
+    }
+}
+
+impl From<Window<'_>> for WindowHandle {
+    fn from(window: Window) -> Self {
+        WindowHandle::Id(window.id)
+    }
+}
+
+struct InternalWindow<T> {
     id: u64,
     title: String,
     creation_id: u64,
-    on_render: Box<dyn Fn(&mut T, &mut Framebuffer, Input)>,
+    on_render: Box<dyn Fn(&mut Window, &mut T, Input)>,
+}
+
+#[derive(Debug, Clone)]
+pub enum QueuedMessage {
+    RequestRender,
+    SetUpdateFrequency(UpdateFrequency),
+}
+
+impl QueuedMessage {
+    fn into_message(&self, id: u64) -> WindowClientMessage {
+        match self {
+            QueuedMessage::RequestRender => WindowClientMessage::RequestRender(id),
+            QueuedMessage::SetUpdateFrequency(frequency) => {
+                WindowClientMessage::SetUpdateFrequency {
+                    id,
+                    frequency: *frequency,
+                }
+            }
+        }
+    }
 }
 
 pub struct WindowClient<T> {
     channel: ChannelHandle,
-    windows: Vec<Window<T>>,
+    windows: Vec<InternalWindow<T>>,
     next_creation_id: u64,
     app_data: T,
+
+    // messages created using a creation_id that hasn't been confirmed yet
+    message_queue: Vec<(u64, QueuedMessage)>,
 }
 
 #[derive(Debug)]
@@ -29,6 +94,7 @@ impl<T> WindowClient<T> {
             windows: Vec::new(),
             next_creation_id: 0,
             app_data,
+            message_queue: Vec::new(),
         })
     }
 
@@ -37,14 +103,23 @@ impl<T> WindowClient<T> {
         unsafe { self.channel.receive::<WindowServerMessage>() }
     }
 
-    pub fn create_window<R>(&mut self, title: &str, dimensions: Dimension, on_render: R)
+    pub fn create_window<R>(
+        &mut self,
+        title: &str,
+        dimensions: Dimension,
+        on_render: R,
+    ) -> WindowHandle
     where
-        R: Fn(&mut T, &mut Framebuffer, Input) + 'static,
+        R: Fn(&mut Window, &mut T, Input) + 'static,
     {
+        if dimensions.width * dimensions.height > MAX_DIMENSION as u32 {
+            panic!("window dimensions too large");
+        }
+
         let creation_id = self.next_creation_id;
         self.next_creation_id += 1;
 
-        self.windows.push(Window {
+        self.windows.push(InternalWindow {
             id: 0,
             title: title.to_string(),
             creation_id,
@@ -55,6 +130,8 @@ impl<T> WindowClient<T> {
             dimensions,
             creation_id,
         });
+
+        WindowHandle::CreationId(creation_id)
     }
 
     pub fn update(&mut self) {
@@ -66,6 +143,15 @@ impl<T> WindowClient<T> {
                     .find(|w| w.creation_id == creation_id)
                     .unwrap();
                 window.id = id;
+
+                self.message_queue.retain(|(expected_creation_id, msg)| {
+                    if *expected_creation_id == creation_id {
+                        self.channel.send(msg.into_message(id));
+                        false
+                    } else {
+                        true
+                    }
+                });
             }
 
             Some(WindowServerMessage::RequestRender(mut chunk)) => {
@@ -80,8 +166,19 @@ impl<T> WindowClient<T> {
                     mouse: chunk.mouse.clone(),
                 };
 
-                let mut fb = chunk.fb();
-                (window.on_render)(&mut self.app_data, &mut fb, input);
+                let mut window_data = Window {
+                    id: window.id,
+                    fb: chunk.fb(),
+                    change_update_frequency: None,
+                };
+                (window.on_render)(&mut window_data, &mut self.app_data, input);
+
+                if let Some(frequency) = window_data.change_update_frequency {
+                    self.channel.send(WindowClientMessage::SetUpdateFrequency {
+                        id: window.id,
+                        frequency,
+                    });
+                }
 
                 self.channel.send(WindowClientMessage::SubmitRender(chunk));
             }
@@ -100,5 +197,32 @@ impl<T> WindowClient<T> {
 
     pub fn data_mut(&mut self) -> &mut T {
         &mut self.app_data
+    }
+
+    fn send_or_queue(&mut self, handle: WindowHandle, msg: QueuedMessage) {
+        match handle {
+            WindowHandle::CreationId(creation_id) => {
+                if let Some(window) = self
+                    .windows
+                    .iter()
+                    .find(|w| w.creation_id == creation_id && w.id != 0)
+                {
+                    self.channel.send(msg.into_message(window.id));
+                } else {
+                    self.message_queue.push((creation_id, msg));
+                }
+            }
+            WindowHandle::Id(id) => {
+                self.channel.send(msg.into_message(id));
+            }
+        }
+    }
+
+    pub fn request_render(&mut self, handle: WindowHandle) {
+        self.send_or_queue(handle, QueuedMessage::RequestRender);
+    }
+
+    pub fn set_update_frequency(&mut self, handle: WindowHandle, frequency: UpdateFrequency) {
+        self.send_or_queue(handle, QueuedMessage::SetUpdateFrequency(frequency));
     }
 }
