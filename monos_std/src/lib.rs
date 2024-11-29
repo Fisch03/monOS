@@ -6,7 +6,7 @@
 extern crate alloc;
 
 #[cfg(feature = "userspace")]
-use core::arch::asm;
+use core::arch::naked_asm;
 
 #[cfg(feature = "userspace")]
 mod memory;
@@ -70,7 +70,7 @@ extern "C" {
 #[no_mangle]
 #[naked]
 pub unsafe extern "sysv64" fn _start() -> ! {
-    asm!(
+    naked_asm!(
         "and rsp, -16",
         //"sub rsp, 8", // align stack to 16 bytes
 
@@ -81,7 +81,6 @@ pub unsafe extern "sysv64" fn _start() -> ! {
         "jmp 2b",
 
         start_inner = sym start_inner,
-        options(noreturn)
     )
 }
 

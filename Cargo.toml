@@ -12,10 +12,11 @@ fatfs = "0.3.6"
 build-print = "0.1"
 
 monos_kernel = { path = "monos_kernel", artifact = "bin", target = "x86_64-unknown-none" }
-monoscript = { path = "monoscript", artifact = "bin:mono", target = "x86_64-unknown-none" }
 
 [dependencies]
 clap = { version = "4.5.20", features = ["derive"] }
+ctrlc = "3.4.5"
+libc = "0.2.167"
 ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]

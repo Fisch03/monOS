@@ -87,23 +87,28 @@ the kernel is mapped into the higher half of memory (at `0xffff800000000000`) an
 | userspace stack    |      0x400_000_000_000 | 4 MiB  | (128, 0, 0, 0, 0)  |
 | mapped framebuffer |      0x410_000_000_000 |        | (130, 0, 0, 0, 0)  |
 | ------------------ | ---------------------- | ------ | ------------------ |
-| kernel code        | 0xffff_800_000_000_000 |        | (256, 0, 0, 0, 0)  |
-| kernel heap        | after kernel           | 16 MiB |                    |
+| kernel code        | 0xffff_800_000_000_000 |        | (256, 0, 0, 0, 0) |
+| kernel framebuffer | 0xffff_900_000_000_000 |        | (288, 0, 0, 0, 0) |
+| kernel heap        | 0xffff_a00_000_000_000 | 16 MiB | (320, 0, 0, 0, 0) |
+| control structures | 0xffff_b00_000_000_000 |        | (352, 0, 0, 0, 0) |
 
 #### allocation
 monOS currently uses the following algorithms for allocating memory:
 
-| type of memory    | allocation algorithm  |
-| ----------------- | --------------------- |
-| pages             | bitmap allocator      | 
-| heap memory       | linked list           |
-| userspace heap    | linked list           |
+| type of memory     | allocation algorithm  |
+| ------------------ | --------------------- |
+| pages              | bitmap allocator      | 
+| heap memory        | linked list           |
+| userspace heap     | linked list           |
+| control structures | bump allocator        |
 
 these were basically all just chosen because they were the easiest to implement. memory performance really isn't a big concern for this OS. 
 
 the heap allocator is using the [linked_list_allocator](https://github.com/rust-osdev/linked-list-allocator) crate right now, because i couldn't be bothered to write my own.
 its something i still want to do at some point though.
 
+the control structures refer to various mappings needed by the kernel internally, for example mapping acpi tables into memory. 
+monOS manages these mappings automatically using a `Mapping` struct that unmaps them once they go out of scope. the virtual address of these mappings is then just allocated using a simple bump allocator.
 
 #### filesystem
 monOS (currently) has no way of accessing external disks, all data is kept within a ramdisk. this means that everything gets wiped when the os reboots. feel free to wreak havoc :P.
@@ -180,17 +185,17 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] page mapping/unmapping
     - [x] frame allocation
       - [ ] use a better allocator (maybe)
-  - [ ] heap allocation
+  - [x] heap allocation
     - [x] basic implementation
-    - [ ] figure out why the allocator breaks when compiling with `-g`
-    - [ ] implement own allocator
+    - [ ] implement own allocator (maybe)
+  - [ ] fix heap corruption
 - [x] ACPI
   - [x] basic table parsing
-  - [ ] (?)
+  - [x] hpet timer
 - [ ] APIC
   - [ ] local apic
     - [x] timer interrupts
-      - [ ] calibrate timer using PIT
+      - [ ] calibrate timer using HPET
   - [x] io apic
     - [x] ps2 keyboard input
     - [x] ps2 mouse input
@@ -214,9 +219,9 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] only rerender necessary parts
     - [x] spawning windows
     - [x] usable client
-    - [ ] keyboard input
-    - [ ] moving windows
-  - [ ] terminal
+    - [x] keyboard input
+    - [x] moving windows
+    - [ ] auto refresh desktop entries 
 - [ ] task management
   - [ ] async executor
   - [x] process spawning
@@ -234,11 +239,11 @@ there is currently no safety in place for channels, meaning that a process can j
       - [x] spawning
       - [ ] killing
     - [x] filesystem access
+    - [x] system timer (using hpet)
   - [ ] userspace memory
     - [x] heap
     - [x] sensible memory structure
     - [x] ondemand paging
-    - [ ] figure out why allocation on the heap fails at a certain point
     - [x] memory chunks
     - [ ] free on process exit
   - [ ] ipc
@@ -248,10 +253,14 @@ there is currently no safety in place for channels, meaning that a process can j
     - [x] process <-> process
     - [ ] mpsc/broadcasts (?)
   - [ ] save sse/avx context
-  - [ ] running [REDACTED] :)
-    - [ ] figure out linking
-    - [ ] scuffed libc port
-    - [ ] it works!
+- [ ] terminal
+  - [x] basic functionality
+  - [ ] fix overflow colors
+  - [ ] more inbuilt functions
+- [ ] running [REDACTED] :)
+  - [x] figure out linking
+  - [x] scuffed libc port
+  - [ ] it works!
 - [ ] monoscript
   - [x] basic parsing
   - [ ] missing statements
@@ -261,9 +270,11 @@ there is currently no safety in place for channels, meaning that a process can j
     - [ ] while
     - [ ] sound hook
   - [x] running in the emulator
-  - [ ] running in the real thing
+  - [x] running in the real thing
+    - [x] repl (terminal)
+    - [ ] editor
   - [ ] docs
-  - [ ] improve execution performance
+  - [ ] improve execution performance (?)
 - [ ] monodoc
   - [ ] parsing
   - [ ] viewing
@@ -275,7 +286,7 @@ there is currently no safety in place for channels, meaning that a process can j
     - [ ] multi-lfn file names
   - [x] decent vfs implementation
   - [ ] keep track of opened files to avoid conflicts
-  - [ ] block device drivers
+  - [ ] block device drivers/persistent data
 - [ ] networking
   - [ ] get access to the network card/pcie devices at all
   - [ ] get [smoltcp](https://github.com/smoltcp-rs/smoltcp) (or some other TCP stack) running

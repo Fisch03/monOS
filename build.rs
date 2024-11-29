@@ -59,6 +59,12 @@ fn make_kernel(dependency: &str, options: KernelOptions) {
         std::env::var_os(format!("CARGO_BIN_FILE_MONOS_KERNEL_{}", dependency)).unwrap(),
     );
 
+    println!(
+        "cargo:rustc-env=KERNEL_PATH_{}={}",
+        dependency.to_uppercase(),
+        kernel.display()
+    );
+
     let os_disk_in = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("os_disk");
     let userspace_prog_dir =
         PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("userspace");

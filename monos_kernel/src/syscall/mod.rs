@@ -5,7 +5,7 @@ use crate::mem::VirtualAddress;
 use monos_std::syscall::{Syscall, SyscallType};
 
 use crate::process::Context;
-use core::arch::asm;
+use core::arch::naked_asm;
 
 mod fs;
 mod ipc;
@@ -43,7 +43,7 @@ pub fn init() {
 #[naked]
 extern "C" fn handle_syscall() {
     unsafe {
-        asm!(
+        naked_asm!(
             // get access to kernel stack
             "swapgs",
             "mov gs:{temp_stack}, rsp", // save current rsp
@@ -120,7 +120,7 @@ extern "C" fn handle_syscall() {
             temp_stack = const(0x24 + gdt::SYSCALL_TEMP_INDEX * 8),
             kernel_stack_offset = const(1024),
             dispatch_syscall = sym dispatch_syscall,
-            options(noreturn));
+        );
     }
 }
 

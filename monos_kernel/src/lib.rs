@@ -25,11 +25,10 @@ use core::arch::asm;
 const LOWER_HALF_END: u64 = 0x0000_8000_0000_0000;
 
 use mem::VirtualAddress;
-const HEAP_START: VirtualAddress = VirtualAddress::new(0xffff_fff3_0000_0000);
-const FB_START: VirtualAddress = VirtualAddress::new(0xffff_fff1_0000_0000);
-const MAPPING_START: VirtualAddress = VirtualAddress::new(0xffff_fff2_0000_0000);
-
-const APIC_ADDR: VirtualAddress = VirtualAddress::new(0xffff_ffff_0000_0000);
+const FB_START: VirtualAddress = VirtualAddress::new(0xffff_900_000_000_000);
+const HEAP_START: VirtualAddress = VirtualAddress::new(0xffff_a00_000_000_000);
+const MAPPING_START: VirtualAddress = VirtualAddress::new(0xffff_b00_000_000_000);
+const APIC_ADDR: VirtualAddress = VirtualAddress::new(0xffff_fff_000_000_000);
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();

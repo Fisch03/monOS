@@ -5,4 +5,5 @@ bindeps = true
 rustflags = [
     "-C", "link-arg=-z",
     "-C", "link-arg=nostart-stop-gc",
+    "-g"
 ]

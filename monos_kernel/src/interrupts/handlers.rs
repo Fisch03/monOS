@@ -5,7 +5,7 @@ use crate::gdt::{DOUBLE_FAULT_IST_INDEX, TIMER_IST_INDEX};
 use crate::interrupts::apic::LOCAL_APIC;
 use crate::mem::{alloc_demand_page, VirtualAddress};
 
-use core::arch::asm;
+use core::arch::naked_asm;
 
 #[derive(Debug, Clone)]
 #[repr(u8)]
@@ -187,7 +187,7 @@ irq_handler_err!(security_exception_handler);
 #[naked]
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     unsafe {
-        asm!(
+        naked_asm!(
             // disable interrupts
             "cli",
             // save registers onto stack (building a context struct)
@@ -236,7 +236,6 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
             // all done!
             "iretq",
             handler = sym timer_interrupt_handler_inner,
-            options(noreturn),
         );
     }
 }
