@@ -1,6 +1,7 @@
 use crate::LOWER_HALF_END;
 
 use monos_std::messaging::*;
+use monos_std::syscall::SyscallFlags;
 
 use crate::process::messaging::{connect, send};
 
@@ -71,8 +72,15 @@ pub fn sys_receive_any(message_ptr: u64) {
     *message = current_proc.receive_any();
 }
 
-pub fn sys_send(handle: ChannelHandle, is_chunk: bool, arg1: u64, arg2: u64, arg3: u64, arg4: u64) {
-    let data = if is_chunk {
+pub fn sys_send(
+    handle: ChannelHandle,
+    flags: SyscallFlags,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+    arg4: u64,
+) {
+    let data = if flags.is_chunk() {
         MessageType::Chunk {
             address: arg1,
             size: arg2,
@@ -95,7 +103,7 @@ pub fn sys_send(handle: ChannelHandle, is_chunk: bool, arg1: u64, arg2: u64, arg
         }
     };
 
-    send(message, handle.send_part());
+    send(message, handle.send_part(), SendOptions::from(flags));
 }
 
 pub fn sys_request_chunk(size: u64) -> u64 {

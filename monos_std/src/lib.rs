@@ -43,7 +43,7 @@ pub use prelude::*;
 pub mod prelude {
     pub use crate::fs::{self, FileHandle as File, Path, PathBuf};
     pub use crate::io::{Read, Seek, Write};
-    pub use crate::messaging::MessageData;
+    pub use crate::messaging::{MessageData, SendOptions};
     pub use crate::ProcessId;
 
     #[cfg(feature = "syscall")]

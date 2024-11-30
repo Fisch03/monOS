@@ -33,17 +33,72 @@ pub enum SyscallType {
 #[repr(C, packed)]
 pub struct Syscall {
     pub ty: SyscallType,
-    is_chunk: bool,
+    flags: SyscallFlags,
     receiver_pid: ProcessId,
     receiver_channel: u8,
     sender_channel: u8,
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct SyscallFlags(u8);
+
+impl SyscallFlags {
+    const IS_CHUNK: u8 = 1 << 0;
+    const DONT_UNMAP: u8 = 1 << 1;
+
+    const fn new() -> Self {
+        Self(0)
+    }
+
+    pub fn is_chunk(&self) -> bool {
+        self.0 & Self::IS_CHUNK != 0
+    }
+    pub fn dont_unmap(&self) -> bool {
+        self.0 & Self::DONT_UNMAP != 0
+    }
+}
+
+#[cfg(feature = "userspace")]
+impl SyscallFlags {
+    fn from_options(options: crate::messaging::SendOptions, is_chunk: bool) -> Self {
+        let mut flags = Self::new();
+        if is_chunk {
+            flags.set_is_chunk();
+        }
+        if options.dont_unmap() {
+            flags.set_dont_unmap();
+        }
+        flags
+    }
+
+    fn set_is_chunk(&mut self) {
+        self.0 |= Self::IS_CHUNK;
+    }
+
+    fn set_dont_unmap(&mut self) {
+        self.0 |= Self::DONT_UNMAP;
+    }
+
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+}
+
+impl core::fmt::Debug for SyscallFlags {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SyscallFlags")
+            .field("is_chunk", &self.is_chunk())
+            .field("dont_unmap", &self.dont_unmap())
+            .finish()
+    }
 }
 
 impl Syscall {
     pub const fn new(ty: SyscallType) -> Self {
         Self {
             ty,
-            is_chunk: false,
+            flags: SyscallFlags::new(),
             receiver_pid: ProcessId(0),
             receiver_channel: 0,
             sender_channel: 0,
@@ -60,8 +115,13 @@ impl Syscall {
     }
 
     #[inline(always)]
-    pub fn is_chunk(&self) -> bool {
-        self.is_chunk
+    pub fn flags(&self) -> SyscallFlags {
+        self.flags
+    }
+    #[inline(always)]
+    pub fn with_flags(mut self, flags: SyscallFlags) -> Self {
+        self.flags = flags;
+        self
     }
 
     pub fn with_handle(mut self, channel: ChannelHandle) -> Self {
@@ -75,11 +135,6 @@ impl Syscall {
             .own_channel
             .try_into()
             .expect("channel id too large (fixme pls)");
-        self
-    }
-
-    pub fn send_chunk(mut self, is_chunk: bool) -> Self {
-        self.is_chunk = is_chunk;
         self
     }
 }
@@ -111,7 +166,7 @@ impl core::fmt::Debug for Syscall {
 
         f.debug_struct("Syscall")
             .field("type", &self.ty)
-            .field("is_chunk", &self.is_chunk)
+            .field("flags", &self.flags)
             .field("receiver_pid", &receiver_pid)
             .field("receiver_channel", &receiver_channel)
             .field("sender_channel", &sender_channel)

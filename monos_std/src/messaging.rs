@@ -158,6 +158,11 @@ impl ChannelHandle {
     }
 
     #[cfg(feature = "userspace")]
+    pub fn send_with_options<T: MessageData>(&self, data: T, options: SendOptions) {
+        crate::syscall::send_with_options(*self, data, options);
+    }
+
+    #[cfg(feature = "userspace")]
     pub unsafe fn receive<T: MessageData>(&self) -> Option<T> {
         T::from_message(crate::syscall::receive(*self)?)
     }
@@ -239,5 +244,23 @@ impl MessageData for GenericMessage {
 
     fn into_message(self) -> MessageType {
         self.data
+    }
+}
+
+use crate::syscall::SyscallFlags;
+
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct SendOptions(SyscallFlags);
+
+impl SendOptions {
+    pub fn dont_unmap(&self) -> bool {
+        self.0.dont_unmap()
+    }
+}
+
+impl From<SyscallFlags> for SendOptions {
+    fn from(flags: crate::syscall::SyscallFlags) -> Self {
+        Self(flags)
     }
 }

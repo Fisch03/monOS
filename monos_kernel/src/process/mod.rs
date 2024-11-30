@@ -1,7 +1,7 @@
 pub mod messaging;
 use messaging::{
     add_process_port, ChannelHandle, GenericMessage, Mailbox, MessageType,
-    PartialReceiveChannelHandle,
+    PartialReceiveChannelHandle, SendOptions,
 };
 
 use crate::arch::registers::CR3;
@@ -218,6 +218,7 @@ impl Process {
         &mut self,
         chunk_address: VirtualAddress,
         sender: ProcessId,
+        options: SendOptions,
     ) -> Option<VirtualAddress> {
         let mut process_queue = PROCESS_QUEUE.write();
         let sender = process_queue
@@ -248,10 +249,12 @@ impl Process {
                 .expect("failed to translate page");
             let frame = Frame::<PageSize4K>::around(phys);
 
-            // sender
-            //     .mapper
-            //     .unmap(&current_sender)
-            //     .expect("failed to unmap page from sender");
+            if !options.dont_unmap() {
+                sender
+                    .mapper
+                    .unmap(&current_sender)
+                    .expect("failed to unmap page from sender");
+            }
 
             unsafe {
                 self.mapper
@@ -295,14 +298,18 @@ impl Process {
 
     pub fn receive(&mut self, handle: PartialReceiveChannelHandle) -> Option<GenericMessage> {
         let mailbox = self.channels.get_mut(handle.own_channel as usize)?;
-        let mut msg = mailbox.receive()?;
+        let (mut msg, options) = mailbox.receive()?;
 
         if let MessageType::Chunk {
             ref mut address, ..
         } = msg.data
         {
             *address = self
-                .receive_chunk(VirtualAddress::new(*address), msg.sender.target_process)?
+                .receive_chunk(
+                    VirtualAddress::new(*address),
+                    msg.sender.target_process,
+                    options,
+                )?
                 .as_u64();
         }
 
@@ -311,13 +318,17 @@ impl Process {
 
     pub fn receive_any(&mut self) -> Option<GenericMessage> {
         for mailbox in &mut self.channels {
-            if let Some(mut msg) = mailbox.receive() {
+            if let Some((mut msg, options)) = mailbox.receive() {
                 if let MessageType::Chunk {
                     ref mut address, ..
                 } = msg.data
                 {
                     *address = self
-                        .receive_chunk(VirtualAddress::new(*address), msg.sender.target_process)?
+                        .receive_chunk(
+                            VirtualAddress::new(*address),
+                            msg.sender.target_process,
+                            options,
+                        )?
                         .as_u64();
                 }
 

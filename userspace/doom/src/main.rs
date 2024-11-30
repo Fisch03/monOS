@@ -60,7 +60,7 @@ pub unsafe extern "C" fn DG_SetWindowTitle(title: *const i8) {
 
 #[no_mangle]
 fn main() {
-    let args: [&core::ffi::CStr; 4] = [c"bin/doom", c"-iwad", c"data/doom1.wad", c"-nosound"];
+    let args: [&core::ffi::CStr; 4] = [c"bin/doom", c"-iwad", c"data/wads/doom1.wad", c"-nosound"];
     let args = args.iter().map(|s| s.as_ptr()).collect::<Vec<_>>();
     unsafe { doomgeneric_Create(args.len() as i32, args.as_ptr() as *const *const u8) };
 

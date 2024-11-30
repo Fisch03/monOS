@@ -11,6 +11,7 @@ use file::Fat16File;
 mod allocation_table;
 
 const DIR_ENTRY_SIZE: u32 = 32;
+const RESERVED_ENTRIES: u32 = 2;
 
 #[derive(Debug)]
 pub struct Fat16Fs {
@@ -62,7 +63,20 @@ impl Fat16Fs {
 
     #[inline]
     fn cluster_offset(&self, cluster: u32) -> u32 {
-        self.sector_offset(self.first_data_sector + cluster * self.sectors_per_cluster as u32)
+        self.sector_offset(
+            self.first_data_sector + (cluster - RESERVED_ENTRIES) * self.sectors_per_cluster as u32,
+        )
+    }
+
+    #[inline]
+    fn clusters_from_bytes(&self, bytes: u32) -> u32 {
+        let cluster_size = self.cluster_size();
+        (bytes + cluster_size - 1) / cluster_size
+    }
+
+    #[inline]
+    fn bytes_from_clusters(&self, clusters: u32) -> u32 {
+        clusters * self.cluster_size()
     }
 
     #[inline]

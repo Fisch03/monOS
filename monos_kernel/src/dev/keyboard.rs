@@ -122,6 +122,7 @@ pub extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFram
                     .into_message(),
                 },
                 *listener,
+                Default::default(),
             );
         }
     }

@@ -157,7 +157,7 @@ extern "C" fn dispatch_syscall(
             SyscallType::ReceiveAny => ipc::sys_receive_any(arg1),
             SyscallType::Send => ipc::sys_send(
                 syscall.get_handle(),
-                syscall.is_chunk(),
+                syscall.flags(),
                 arg1,
                 arg2,
                 arg3,

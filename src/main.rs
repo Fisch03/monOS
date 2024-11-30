@@ -96,7 +96,7 @@ fn qemu_run(uefi_path: &str, args: &Args) -> process::Child {
         cmd.arg("-display").arg("sdl"); // sdl handles scaled display a lot better
     }
     cmd.arg("-serial").arg("stdio");
-    // cmd.arg("-m").arg("512M");
+    cmd.arg("-m").arg("512M");
     cmd.arg("-drive")
         .arg(format!("format=raw,file={uefi_path}"));
 

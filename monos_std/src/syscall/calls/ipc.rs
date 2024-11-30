@@ -49,6 +49,9 @@ pub unsafe fn receive_as<T: MessageData>(handle: ChannelHandle) -> Option<T> {
 }
 
 pub fn send<T: MessageData>(handle: ChannelHandle, data: T) {
+    send_with_options(handle, data, SendOptions::default());
+}
+pub fn send_with_options<T: MessageData>(handle: ChannelHandle, data: T, options: SendOptions) {
     let (chunk, a, b, c, d) = match data.into_message() {
         MessageType::Scalar(a, b, c, d) => (false, a, b, c, d),
         MessageType::Chunk {
@@ -62,7 +65,7 @@ pub fn send<T: MessageData>(handle: ChannelHandle, data: T) {
         syscall_4(
             Syscall::new(SyscallType::Send)
                 .with_handle(handle)
-                .send_chunk(chunk),
+                .with_flags(SyscallFlags::from_options(options, chunk)),
             a,
             b,
             c,
