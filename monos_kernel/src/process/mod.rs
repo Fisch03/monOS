@@ -115,7 +115,7 @@ pub struct Context {
     pub ss: u64,
 }
 
-const KERNEL_STACK_SIZE: u64 = 0x1000; // 4 KiB
+const KERNEL_STACK_SIZE: u64 = 0x4000; // 8 KiB
 
 const USER_CODE_START: u64 = 0x200_000; // there is some bootloader stuff at 0x188_00
 const USER_STACK_START: u64 = 0x400_000_000_000;
@@ -151,11 +151,6 @@ pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Result<ProcessId, SpawnError> {
 pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
     let mut processes = PROCESS_QUEUE.write();
 
-    // small optimization: if there are no other processes, don't bother switching
-    if processes.is_empty() {
-        return VirtualAddress::new(0);
-    }
-
     let mut current = CURRENT_PROCESS.write();
 
     if let Some(mut current) = current.take() {
@@ -169,7 +164,12 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
     let mut count = 0;
 
     loop {
-        let candidate = processes.pop_front().unwrap();
+        let candidate = processes.pop_front();
+        let candidate = match candidate {
+            Some(candidate) => candidate,
+            None => break,
+        };
+
         if candidate.block_reason.is_none() {
             *current = Some(candidate);
             break;
@@ -248,10 +248,10 @@ impl Process {
                 .expect("failed to translate page");
             let frame = Frame::<PageSize4K>::around(phys);
 
-            sender
-                .mapper
-                .unmap(&current_sender)
-                .expect("failed to unmap page from sender");
+            // sender
+            //     .mapper
+            //     .unmap(&current_sender)
+            //     .expect("failed to unmap page from sender");
 
             unsafe {
                 self.mapper

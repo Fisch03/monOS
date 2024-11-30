@@ -3,6 +3,16 @@ use crate::mem::{Frame, PageSize4K, PhysicalAddress, VirtualAddress};
 
 use core::arch::asm;
 
+#[allow(dead_code)]
+#[inline]
+pub fn rsp() -> VirtualAddress {
+    let rsp: u64;
+    unsafe {
+        asm!("mov {}, rsp", out(reg) rsp, options(nomem, nostack, preserves_flags));
+    }
+    VirtualAddress::new(rsp)
+}
+
 pub unsafe fn set_cs(selector: SegmentSelector) {
     asm!(
         "push {sel}",

@@ -257,10 +257,11 @@ there is currently no safety in place for channels, meaning that a process can j
   - [x] basic functionality
   - [ ] fix overflow colors
   - [ ] more inbuilt functions
-- [ ] running [REDACTED] :)
+- [x] running doom!! :)
   - [x] figure out linking
   - [x] scuffed libc port
-  - [ ] it works!
+  - [x] it works!
+  - [ ] keyboard input
 - [ ] monoscript
   - [x] basic parsing
   - [ ] missing statements

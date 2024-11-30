@@ -16,7 +16,7 @@ pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
         .expect("invalid utf8 string")
     };
     let path = Path::new(path);
-    crate::print!("SYS: sys_open: {:?}", path);
+    // crate::print!("SYS: sys_open: {:?}", path);
 
     let file_handle_ptr = arg3 as *mut Option<FileHandle>;
     let file_handle = unsafe { &mut *file_handle_ptr };
@@ -26,16 +26,16 @@ pub fn sys_open(arg1: u64, arg2: u64, arg3: u64) {
 
     *file_handle = current_proc.open(path);
 
-    if let Some(file_handle) = file_handle {
-        crate::print!(" -> {:?}\n", file_handle);
-    } else {
-        crate::print!(" -> failed!\n");
-    }
+    // if let Some(file_handle) = file_handle {
+    //     crate::print!(" -> {:?}\n", file_handle);
+    // } else {
+    //     crate::print!(" -> failed!\n");
+    // }
 }
 
 pub fn sys_close(arg1: u64) {
     let file_handle = FileHandle::new(arg1);
-    crate::println!("sys_close: {:?}", file_handle);
+    // crate::println!("sys_close: {:?}", file_handle);
 
     let mut current_proc = crate::process::CURRENT_PROCESS.write();
     let current_proc = current_proc.as_mut().unwrap();
@@ -109,7 +109,7 @@ pub fn sys_list(arg1: u64, arg2: u64, arg3: u64, arg4: u64) -> u64 {
         .expect("invalid utf8 string")
     };
     let path = PathBuf::from(path);
-    crate::println!("sys_list: {:?}", path);
+    // crate::println!("sys_list: {:?}", path);
 
     let paths = unsafe {
         core::slice::from_raw_parts_mut(arg3 as *mut MaybeUninit<ArrayPath>, arg4 as usize)

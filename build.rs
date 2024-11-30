@@ -29,11 +29,11 @@ impl Default for KernelOptions {
 }
 
 fn main() {
-    info!("updating submodules");
-    std::process::Command::new("git")
-        .args(&["submodule", "update", "--init", "--recursive"])
-        .status()
-        .unwrap();
+    // info!("updating submodules");
+    // std::process::Command::new("git")
+    //     .args(&["submodule", "update", "--init", "--recursive"])
+    //     .status()
+    //     .unwrap();
 
     make_kernel(
         "test_kernel",

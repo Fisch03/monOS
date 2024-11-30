@@ -121,6 +121,7 @@ pub fn connect(
     let ports = crate::process::messaging::PORTS.read();
 
     if ports.len() > 3 {
+        crate::println!("name ptr: {:?}", ports[3].name.as_str() as *const str);
         assert_eq!(ports[3].name, "desktop.windows");
     }
 

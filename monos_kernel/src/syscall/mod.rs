@@ -37,6 +37,8 @@ pub fn init() {
     // enable syscall/sysret
     let mut ia32_efer = MSR::new(IA32_EFER_MSR);
     unsafe { ia32_efer.write(ia32_efer.read() | 1) };
+
+    crate::println!("kernel_gs_base: {:#x}", gdt::tss_address().as_u64());
 }
 
 #[no_mangle]
@@ -51,7 +53,7 @@ extern "C" fn handle_syscall() {
             "mov rsp, gs:{kernel_stack}",
             "sub rsp, {kernel_stack_offset}",
 
-            "sub rsp, 8",
+            "sub rsp, 8", //will be filled with SS
             "push gs:{temp_stack}",
             "swapgs", // switch to user gs
 

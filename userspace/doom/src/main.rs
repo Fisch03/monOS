@@ -65,7 +65,7 @@ fn main() {
     unsafe { doomgeneric_Create(args.len() as i32, args.as_ptr() as *const *const u8) };
 
     let mut window_client = WindowClient::new("desktop.windows", ()).unwrap();
-    let window = window_client.create_window("terminal", Dimension::new(320, 200), render);
+    let window = window_client.create_window("doom", Dimension::new(320, 200), render);
 
     loop {
         window_client.update();
@@ -73,7 +73,6 @@ fn main() {
         unsafe { doomgeneric_Tick() };
         if FRAME_READY.load(Ordering::Relaxed) {
             FRAME_READY.store(false, Ordering::Relaxed);
-            println!("frame ready");
 
             window_client.request_render(window);
         }
