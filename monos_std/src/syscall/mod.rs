@@ -45,7 +45,7 @@ pub struct SyscallFlags(u8);
 
 impl SyscallFlags {
     const IS_CHUNK: u8 = 1 << 0;
-    const DONT_UNMAP: u8 = 1 << 1;
+    const IS_MMAPPED: u8 = 1 << 1;
 
     const fn new() -> Self {
         Self(0)
@@ -54,30 +54,19 @@ impl SyscallFlags {
     pub fn is_chunk(&self) -> bool {
         self.0 & Self::IS_CHUNK != 0
     }
-    pub fn dont_unmap(&self) -> bool {
-        self.0 & Self::DONT_UNMAP != 0
+    pub fn is_mmapped(&self) -> bool {
+        self.0 & Self::IS_MMAPPED != 0
     }
 }
 
 #[cfg(feature = "userspace")]
 impl SyscallFlags {
-    fn from_options(options: crate::messaging::SendOptions, is_chunk: bool) -> Self {
-        let mut flags = Self::new();
-        if is_chunk {
-            flags.set_is_chunk();
-        }
-        if options.dont_unmap() {
-            flags.set_dont_unmap();
-        }
-        flags
-    }
-
     fn set_is_chunk(&mut self) {
         self.0 |= Self::IS_CHUNK;
     }
 
-    fn set_dont_unmap(&mut self) {
-        self.0 |= Self::DONT_UNMAP;
+    fn set_is_mmapped(&mut self) {
+        self.0 |= Self::IS_MMAPPED;
     }
 
     pub fn as_u8(&self) -> u8 {
@@ -89,7 +78,7 @@ impl core::fmt::Debug for SyscallFlags {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("SyscallFlags")
             .field("is_chunk", &self.is_chunk())
-            .field("dont_unmap", &self.dont_unmap())
+            .field("dont_unmap", &self.is_mmapped())
             .finish()
     }
 }

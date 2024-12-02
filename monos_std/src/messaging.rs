@@ -16,6 +16,7 @@ pub enum MessageType {
         address: u64,
         size: u64,
         data: (u64, u64),
+        is_mmapped: bool,
     },
 }
 
@@ -30,10 +31,39 @@ impl MessageType {
     // safety: supplied type must match the type of the chunk
     pub unsafe fn as_chunk<T: Sized + 'static>(&self) -> Option<MemoryChunk<T>> {
         match self {
-            Self::Chunk { address, size, .. } => {
-                assert_eq!(size_of::<T>() as u64, *size); // sanity check
+            Self::Chunk {
+                address,
+                size,
+                is_mmapped,
+                ..
+            } => {
+                if *is_mmapped {
+                    return None;
+                }
+
+                debug_assert_eq!(size_of::<T>() as u64, *size); // sanity check
                 let ptr = *address as *const T;
                 let chunk = unsafe { MemoryChunk::new(ptr) };
+                Some(chunk)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn as_mmapped_chunk<T: MMapSafe>(&self) -> Option<MemoryMappedChunk<T>> {
+        match self {
+            Self::Chunk {
+                address,
+                size,
+                is_mmapped,
+                ..
+            } => {
+                if !*is_mmapped {
+                    return None;
+                }
+                debug_assert_eq!(size_of::<T>() as u64, *size); // sanity check
+                let ptr = *address as *const T;
+                let chunk = unsafe { MemoryMappedChunk::new(ptr) };
                 Some(chunk)
             }
             _ => None,
@@ -47,6 +77,18 @@ where
 {
     pub address: u64,
     data: PhantomData<T>,
+}
+
+#[derive(Debug)]
+pub struct MemoryMappedChunk<T: MMapSafe>(MemoryChunk<T>);
+
+/// marker trait for types that can be safely mmapped.
+/// this is safe to implement for any type that can not enter an invalid state from race conditions
+/// where the scheduler could switch to another thread in the middle of a memory operation.
+pub unsafe trait MMapSafe
+where
+    Self: Send + Sync + Sized + 'static,
+{
 }
 
 impl<T> MemoryChunk<T>
@@ -70,7 +112,45 @@ where
             address: self.address,
             size: self.size(),
             data: (data1, data2),
+            is_mmapped: false,
         }
+    }
+}
+
+impl<T> MemoryChunk<T>
+where
+    T: MMapSafe,
+{
+    pub fn make_mmapped(self) -> MemoryMappedChunk<T> {
+        MemoryMappedChunk(self)
+    }
+}
+
+impl<T> MemoryMappedChunk<T>
+where
+    T: MMapSafe,
+{
+    // safety: should only be called from the kernel on a correctly mapped memory chunk
+    pub unsafe fn new(ptr: *const T) -> Self {
+        Self(MemoryChunk::new(ptr))
+    }
+
+    pub fn as_message(&self, data1: u64, data2: u64) -> MessageType {
+        MessageType::Chunk {
+            address: self.0.address,
+            size: self.0.size(),
+            data: (data1, data2),
+            is_mmapped: true,
+        }
+    }
+}
+
+impl<T> Clone for MemoryMappedChunk<T>
+where
+    T: MMapSafe,
+{
+    fn clone(&self) -> Self {
+        unsafe { MemoryMappedChunk::new(self.0.address as *const T) }
     }
 }
 
@@ -81,9 +161,28 @@ impl<T> core::ops::Deref for MemoryChunk<T> {
     }
 }
 
+impl<T> core::ops::Deref for MemoryMappedChunk<T>
+where
+    T: MMapSafe,
+{
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
 impl<T> core::ops::DerefMut for MemoryChunk<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *(self.address as *mut T) }
+    }
+}
+
+impl<T> core::ops::DerefMut for MemoryMappedChunk<T>
+where
+    T: MMapSafe,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.deref_mut()
     }
 }
 
@@ -155,11 +254,6 @@ impl ChannelHandle {
     #[cfg(feature = "userspace")]
     pub fn send<T: MessageData>(&self, data: T) {
         crate::syscall::send(*self, data);
-    }
-
-    #[cfg(feature = "userspace")]
-    pub fn send_with_options<T: MessageData>(&self, data: T, options: SendOptions) {
-        crate::syscall::send_with_options(*self, data, options);
     }
 
     #[cfg(feature = "userspace")]
@@ -244,23 +338,5 @@ impl MessageData for GenericMessage {
 
     fn into_message(self) -> MessageType {
         self.data
-    }
-}
-
-use crate::syscall::SyscallFlags;
-
-#[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct SendOptions(SyscallFlags);
-
-impl SendOptions {
-    pub fn dont_unmap(&self) -> bool {
-        self.0.dont_unmap()
-    }
-}
-
-impl From<SyscallFlags> for SendOptions {
-    fn from(flags: crate::syscall::SyscallFlags) -> Self {
-        Self(flags)
     }
 }

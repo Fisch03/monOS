@@ -196,6 +196,10 @@ impl Rect {
         (self.max.y - self.min.y) as u32
     }
 
+    pub const fn area(&self) -> u32 {
+        self.width() * self.height()
+    }
+
     pub const fn center(&self) -> Position {
         Position {
             x: (self.min.x + self.max.x) / 2,
@@ -221,6 +225,10 @@ impl Rect {
         pos.x >= self.min.x && pos.x < self.max.x && pos.y >= self.min.y && pos.y < self.max.y
     }
 
+    pub const fn contains_rect(&self, other: Rect) -> bool {
+        self.contains(other.min) && self.contains(other.max)
+    }
+
     pub const fn translate(&self, offset: Position) -> Rect {
         Rect {
             min: Position {
@@ -239,6 +247,21 @@ impl Rect {
             && self.max.x > other.min.x
             && self.min.y < other.max.y
             && self.max.y > other.min.y
+    }
+
+    pub fn intersecting_rect(&self, other: &Rect) -> Option<Rect> {
+        if !self.intersects(other) {
+            return None;
+        }
+
+        let min_x = self.min.x.max(other.min.x);
+        let min_y = self.min.y.max(other.min.y);
+        let max_x = self.max.x.min(other.max.x);
+        let max_y = self.max.y.min(other.max.y);
+        Some(Rect {
+            min: Position::new(min_x, min_y),
+            max: Position::new(max_x, max_y),
+        })
     }
 
     /// check if self sits on the edge of other

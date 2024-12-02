@@ -49,23 +49,31 @@ pub unsafe fn receive_as<T: MessageData>(handle: ChannelHandle) -> Option<T> {
 }
 
 pub fn send<T: MessageData>(handle: ChannelHandle, data: T) {
-    send_with_options(handle, data, SendOptions::default());
-}
-pub fn send_with_options<T: MessageData>(handle: ChannelHandle, data: T, options: SendOptions) {
-    let (chunk, a, b, c, d) = match data.into_message() {
-        MessageType::Scalar(a, b, c, d) => (false, a, b, c, d),
+    let mut flags = SyscallFlags::default();
+
+    let (a, b, c, d) = match data.into_message() {
+        MessageType::Scalar(a, b, c, d) => (a, b, c, d),
         MessageType::Chunk {
             address,
             size,
             data,
-        } => (true, address, size, data.0, data.1),
+            is_mmapped,
+        } => {
+            flags.set_is_chunk();
+
+            if is_mmapped {
+                flags.set_is_mmapped();
+            }
+
+            (address, size, data.0, data.1)
+        }
     };
 
     unsafe {
         syscall_4(
             Syscall::new(SyscallType::Send)
                 .with_handle(handle)
-                .with_flags(SyscallFlags::from_options(options, chunk)),
+                .with_flags(flags),
             a,
             b,
             c,

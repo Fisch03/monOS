@@ -1,3 +1,4 @@
+use core::sync::atomic::AtomicBool;
 use monos_gfx::{
     input::{KeyEvent, MouseInput},
     Dimension, Framebuffer, FramebufferFormat,
@@ -7,7 +8,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[cfg(feature = "client")]
 pub mod client;
-#[cfg(not(feature = "client"))]
+// #[cfg(not(feature = "client"))]
 pub mod server;
 
 const MAX_DIMENSION: usize = 320 * 240;
@@ -15,15 +16,25 @@ const MAX_DIMENSION: usize = 320 * 240;
 #[allow(dead_code)]
 pub struct WindowChunk {
     id: u64,
+    needs_render: AtomicBool,
+    update_frequency: UpdateFrequency,
+
     dimensions: Dimension,
+
     title: [u8; 32],
     title_len: u8,
+
     focused: bool,
     mouse: MouseInput,
     keyboard: [KeyEvent; 6],
     keyboard_len: u8,
+
     data: [u8; MAX_DIMENSION * 3],
 }
+
+/// safety: since the needs_render flag determines which side is allowed to access the rest of the
+/// data, it is safe to mmap this struct
+unsafe impl MMapSafe for WindowChunk {}
 
 #[derive(Debug, Clone, Copy, TryFromPrimitive, IntoPrimitive)]
 #[repr(u64)]
@@ -41,7 +52,7 @@ impl core::default::Default for UpdateFrequency {
 
 impl WindowChunk {
     pub fn title(&self) -> &str {
-        core::str::from_utf8(&self.title).unwrap_or("<empty>")
+        core::str::from_utf8(&self.title[..self.title_len as usize]).unwrap_or("<empty>")
     }
 
     pub fn fb(&mut self) -> Framebuffer {
@@ -58,16 +69,16 @@ impl WindowChunk {
             },
         )
     }
-}
 
-#[cfg(feature = "client")]
-impl WindowChunk {
     pub fn set_title(&mut self, title: &str) {
         let title_slice = self.title[0..title.len()].as_mut();
         title_slice.copy_from_slice(title.as_bytes());
         self.title_len = title.len() as u8;
     }
+}
 
+#[cfg(feature = "client")]
+impl WindowChunk {
     pub fn keys(&self) -> &[KeyEvent] {
         &self.keyboard[..self.keyboard_len as usize]
     }
@@ -85,31 +96,34 @@ impl core::fmt::Debug for WindowChunk {
 // sent from rooftop to window clients
 #[derive(Debug)]
 pub enum WindowServerMessage {
-    RequestClose { id: u64 },
-    ConfirmCreation { id: u64, creation_id: u64 },
-    RequestRender(MemoryChunk<WindowChunk>),
+    RequestClose {
+        id: u64,
+    },
+    ConfirmCreation {
+        creation_id: u64,
+        chunk: MemoryMappedChunk<WindowChunk>,
+    },
 }
 
 impl MessageData for WindowServerMessage {
     fn into_message(self) -> MessageType {
         match self {
             WindowServerMessage::RequestClose { id } => MessageType::Scalar(0, id, 0, 0),
-            WindowServerMessage::ConfirmCreation { id, creation_id } => {
-                MessageType::Scalar(1, id, creation_id, 0)
+            WindowServerMessage::ConfirmCreation { creation_id, chunk } => {
+                chunk.as_message(0, creation_id)
             }
-            WindowServerMessage::RequestRender(chunk) => chunk.as_message(0, 0),
         }
     }
 
     unsafe fn from_message(msg: GenericMessage) -> Option<Self> {
         match msg.data {
             MessageType::Scalar(0, id, _, _) => Some(WindowServerMessage::RequestClose { id }),
-            MessageType::Scalar(1, id, creation_id, 0) => {
-                Some(WindowServerMessage::ConfirmCreation { id, creation_id })
-            }
-            MessageType::Chunk { data: (0, _), .. } => {
-                let chunk = msg.data.as_chunk::<WindowChunk>();
-                chunk.map(|chunk| WindowServerMessage::RequestRender(chunk))
+            MessageType::Chunk {
+                data: (0, creation_id),
+                ..
+            } => {
+                let chunk = msg.data.as_mmapped_chunk::<WindowChunk>();
+                chunk.map(|chunk| WindowServerMessage::ConfirmCreation { creation_id, chunk })
             }
             _ => None,
         }
@@ -123,12 +137,7 @@ pub enum WindowClientMessage {
         dimensions: Dimension,
         creation_id: u64,
     },
-    SetUpdateFrequency {
-        id: u64,
-        frequency: UpdateFrequency,
-    },
     RequestRender(u64),
-    SubmitRender(MemoryChunk<WindowChunk>),
 }
 
 impl MessageData for WindowClientMessage {
@@ -143,11 +152,7 @@ impl MessageData for WindowClientMessage {
                 dimensions.height as u64,
                 creation_id,
             ),
-            WindowClientMessage::SetUpdateFrequency { id, frequency } => {
-                MessageType::Scalar(1, id, frequency.into(), 0)
-            }
-            WindowClientMessage::RequestRender(id) => MessageType::Scalar(2, id, 0, 0),
-            WindowClientMessage::SubmitRender(chunk) => chunk.as_message(0, 0),
+            WindowClientMessage::RequestRender(id) => MessageType::Scalar(1, id, 0, 0),
         }
     }
 
@@ -159,15 +164,8 @@ impl MessageData for WindowClientMessage {
                     creation_id,
                 })
             }
-            MessageType::Scalar(1, id, frequency, _) => {
-                let frequency = UpdateFrequency::try_from_primitive(frequency).ok()?;
-                Some(WindowClientMessage::SetUpdateFrequency { id, frequency })
-            }
-            MessageType::Scalar(2, id, _, _) => Some(WindowClientMessage::RequestRender(id)),
-            MessageType::Chunk { data: (0, _), .. } => {
-                let chunk = msg.data.as_chunk::<WindowChunk>();
-                chunk.map(|chunk| WindowClientMessage::SubmitRender(chunk))
-            }
+
+            MessageType::Scalar(1, id, _, _) => Some(WindowClientMessage::RequestRender(id)),
             _ => None,
         }
     }

@@ -56,7 +56,7 @@ pub fn receive_message(message: GenericMessage) {
                 };
 
                 drop(current_proc_guard); // drop the guard before sending the message, to avoid deadlock
-                send(return_message, requester, Default::default());
+                send(return_message, requester);
             }
         }
     }

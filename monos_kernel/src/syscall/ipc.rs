@@ -85,6 +85,7 @@ pub fn sys_send(
             address: arg1,
             size: arg2,
             data: (arg3, arg4),
+            is_mmapped: flags.is_mmapped(),
         }
     } else {
         MessageType::Scalar(arg1, arg2, arg3, arg4)
@@ -103,7 +104,7 @@ pub fn sys_send(
         }
     };
 
-    send(message, handle.send_part(), SendOptions::from(flags));
+    send(message, handle.send_part());
 }
 
 pub fn sys_request_chunk(size: u64) -> u64 {

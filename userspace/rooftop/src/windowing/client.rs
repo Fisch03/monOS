@@ -1,4 +1,5 @@
 use super::*;
+use core::sync::atomic::Ordering;
 use monos_gfx::{input::KeyboardInput, Framebuffer, Input};
 
 pub struct Window<'fb> {
@@ -44,8 +45,8 @@ impl From<Window<'_>> for WindowHandle {
 }
 
 struct InternalWindow<T> {
-    id: u64,
     title: String,
+    chunk: Option<MemoryMappedChunk<WindowChunk>>,
     creation_id: u64,
     on_render: Box<dyn Fn(&mut Window, &mut T, Input)>,
 }
@@ -53,19 +54,12 @@ struct InternalWindow<T> {
 #[derive(Debug, Clone)]
 pub enum QueuedMessage {
     RequestRender,
-    SetUpdateFrequency(UpdateFrequency),
 }
 
 impl QueuedMessage {
     fn into_message(&self, id: u64) -> WindowClientMessage {
         match self {
             QueuedMessage::RequestRender => WindowClientMessage::RequestRender(id),
-            QueuedMessage::SetUpdateFrequency(frequency) => {
-                WindowClientMessage::SetUpdateFrequency {
-                    id,
-                    frequency: *frequency,
-                }
-            }
         }
     }
 }
@@ -120,8 +114,8 @@ impl<T> WindowClient<T> {
         self.next_creation_id += 1;
 
         self.windows.push(InternalWindow {
-            id: 0,
             title: title.to_string(),
+            chunk: None,
             creation_id,
             on_render: Box::new(on_render),
         });
@@ -136,13 +130,30 @@ impl<T> WindowClient<T> {
 
     pub fn update(&mut self) {
         match self.receive_msg() {
-            Some(WindowServerMessage::ConfirmCreation { id, creation_id }) => {
+            Some(WindowServerMessage::ConfirmCreation {
+                creation_id,
+                mut chunk,
+            }) => {
                 let window = self
                     .windows
                     .iter_mut()
                     .find(|w| w.creation_id == creation_id)
                     .unwrap();
-                window.id = id;
+                let id = chunk.id;
+
+                chunk.set_title(&window.title);
+
+                (window.on_render)(
+                    &mut Window {
+                        id,
+                        fb: chunk.fb(),
+                        change_update_frequency: None,
+                    },
+                    &mut self.app_data,
+                    Input::default(),
+                );
+
+                window.chunk = Some(chunk);
 
                 self.message_queue.retain(|(expected_creation_id, msg)| {
                     if *expected_creation_id == creation_id {
@@ -154,41 +165,54 @@ impl<T> WindowClient<T> {
                 });
             }
 
-            Some(WindowServerMessage::RequestRender(mut chunk)) => {
-                let window = self.windows.iter().find(|w| w.id == chunk.id).unwrap();
-
-                chunk.set_title(&window.title);
-
-                let input = Input {
-                    keyboard: KeyboardInput {
-                        keys: chunk.keys().to_vec(),
-                    },
-                    mouse: chunk.mouse.clone(),
-                };
-
-                let mut window_data = Window {
-                    id: window.id,
-                    fb: chunk.fb(),
-                    change_update_frequency: None,
-                };
-                (window.on_render)(&mut window_data, &mut self.app_data, input);
-
-                if let Some(frequency) = window_data.change_update_frequency {
-                    self.channel.send(WindowClientMessage::SetUpdateFrequency {
-                        id: window.id,
-                        frequency,
-                    });
+            Some(WindowServerMessage::RequestClose { id }) => self.windows.retain(|w| {
+                if let Some(chunk) = &w.chunk {
+                    chunk.id != id
+                } else {
+                    true
                 }
-
-                self.channel.send(WindowClientMessage::SubmitRender(chunk));
-            }
-
-            Some(WindowServerMessage::RequestClose { id }) => {
-                self.windows.retain(|w| w.id != id);
-            }
+            }),
 
             None => {}
         }
+
+        self.windows
+            .iter_mut()
+            .filter(|w| {
+                if let Some(chunk) = &w.chunk {
+                    chunk.needs_render.load(Ordering::Relaxed)
+                } else {
+                    false
+                }
+            })
+            .for_each(|window| {
+                let chunk = window.chunk.as_mut().unwrap();
+
+                let input = if chunk.focused {
+                    Input {
+                        keyboard: KeyboardInput {
+                            keys: chunk.keys().to_vec(),
+                        },
+                        mouse: chunk.mouse.clone(),
+                    }
+                } else {
+                    Input::default()
+                };
+
+                let mut window_data = Window {
+                    id: chunk.id,
+                    fb: chunk.fb(),
+                    change_update_frequency: None,
+                };
+
+                (window.on_render)(&mut window_data, &mut self.app_data, input);
+
+                if let Some(frequency) = window_data.change_update_frequency {
+                    chunk.update_frequency = frequency;
+                }
+
+                chunk.needs_render.store(false, Ordering::Relaxed);
+            });
     }
 
     pub fn data(&self) -> &T {
@@ -202,12 +226,14 @@ impl<T> WindowClient<T> {
     fn send_or_queue(&mut self, handle: WindowHandle, msg: QueuedMessage) {
         match handle {
             WindowHandle::CreationId(creation_id) => {
-                if let Some(window) = self
+                let window = self
                     .windows
                     .iter()
-                    .find(|w| w.creation_id == creation_id && w.id != 0)
-                {
-                    self.channel.send(msg.into_message(window.id));
+                    .find(|w| w.creation_id == creation_id)
+                    .unwrap();
+
+                if let Some(chunk) = &window.chunk {
+                    self.channel.send(msg.into_message(chunk.id));
                 } else {
                     self.message_queue.push((creation_id, msg));
                 }
@@ -220,9 +246,5 @@ impl<T> WindowClient<T> {
 
     pub fn request_render(&mut self, handle: WindowHandle) {
         self.send_or_queue(handle, QueuedMessage::RequestRender);
-    }
-
-    pub fn set_update_frequency(&mut self, handle: WindowHandle, frequency: UpdateFrequency) {
-        self.send_or_queue(handle, QueuedMessage::SetUpdateFrequency(frequency));
     }
 }

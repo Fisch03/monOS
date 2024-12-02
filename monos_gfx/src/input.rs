@@ -26,6 +26,7 @@ impl Input {
 #[derive(Debug, Clone, Default)]
 pub struct MouseInput {
     pub position: Position,
+    pub moved: bool,
     pub scroll: i64,
 
     pub left_button: MouseButtonState,
@@ -43,6 +44,10 @@ impl MouseInput {
         self.left_button.update(state.flags.left_button());
         self.right_button.update(state.flags.right_button());
         self.middle_button.update(state.flags.middle_button());
+
+        if state.x != 0 || state.y != 0 {
+            self.moved = true;
+        }
     }
 
     pub fn clear(&mut self) {
@@ -50,6 +55,7 @@ impl MouseInput {
         self.right_button.clicked = false;
         self.middle_button.clicked = false;
         self.scroll = 0;
+        self.moved = false;
     }
 }
 

@@ -2,7 +2,7 @@ use super::{Process, CURRENT_PROCESS, PROCESS_QUEUE};
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, vec::Vec};
 pub use monos_std::messaging::{
     ChannelHandle, GenericMessage, MessageData, MessageType, PartialReceiveChannelHandle,
-    PartialSendChannelHandle, SendOptions,
+    PartialSendChannelHandle,
 };
 use monos_std::ProcessId;
 use spin::{Lazy, RwLock};
@@ -78,7 +78,7 @@ pub fn add_process_port(name: &str, pid: ProcessId, channel_id: u16) {
 
 #[derive(Debug)]
 pub struct Mailbox {
-    queue: VecDeque<(GenericMessage, SendOptions)>,
+    queue: VecDeque<GenericMessage>,
 }
 
 impl Mailbox {
@@ -88,7 +88,7 @@ impl Mailbox {
         }
     }
 
-    pub fn send(&mut self, message: GenericMessage, options: SendOptions) {
+    pub fn send(&mut self, message: GenericMessage) {
         if self.queue.len() >= MAX_QUEUE_SIZE {
             if message.sender.target_process == ProcessId(0) {
                 // system channels can't block
@@ -97,10 +97,10 @@ impl Mailbox {
             }
             todo!("block sender until there is space in the queue")
         }
-        self.queue.push_back((message, options));
+        self.queue.push_back(message);
     }
 
-    pub fn receive(&mut self) -> Option<(GenericMessage, SendOptions)> {
+    pub fn receive(&mut self) -> Option<GenericMessage> {
         self.queue.pop_front()
     }
 
@@ -160,11 +160,7 @@ pub fn connect(
     ))
 }
 
-pub fn send(
-    message: GenericMessage,
-    receiver_handle: PartialSendChannelHandle,
-    options: SendOptions,
-) {
+pub fn send(message: GenericMessage, receiver_handle: PartialSendChannelHandle) {
     let receiver = receiver_handle.target_process;
 
     if receiver == ProcessId(0) {
@@ -202,7 +198,7 @@ pub fn send(
         .channels
         .get_mut(receiver_handle.target_channel as usize)
     {
-        mailbox.send(message, options);
+        mailbox.send(message);
     } else {
         todo!("handle process without open channel")
     }

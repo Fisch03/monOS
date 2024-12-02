@@ -73,7 +73,6 @@ fn main() {
 
     let mut window_server = WindowServer::new("desktop.windows");
 
-    let mut mouse_moved = false;
     let mut old_mouse_pos = Position::new(0, 0);
 
     fb.clear_with(&clear_fb);
@@ -84,7 +83,6 @@ fn main() {
             if msg.sender == mouse_channel {
                 if let Some(mouse_state) = unsafe { MouseState::from_message(msg) } {
                     input.mouse.update_new(mouse_state, mouse_rect);
-                    mouse_moved = true
                 }
             } else if msg.sender == keyboard_channel {
                 if let Some(key_event) = unsafe { KeyEvent::from_message(msg) } {
@@ -96,28 +94,23 @@ fn main() {
             }
         }
 
-        if window_server.ready_to_render() {
-            if mouse_moved {
-                fb.clear_region(
-                    &Rect::new(old_mouse_pos, old_mouse_pos + Position::new(6, 9)),
-                    &clear_fb,
-                );
-                old_mouse_pos = input.mouse.position;
-                mouse_moved = false;
-            }
-
-            //TODO: only redraw desktop if it changed
-            //this requires being able to seperate ui placement from ui rendering
-            desktop.layout(&mut input);
-
-            window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &clear_fb);
-            window_server.draw(&mut fb, &mut input, &clear_fb);
-
-            draw_cursor(&mut fb, input.mouse.position);
-
-            syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
-            input.clear();
+        let old_mouse_rect = Rect::new(old_mouse_pos, old_mouse_pos + Position::new(6, 9));
+        if input.mouse.moved {
+            fb.clear_region(&old_mouse_rect, &clear_fb);
+            old_mouse_pos = input.mouse.position;
         }
+
+        //TODO: only redraw desktop if it changed
+        //this requires being able to seperate ui placement from ui rendering
+        desktop.layout(&mut input);
+
+        window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &clear_fb);
+        window_server.draw(&mut fb, &mut input, &clear_fb, old_mouse_rect);
+
+        draw_cursor(&mut fb, input.mouse.position);
+
+        syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
+        input.clear();
 
         syscall::yield_();
     }

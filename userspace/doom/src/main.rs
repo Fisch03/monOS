@@ -65,24 +65,23 @@ fn main() {
     unsafe { doomgeneric_Create(args.len() as i32, args.as_ptr() as *const *const u8) };
 
     let mut window_client = WindowClient::new("desktop.windows", ()).unwrap();
-    let window = window_client.create_window("doom", Dimension::new(320, 200), render);
+    window_client.create_window("doom", Dimension::new(320, 200), render);
 
     loop {
         window_client.update();
 
         unsafe { doomgeneric_Tick() };
-        if FRAME_READY.load(Ordering::Relaxed) {
-            FRAME_READY.store(false, Ordering::Relaxed);
-
-            window_client.request_render(window);
-        }
 
         yield_();
     }
 }
 
 fn render(window: &mut Window, _app: &mut (), _input: Input) {
-    FRAME_READY.store(false, Ordering::Relaxed);
+    window.set_update_frequency(rooftop::UpdateFrequency::Always);
+
+    if !FRAME_READY.swap(false, Ordering::Relaxed) {
+        return;
+    }
 
     let doom_fb = unsafe { core::slice::from_raw_parts_mut(DG_ScreenBuffer, 320 * 200 * 3) };
     let doom_fb = Framebuffer::new(
