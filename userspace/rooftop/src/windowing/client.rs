@@ -2,10 +2,11 @@ use super::*;
 use core::sync::atomic::Ordering;
 use monos_gfx::{input::KeyboardInput, Framebuffer, Input};
 
-pub struct Window<'fb> {
+pub struct Window<'a, 'fb> {
     id: u64,
     pub fb: Framebuffer<'fb>,
-    change_update_frequency: Option<UpdateFrequency>,
+    pub update_frequency: &'a mut UpdateFrequency,
+    pub grab_mouse: &'a mut bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -14,17 +15,13 @@ pub enum WindowHandle {
     Id(u64),
 }
 
-impl<'fb> Window<'fb> {
+impl<'a, 'fb> Window<'a, 'fb> {
     pub fn id(&self) -> u64 {
         self.id
     }
-
-    pub fn set_update_frequency(&mut self, frequency: UpdateFrequency) {
-        self.change_update_frequency = Some(frequency);
-    }
 }
 
-impl<'fb> core::ops::Deref for Window<'fb> {
+impl<'a, 'fb> core::ops::Deref for Window<'a, 'fb> {
     type Target = Framebuffer<'fb>;
 
     fn deref(&self) -> &Self::Target {
@@ -32,13 +29,13 @@ impl<'fb> core::ops::Deref for Window<'fb> {
     }
 }
 
-impl<'fb> core::ops::DerefMut for Window<'fb> {
+impl<'a, 'fb> core::ops::DerefMut for Window<'a, 'fb> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.fb
     }
 }
 
-impl From<Window<'_>> for WindowHandle {
+impl From<Window<'_, '_>> for WindowHandle {
     fn from(window: Window) -> Self {
         WindowHandle::Id(window.id)
     }
@@ -143,15 +140,22 @@ impl<T> WindowClient<T> {
 
                 chunk.set_title(&window.title);
 
+                let mut update_frequency = chunk.update_frequency;
+                let mut grab_mouse = chunk.grab_mouse;
+
                 (window.on_render)(
                     &mut Window {
                         id,
                         fb: chunk.fb(),
-                        change_update_frequency: None,
+                        update_frequency: &mut update_frequency,
+                        grab_mouse: &mut grab_mouse,
                     },
                     &mut self.app_data,
                     Input::default(),
                 );
+
+                chunk.update_frequency = update_frequency;
+                chunk.grab_mouse = grab_mouse;
 
                 window.chunk = Some(chunk);
 
@@ -199,17 +203,23 @@ impl<T> WindowClient<T> {
                     Input::default()
                 };
 
+                chunk.mouse.clear();
+                chunk.keyboard_len.store(0, Ordering::Relaxed);
+
+                let mut update_frequency = chunk.update_frequency;
+                let mut grab_mouse = chunk.grab_mouse;
+
                 let mut window_data = Window {
                     id: chunk.id,
                     fb: chunk.fb(),
-                    change_update_frequency: None,
+                    update_frequency: &mut update_frequency,
+                    grab_mouse: &mut grab_mouse,
                 };
 
                 (window.on_render)(&mut window_data, &mut self.app_data, input);
 
-                if let Some(frequency) = window_data.change_update_frequency {
-                    chunk.update_frequency = frequency;
-                }
+                chunk.update_frequency = update_frequency;
+                chunk.grab_mouse = grab_mouse;
 
                 chunk.needs_render.store(false, Ordering::Relaxed);
             });

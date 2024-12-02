@@ -1,6 +1,7 @@
 use super::*;
 use monos_gfx::{
     font,
+    input::KeyCode,
     ui::{Direction, MarginMode, UIFrame},
     Color, Framebuffer, Image, Input, Position, Rect,
 };
@@ -48,15 +49,27 @@ struct ScreenArea {
     window: usize,
 }
 
+#[must_use]
+pub struct RenderResult {
+    pub hide_cursor: bool,
+}
+
 pub struct WindowServer {
     windows: Vec<Window>,
     close_button: Image,
-    window_id: u64,
+
     recv_handle: PartialReceiveChannelHandle,
+
     drag_start: Option<Position>,
+
     screen_areas: Vec<ScreenArea>,
     areas_changed: bool,
+
+    next_window_id: u64,
     last_render: u64,
+
+    mouse_grabbed: bool,
+
     debug: bool,
 }
 
@@ -70,13 +83,14 @@ impl WindowServer {
         WindowServer {
             windows: Vec::new(),
             close_button,
-            window_id: 0,
+            next_window_id: 0,
             recv_handle,
             drag_start: None,
             screen_areas: Vec::new(),
             areas_changed: false,
             last_render: 0,
-            debug: true,
+            debug: false,
+            mouse_grabbed: false,
         }
     }
 
@@ -94,8 +108,8 @@ impl WindowServer {
                 dimensions,
                 creation_id,
             } => {
-                let id = self.window_id;
-                self.window_id += 1;
+                let id = self.next_window_id;
+                self.next_window_id += 1;
 
                 let rect = Rect::centered_in(SCREEN_RECT, dimensions);
 
@@ -104,7 +118,7 @@ impl WindowServer {
                 chunk.id = id;
                 chunk.dimensions = dimensions;
                 chunk.set_title(&format!("window {}", id));
-                chunk.keyboard_len = 0;
+                chunk.keyboard_len.store(0, Ordering::Relaxed);
                 chunk.update_frequency = UpdateFrequency::default();
 
                 let target_handle = ChannelHandle::from_parts(sender, self.recv_handle);
@@ -147,17 +161,8 @@ impl WindowServer {
         input: &mut Input,
         clear_fb: &Framebuffer,
         old_mouse_rect: Rect,
-    ) {
+    ) -> RenderResult {
         let mut closed_windows = Vec::new();
-
-        let mut key_amt = input.keyboard.keys.len();
-        if key_amt > 6 {
-            println!(
-                "warning: dropping {} keyboard events",
-                input.keyboard.keys.len() - 6
-            );
-            key_amt = 6;
-        }
 
         let focused_window = self.windows.len() - 1;
 
@@ -184,10 +189,7 @@ impl WindowServer {
                 });
 
             if let Some((new_focused_window, drag)) = res {
-                if new_focused_window != focused_window {
-                    self.areas_changed = true;
-                    self.windows.swap(new_focused_window, focused_window);
-                }
+                self.focus_window(new_focused_window);
 
                 if drag {
                     self.areas_changed = true;
@@ -240,6 +242,11 @@ impl WindowServer {
             }
         } else {
             self.drag_start = None;
+        }
+
+        if self.drag_start.is_some() {
+            input.mouse.clear();
+            input.mouse.left_button.clicked = false;
         }
 
         if self.areas_changed {
@@ -304,6 +311,13 @@ impl WindowServer {
             let focused = i == focused_window;
             let mut closed = false;
 
+            if focused
+                && self.mouse_grabbed
+                && (!window.chunk.grab_mouse || input.keyboard.pressed(KeyCode::LWin))
+            {
+                self.mouse_grabbed = false;
+            }
+
             let bg_color = if focused {
                 Color::new(22, 22, 22)
             } else {
@@ -354,14 +368,37 @@ impl WindowServer {
                 UpdateFrequency::Manual => false,
             };
             if should_render {
-                let mut mouse = input.mouse.clone();
-                mouse.position -= window_rect.min;
-                window.chunk.mouse = mouse;
+                window.chunk.mouse.position = input.mouse.position - window_rect.min;
+                window.chunk.mouse.delta += input.mouse.delta;
+                window.chunk.mouse.scroll += input.mouse.scroll;
+                window
+                    .chunk
+                    .mouse
+                    .left_button
+                    .update(input.mouse.left_button.pressed);
+                window
+                    .chunk
+                    .mouse
+                    .right_button
+                    .update(input.mouse.right_button.pressed);
+                window
+                    .chunk
+                    .mouse
+                    .middle_button
+                    .update(input.mouse.middle_button.pressed);
 
-                let keyboard_src = &input.keyboard.keys[..key_amt];
-                let keyboard_dest = &mut window.chunk.keyboard[..keyboard_src.len()];
+                let current_key_amt = window.chunk.keyboard_len.load(Ordering::Relaxed) as usize;
+                let remaining_key_amt = window.chunk.keyboard.len() - current_key_amt;
+                let new_key_amt = input.keyboard.keys.len().min(remaining_key_amt);
+
+                let keyboard_src = &input.keyboard.keys[..new_key_amt];
+                let keyboard_dest =
+                    &mut window.chunk.keyboard[current_key_amt..current_key_amt + new_key_amt];
                 keyboard_dest.clone_from_slice(keyboard_src);
-                window.chunk.keyboard_len = keyboard_src.len() as u8;
+                window
+                    .chunk
+                    .keyboard_len
+                    .store((current_key_amt + new_key_amt) as u8, Ordering::Relaxed);
 
                 window.chunk.focused = focused;
 
@@ -411,6 +448,10 @@ impl WindowServer {
                 .retain(|w| !closed_windows.contains(&w.chunk.id));
             self.areas_changed = true;
         }
+
+        RenderResult {
+            hide_cursor: self.mouse_grabbed,
+        }
     }
 
     pub fn draw_window_list(
@@ -439,14 +480,24 @@ impl WindowServer {
             for (i, _, name) in names {
                 if ui.button::<font::Cozette>(name).clicked {
                     new_focused_window = Some(i);
-                    self.areas_changed = true;
                 }
             }
         });
 
         if let Some(new_focused_window) = new_focused_window {
-            let focused_window = self.windows.len() - 1;
-            self.windows.swap(new_focused_window, focused_window);
+            self.focus_window(new_focused_window);
         }
+    }
+
+    fn focus_window(&mut self, new_index: usize) {
+        let focused_window = self.windows.len() - 1;
+        self.mouse_grabbed = self.windows[new_index].chunk.grab_mouse;
+
+        if new_index == focused_window {
+            return;
+        }
+
+        self.areas_changed = true;
+        self.windows.swap(new_index, focused_window);
     }
 }

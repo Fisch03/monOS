@@ -11,18 +11,23 @@ use monos_std::prelude::*;
 
 mod libc;
 
-use monos_gfx::{Dimension, Framebuffer, FramebufferFormat, Input};
+use monos_gfx::{
+    input::{KeyCode, KeyEvent, KeyState},
+    Dimension, Framebuffer, FramebufferFormat, Input,
+};
+use monos_std::collections::VecDeque;
 use rooftop::{Window, WindowClient};
-use syscall::yield_;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
 static FRAME_READY: AtomicBool = AtomicBool::new(false);
+static mut KEY_QUEUE: VecDeque<KeyEvent> = VecDeque::new();
 
 extern "C" {
     static DG_ScreenBuffer: *mut u8;
     fn doomgeneric_Create(argc: i32, argv: *const *const u8);
     fn doomgeneric_Tick();
+    fn DG_AddMouse(delta_x: i32, delta_y: i32, buttons: i32);
 }
 
 #[no_mangle]
@@ -39,6 +44,7 @@ pub unsafe extern "C" fn DG_SleepMs(ms: u32) {
         if syscall::get_time() >= target {
             break;
         }
+
         syscall::yield_();
     }
 }
@@ -47,10 +53,59 @@ pub unsafe extern "C" fn DG_SleepMs(ms: u32) {
 pub unsafe extern "C" fn DG_GetTicksMs() -> u32 {
     syscall::get_time() as u32
 }
+
 #[no_mangle]
-pub unsafe extern "C" fn DG_GetKey() -> i32 {
-    // todo!("DG_GetKey");
-    0
+pub unsafe extern "C" fn DG_GetKey(pressed: *mut i32, doom_key: *mut u8) -> i32 {
+    const DOOM_KEY_RIGHTARROW: u8 = 0xae;
+    const DOOM_KEY_LEFTARROW: u8 = 0xac;
+    const DOOM_KEY_UPARROW: u8 = 0xad;
+    const DOOM_KEY_DOWNARROW: u8 = 0xaf;
+    const DOOM_KEY_STRAFE_L: u8 = 0xa0;
+    const DOOM_KEY_STRAFE_R: u8 = 0xa1;
+    const DOOM_KEY_USE: u8 = 0xa2;
+    const DOOM_KEY_FIRE: u8 = 0xa3;
+    const DOOM_KEY_ESCAPE: u8 = 27;
+    const DOOM_KEY_ENTER: u8 = 13;
+
+    const W_DOWN: u8 = 0x11;
+    const A_DOWN: u8 = 0x1e;
+    const S_DOWN: u8 = 0x1f;
+    const D_DOWN: u8 = 0x20;
+    const E_DOWN: u8 = 0x12;
+    const CTRL_DOWN: u8 = 0x1d;
+    const ENTER_DOWN: u8 = 0x1c;
+    const ESC_DOWN: u8 = 0x01;
+
+    if let Some(evt) = unsafe { KEY_QUEUE.pop_front() } {
+        unsafe {
+            *doom_key = match evt.key.code {
+                KeyCode::W | KeyCode::ArrowUp => DOOM_KEY_UPARROW,
+                KeyCode::A => DOOM_KEY_STRAFE_L,
+                KeyCode::S | KeyCode::ArrowDown => DOOM_KEY_DOWNARROW,
+                KeyCode::D => DOOM_KEY_STRAFE_R,
+                KeyCode::E => DOOM_KEY_USE,
+                KeyCode::ArrowLeft => DOOM_KEY_LEFTARROW,
+                KeyCode::ArrowRight => DOOM_KEY_RIGHTARROW,
+
+                KeyCode::LControl => DOOM_KEY_FIRE,
+                KeyCode::Return => DOOM_KEY_ENTER,
+                KeyCode::Escape => DOOM_KEY_ESCAPE,
+                _ => return 0,
+            };
+        }
+
+        unsafe {
+            *pressed = match evt.state {
+                KeyState::Down => 1,
+                KeyState::Up => 0,
+                KeyState::SingleShot => 0,
+            };
+        }
+
+        1
+    } else {
+        0
+    }
 }
 #[no_mangle]
 pub unsafe extern "C" fn DG_SetWindowTitle(title: *const i8) {
@@ -60,27 +115,47 @@ pub unsafe extern "C" fn DG_SetWindowTitle(title: *const i8) {
 
 #[no_mangle]
 fn main() {
+    let mut window_client = WindowClient::new("desktop.windows", ()).unwrap();
+    window_client.create_window("doom", Dimension::new(320, 200), render);
+
     let args: [&core::ffi::CStr; 4] = [c"bin/doom", c"-iwad", c"data/wads/doom1.wad", c"-nosound"];
     let args = args.iter().map(|s| s.as_ptr()).collect::<Vec<_>>();
     unsafe { doomgeneric_Create(args.len() as i32, args.as_ptr() as *const *const u8) };
 
-    let mut window_client = WindowClient::new("desktop.windows", ()).unwrap();
-    window_client.create_window("doom", Dimension::new(320, 200), render);
-
     loop {
+        unsafe {
+            doomgeneric_Tick();
+        }
+
         window_client.update();
 
-        unsafe { doomgeneric_Tick() };
-
-        yield_();
+        syscall::yield_();
     }
 }
 
-fn render(window: &mut Window, _app: &mut (), _input: Input) {
-    window.set_update_frequency(rooftop::UpdateFrequency::Always);
+fn render(window: &mut Window, _app: &mut (), input: Input) {
+    *window.update_frequency = rooftop::UpdateFrequency::Always;
+    *window.grab_mouse = true;
+
+    input.keyboard.keys.iter().for_each(|evt| unsafe {
+        KEY_QUEUE.push_back(evt.clone());
+    });
+
+    unsafe {
+        DG_AddMouse(
+            input.mouse.delta.x as i32 * 5,
+            -input.mouse.delta.y as i32 * 5,
+            if input.mouse.left_button.pressed {
+                1
+            } else {
+                0
+            },
+        );
+    }
 
     if !FRAME_READY.swap(false, Ordering::Relaxed) {
-        return;
+        // this might introduce some tearing but it improves the framerate so whatevs
+        // return;
     }
 
     let doom_fb = unsafe { core::slice::from_raw_parts_mut(DG_ScreenBuffer, 320 * 200 * 3) };

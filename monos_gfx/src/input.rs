@@ -26,7 +26,7 @@ impl Input {
 #[derive(Debug, Clone, Default)]
 pub struct MouseInput {
     pub position: Position,
-    pub moved: bool,
+    pub delta: Position,
     pub scroll: i64,
 
     pub left_button: MouseButtonState,
@@ -40,14 +40,14 @@ impl MouseInput {
         self.position.x = self.position.x.max(bounds.min.x).min(bounds.max.x);
         self.position.y -= state.y as i64;
         self.position.y = self.position.y.max(bounds.min.y).min(bounds.max.y);
+
+        self.delta.x += state.x as i64;
+        self.delta.y -= state.y as i64;
+
         self.scroll += state.scroll as i64;
         self.left_button.update(state.flags.left_button());
         self.right_button.update(state.flags.right_button());
         self.middle_button.update(state.flags.middle_button());
-
-        if state.x != 0 || state.y != 0 {
-            self.moved = true;
-        }
     }
 
     pub fn clear(&mut self) {
@@ -55,7 +55,11 @@ impl MouseInput {
         self.right_button.clicked = false;
         self.middle_button.clicked = false;
         self.scroll = 0;
-        self.moved = false;
+        self.delta = Position::zero();
+    }
+
+    pub fn moved(&self) -> bool {
+        self.delta.x != 0 || self.delta.y != 0
     }
 }
 

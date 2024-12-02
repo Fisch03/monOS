@@ -1363,6 +1363,7 @@ dependencies = [
  "monos_gfx",
  "monos_std",
  "num_enum",
+ "serde",
 ]
 
 [[package]]

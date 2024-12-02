@@ -14,6 +14,9 @@ use desktop::Desktop;
 mod windowing;
 use windowing::server::WindowServer;
 
+mod toolbar_cibo;
+use toolbar_cibo::ToolbarCibo;
+
 use monos_std::dev::{keyboard::KeyEvent, mouse::MouseState};
 
 use monos_gfx::{
@@ -22,6 +25,12 @@ use monos_gfx::{
     text::font::Cozette,
     Color, Framebuffer, Position, Rect,
 };
+
+const WELCOME_MESSAGES: [&str; 3] = [
+    "welcome to monOS!",
+    "if youre new, check out the welcome file on the desktop!!",
+    "have fun exploring!",
+];
 
 #[no_mangle]
 fn main() {
@@ -73,6 +82,10 @@ fn main() {
 
     let mut window_server = WindowServer::new("desktop.windows");
 
+    let mut toolbar_cibo = ToolbarCibo::new();
+    let mut next_message = syscall::get_time() + 2500;
+    let mut curr_message = -1;
+
     let mut old_mouse_pos = Position::new(0, 0);
 
     fb.clear_with(&clear_fb);
@@ -95,7 +108,7 @@ fn main() {
         }
 
         let old_mouse_rect = Rect::new(old_mouse_pos, old_mouse_pos + Position::new(6, 9));
-        if input.mouse.moved {
+        if input.mouse.moved() {
             fb.clear_region(&old_mouse_rect, &clear_fb);
             old_mouse_pos = input.mouse.position;
         }
@@ -104,10 +117,24 @@ fn main() {
         //this requires being able to seperate ui placement from ui rendering
         desktop.layout(&mut input);
 
-        window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &clear_fb);
-        window_server.draw(&mut fb, &mut input, &clear_fb, old_mouse_rect);
+        let time = syscall::get_time();
+        if time < WELCOME_MESSAGES.len() as u64 * 2500 + toolbar_cibo::MESSAGE_LINGER_TIME + 3000 {
+            if time > next_message {
+                curr_message += 1;
+                if let Some(message) = WELCOME_MESSAGES.get(curr_message as usize) {
+                    toolbar_cibo.add_message(message);
+                }
+                next_message = syscall::get_time() + 2500;
+            }
+        }
+        toolbar_cibo.draw(&mut fb, &clear_fb);
 
-        draw_cursor(&mut fb, input.mouse.position);
+        window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &clear_fb);
+        let res = window_server.draw(&mut fb, &mut input, &clear_fb, old_mouse_rect);
+
+        if !res.hide_cursor {
+            draw_cursor(&mut fb, input.mouse.position);
+        }
 
         syscall::send(fb_channel, FramebufferRequest::SubmitFrame(&fb));
         input.clear();
