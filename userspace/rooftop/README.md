@@ -60,9 +60,9 @@ theres three `UpdateFrequencies` available:
 - `OnInput`: the default - will rerender the window as soon as it has received new input
 - `Manual`: will never rerender the window unless you manually request it (see below). note that this will lead to dropped inputs and should therefore only be done if youre fine with that.
 theres two ways to change the `UpdateFrequency` of windows depending on where you are:
-  - in your windows render function, you can call `window.set_update_frequency(new_freq);`
+  - in your windows render function, you can directly set the update frequency: `*window.update_frequency = new_freq`
   - in your main loop/setup code, you can use the `WindowHandle` returned by the `client.create_window` function to change it: `client.set_update_frequency(handle, new_freq)`
-  - 
+
 ##### manually requesting renders
 in your main loop, you can use the `WindowHandle` returned by the `client.create_window` function to manually request updates at any point: `client.request_render(handle)`. this can be useful both for windows with a `Manual` update frequency, but also if you have a window with a frequency set to `OnInput` and detect some kind of other state change that requires a rerender
 
@@ -71,6 +71,6 @@ you can also use rooftop as a library to provide a window server!
 i wont document this too heavily since i dont expect anyone to actually do this but i recommend checking out rooftops main loop since it should show the functionality quite well.
 
 ## implementation details
-the whole architecture of rooftop is built around the idea of immediate mode rendering and using as little redundancy as possible. the window server creates a chunk of data for each window containing a framebuffer and some additional data including id, dimensions and input.
-window rendering is then performed cooperatively. this means that the server sends out chunks to all the clients that need to be rerendered and waits for all of them to be returned before being able to render them. this allows the server to get away without copying over the entire framebuffer to keep internally but has the drawback of being dependent on applications to render their windows in a timely manner. to somewhat address this, the window server sets a maximum timeout (33ms / ~30fps) on the time a application is allowed to take. after this timeout the server will proceed regardless. this may lead to some parts of the desktop or other windows being drawn on top of the slow window temporarily but it means that the desktop will never run at a slower framerate than 30fps.
+the whole architecture of rooftop is built around the idea of immediate mode rendering and using as little redundancy as possible. upon request, the window server creates a chunk of data for each window containing a framebuffer and some additional data including id, dimensions and input.
+this chunk is then also mapped into the window clients address space. from that point onwards, most communication happens via that shared memory chunk.
 

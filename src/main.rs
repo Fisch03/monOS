@@ -49,6 +49,7 @@ fn main() {
 
     main_proc.wait().unwrap();
 
+    #[cfg(not(target_os = "windows"))]
     for id in child_ids {
         unsafe {
             libc::kill(id as i32, libc::SIGKILL);

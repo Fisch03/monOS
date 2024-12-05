@@ -198,6 +198,13 @@ pub fn send(message: GenericMessage, receiver_handle: PartialSendChannelHandle) 
         .channels
         .get_mut(receiver_handle.target_channel as usize)
     {
+        // crate::println!(
+        //     "sending message from pid {} -> {} on port {}",
+        //     message.sender.target_process,
+        //     receiver,
+        //     receiver_handle.target_channel
+        // );
+
         mailbox.send(message);
     } else {
         todo!("handle process without open channel")

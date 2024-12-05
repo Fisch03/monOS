@@ -453,6 +453,7 @@ impl<'a> Framebuffer<'a> {
         }
     }
 
+    // TODO: optimize this (bresenham's circle algorithm)
     pub fn draw_disc_alpha(&mut self, pos: &Position, radius: u32, color: Color, alpha: u8) {
         use micromath::F32Ext;
 

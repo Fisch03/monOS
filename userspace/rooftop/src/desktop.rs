@@ -1,122 +1,102 @@
 use monos_gfx::{
-    font::Cozette,
-    ui::{Direction, MarginMode, UIContext, UIFrame},
-    Framebuffer, Image, Input, Rect,
+    framebuffer::{FramebufferRequest, FramebufferResponse},
+    input::Input,
+    text::font::Cozette,
+    Color, Framebuffer, Position, Rect,
 };
 
-pub struct Desktop {
-    bounds: Rect,
-    ui: UIFrame,
-    entries: Vec<DesktopEntry>,
+mod desktop_entries;
+use desktop_entries::DesktopEntries;
+
+use crate::paint::PaintFramebuffer;
+
+pub struct Desktop<'fb> {
+    clear_fb: Framebuffer<'fb>,
+    paint_fb: PaintFramebuffer<'fb>,
+
+    taskbar: monos_gfx::Image,
+    entries: DesktopEntries,
 }
 
-#[derive(Debug)]
-struct DesktopEntry {
-    name: String,
-    icon: Image,
-    action: EntryAction,
-}
-
-#[derive(Debug)]
-enum EntryAction {
-    Open { bin: PathBuf, arg: String },
-}
-
-impl EntryAction {
-    fn execute(&self) {
-        match self {
-            Self::Open { bin, arg: _ } => {
-                // TODO: pass arg
-                match syscall::spawn(bin /* arg*/) {
-                    None => {
-                        println!("Failed to spawn process");
-                    }
-                    _ => {}
-                }
-            }
-        };
+impl<'fb> Desktop<'fb> {
+    pub fn paint(&mut self) -> &mut PaintFramebuffer<'fb> {
+        &mut self.paint_fb
     }
-}
 
-impl Desktop {
-    pub fn new(bounds: Rect) -> Self {
+    pub fn new(
+        main_fb: &Framebuffer,
+        clear_fb_buf: &'fb mut Vec<u8>,
+        paint_fb_buf: &'fb mut Vec<u8>,
+    ) -> Self {
+        clear_fb_buf.resize(main_fb.buffer().len(), 0);
+        let clear_fb =
+            Framebuffer::new(clear_fb_buf, main_fb.dimensions(), main_fb.format().clone());
+
+        paint_fb_buf.resize(main_fb.buffer().len(), 0);
+        let mut paint_fb =
+            Framebuffer::new(paint_fb_buf, main_fb.dimensions(), main_fb.format().clone());
+        paint_fb.draw_rect(
+            Rect::from_dimensions(main_fb.dimensions()),
+            Color::new(55, 54, 61),
+        );
+        let paint_fb = PaintFramebuffer::new(paint_fb);
+
+        let taskbar = File::open("data/task.ppm").expect("failed to load image data");
+        let taskbar = monos_gfx::Image::from_ppm(&taskbar).expect("failed to parse image data");
+
+        let desktop_rect = Rect::new(
+            Position::new(0, 0),
+            Position::new(
+                main_fb.dimensions().width as i64,
+                main_fb.dimensions().height as i64 - taskbar.dimensions().height as i64,
+            ),
+        );
+        let entries = DesktopEntries::new(desktop_rect);
+
         let mut desktop = Self {
-            bounds,
-            ui: UIFrame::new(Direction::TopToBottom),
-            entries: Vec::new(),
+            clear_fb,
+            paint_fb,
+
+            taskbar,
+            entries,
         };
 
-        desktop.update_entries();
+        desktop.rebuild();
 
         desktop
     }
 
-    pub fn draw(&mut self, fb: &mut Framebuffer, input: &mut Input) {
-        self.ui.draw_frame(fb, self.bounds, input, |ui| {
-            ui.margin(MarginMode::AtLeast(50));
-            for entry in &self.entries {
-                if ui.img_button(&entry.icon).clicked {
-                    entry.action.execute();
-                };
-                ui.label::<Cozette>(&entry.name);
-            }
-        })
+    fn rebuild(&mut self) {
+        self.clear_fb.clear_with(&self.paint_fb);
+
+        self.clear_fb.draw_img(
+            &self.taskbar,
+            Position::new(
+                0,
+                (self.clear_fb.dimensions().height - self.taskbar.dimensions().height) as i64,
+            ),
+        );
+
+        self.entries.draw(&mut self.clear_fb, &mut Input::default());
     }
 
-    pub fn layout(&mut self, input: &mut Input) {
-        self.ui.layout_frame(self.bounds, input, |ui| {
-            ui.margin(MarginMode::AtLeast(50));
-            for entry in &self.entries {
-                if ui.img_button(&entry.icon).clicked {
-                    entry.action.execute();
-                };
-                ui.label::<Cozette>(&entry.name);
-            }
-        })
-    }
+    pub fn update(&mut self, input: &mut Input) -> bool {
+        self.entries.layout(input);
 
-    fn update_entries(&mut self) {
-        let entries = syscall::list("home/desktop");
-
-        self.entries.clear();
-        entries
-            .iter()
-            .filter_map(|entry| File::open(entry))
-            .filter_map(|file| file.read_to_string().ok())
-            .for_each(|entry| {
-                let mut name = None;
-                let mut icon = None;
-                let mut open = None;
-                let mut args = None;
-
-                for line in entry.lines() {
-                    let (key, value) = line.split_once('=').unwrap();
-                    match key {
-                        "name" => name = Some(value),
-                        "icon" => icon = File::open(value).and_then(|file| Image::from_ppm(&file)),
-                        "open" => open = Some(value),
-                        "args" => args = Some(value),
-                        _ => {}
-                    }
-                }
-
-                if let (Some(name), Some(icon), Some(open)) = (name, icon, open) {
-                    let name = name.to_string();
-                    let open = PathBuf::from(open);
-                    let args = args.map(String::from).unwrap_or_default();
-
-                    let entry = DesktopEntry {
-                        name,
-                        icon,
-                        action: EntryAction::Open {
-                            bin: open,
-                            arg: args,
-                        },
-                    };
-
-                    self.entries.push(entry);
-                }
-            })
+        if self.paint_fb.has_splatters() {
+            self.paint_fb.draw();
+            self.rebuild();
+            true
+        } else {
+            false
+        }
     }
 }
 
+impl<'fb> core::ops::Deref for Desktop<'fb> {
+    type Target = Framebuffer<'fb>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.clear_fb
+    }
+}

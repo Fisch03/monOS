@@ -66,7 +66,7 @@ some of these have additional documentation in their respective readmes so i hig
 - the [`userspace` directory](https://github.com/Fisch03/monOS/tree/master/userspace) contains the included userspace programs that get shipped together with the kernel. these currently include:
   - [`hello_world`](https://github.com/Fisch03/monOS/tree/master/userspace/hello_world) basic template application
   - [`rooftop`](https://github.com/Fisch03/monOS/tree/master/userspace/rooftop) monOS's desktop environment. also provides a library for window clients!
-  - [`terminal`](https://github.com/Fisch03/monOS/tree/master/userspace/terminal) monOS's terminal. its basically just a monoscript repl with a buncha additional inbuilt functions!
+  - [`terminal`](https://github.com/Fisch03/monOS/tree/master/userspace/terminal) monOS's terminal. commands are single line monoscript instructions
   - [`doom`](https://github.com/Fisch03/monOS/tree/master/userspace/doom) would it really be a complete operating system without being able to run doom?
 - the [`os_disk` directory](https://github.com/Fisch03/monOS/tree/master/os_disk) will be used to construct the ramdisk (see below)
 - [`monoscript`](https://github.com/Fisch03/monOS/tree/master/monoscript) is a (platform independent) library containing the monoscript parser and runtime
@@ -141,12 +141,12 @@ the following syscalls currently exist:
 | 8  | req_chunk    | requested size               |                |                                 |         | request a memory chunk of the given size. returns address of chunk or 0 on failure     |
 | 9  | open         | file path ptr                | file path len  | ptr to `Option<FileHandle>`     |         | open a file at the given path                                                          |
 | 10 | close        | `FileHandle`                 |                |                                 |         | close a opened file                                                                    |
-| 10 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
-| 11 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
-| 12 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
-| 13 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
-| 14 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
-| 15 | get_time     |                              |                |                                 |         | returns time in ms since the os started up                                             |
+| 11 | seek         | `FileHandle`                 | offset         |                                 |         | seek to a specific position in a opened file                                           |
+| 12 | read         | `FileHandle`                 | buffer ptr     | buffer len                      |         | read len bytes from a opened file                                                      |
+| 13 | write        | `FileHandle`                 | buffer ptr     | buffer len                      |         | write len bytes to a opened file                                                       |
+| 14 | list         | file path ptr                | file path len  | ptr to `[ArrayPath; n]`         | arr len | list directory entries. reads only param 4 amt, you should stat the dir first          |
+| 15 | print        | string ptr                   | string len     |                                 |         | print a string *somewhere* (serial port currently). should only be used for debugging. |
+| 16 | sys_info     | `SysInfo`                    |                |                                 |         | returns a single `u64` describing the state of the requested `SysInfo`                 |
 
 *the syscall id is a bit special for the `send`, and `receive` syscalls (see the chapter on messaging below).
 
@@ -156,13 +156,14 @@ other processes can then open a connection on the port using the `connect` sysca
 both processes can then send and receive messages over the channel using the `send`, `receive` and `receive_any` syscalls.
 
 a message is either scalar consisting of 4 64-bit values or a chunked message. a chunked message points to a previously requested (using the `req_chunk` syscall) memory chunk 
-that will then be unmapped from the address space of the sending process and mapped into the address space of the receiving process.
+that will then be unmapped (unless otherwise requested) from the address space of the sending process and mapped into the address space of the receiving process.
 some messaging related syscalls are a bit special since they use the syscall id to pass some additional parameters:
 | bits  | content                             |
 | ----- | ----------------------------------- |
 |  0- 7 | syscall id                          |
 |     8 | 0 = scalar values, 1 = memory chunk |
-|  9-15 | nothing... for now :)               |
+|     9 | for chunk: 1 = memory mapped        |
+| 10-15 | nothing... for now :)               |
 | 16-63 | channel handle                      |
 
 a channel handle is a 48-bit value consisting of 32 bits target process id, 8 bit target channel id and 8 bit sender channel id.
@@ -188,7 +189,7 @@ there is currently no safety in place for channels, meaning that a process can j
   - [x] heap allocation
     - [x] basic implementation
     - [ ] implement own allocator (maybe)
-  - [ ] fix heap corruption
+  - [x] fix heap corruption
 - [x] ACPI
   - [x] basic table parsing
   - [x] hpet timer

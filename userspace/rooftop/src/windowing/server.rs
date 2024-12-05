@@ -2,14 +2,13 @@ use super::*;
 use monos_gfx::{
     font,
     input::KeyCode,
-    ui::{Direction, MarginMode, UIFrame},
+    ui::{Direction, MarginMode, UIContext, UIFrame},
     Color, Framebuffer, Image, Input, Position, Rect,
 };
 
 use core::sync::atomic::Ordering;
 
 const SCREEN_RECT: Rect = Rect::new(Position::new(0, 0), Position::new(640, 480));
-const RENDER_TIMEOUT: u64 = 16;
 
 #[derive(Debug)]
 pub struct Window {
@@ -61,15 +60,14 @@ pub struct WindowServer {
     recv_handle: PartialReceiveChannelHandle,
 
     drag_start: Option<Position>,
+    mouse_grabbed: bool,
 
     screen_areas: Vec<ScreenArea>,
     areas_changed: bool,
+    window_list_changed: bool,
 
     next_window_id: u64,
     last_render: u64,
-
-    mouse_grabbed: bool,
-
     debug: bool,
 }
 
@@ -91,6 +89,7 @@ impl WindowServer {
             last_render: 0,
             debug: false,
             mouse_grabbed: false,
+            window_list_changed: false,
         }
     }
 
@@ -139,6 +138,7 @@ impl WindowServer {
                     id, dimensions.width, dimensions.height
                 );
                 self.areas_changed = true;
+                self.window_list_changed = true;
 
                 // syscall::send(
                 //     sender,
@@ -447,6 +447,7 @@ impl WindowServer {
             self.windows
                 .retain(|w| !closed_windows.contains(&w.chunk.id));
             self.areas_changed = true;
+            self.window_list_changed = true;
         }
 
         RenderResult {
@@ -461,12 +462,10 @@ impl WindowServer {
         input: &mut Input,
         clear_fb: &Framebuffer,
     ) {
-        fb.clear_region(&rect, clear_fb);
-
         let mut new_focused_window = None;
 
         let mut ui = UIFrame::new_stateless(Direction::LeftToRight);
-        ui.draw_frame(fb, rect, input, |ui| {
+        let ui_fn = |ui: &mut UIContext| {
             ui.margin(MarginMode::Grow);
 
             let mut names = self
@@ -482,7 +481,15 @@ impl WindowServer {
                     new_focused_window = Some(i);
                 }
             }
-        });
+        };
+
+        if self.window_list_changed {
+            fb.clear_region(&rect, clear_fb);
+
+            ui.draw_frame(fb, rect, input, ui_fn);
+        } else {
+            ui.layout_frame(rect, input, ui_fn);
+        }
 
         if let Some(new_focused_window) = new_focused_window {
             self.focus_window(new_focused_window);

@@ -8,6 +8,8 @@ monos_std = { path = "../../monos_std" }
 monos_gfx = { path = "../../monos_gfx" }
 num_enum = { version = "0.7.2", default-features = false }
 serde = { version = "1", default-features = false, features = ["derive"] }
+rand = { version = "0.8", default-features = false, features = ["small_rng"] }
+micromath = "2.1.0"
 
 [features]
 default = []

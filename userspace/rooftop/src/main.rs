@@ -8,14 +8,16 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
-mod desktop;
-use desktop::Desktop;
-
 mod windowing;
 use windowing::server::WindowServer;
 
 mod toolbar_cibo;
 use toolbar_cibo::ToolbarCibo;
+
+mod desktop;
+use desktop::Desktop;
+
+mod paint;
 
 use monos_std::dev::{keyboard::KeyEvent, mouse::MouseState};
 
@@ -23,7 +25,7 @@ use monos_gfx::{
     framebuffer::{FramebufferRequest, FramebufferResponse},
     input::Input,
     text::font::Cozette,
-    Color, Framebuffer, Position, Rect,
+    Framebuffer, Position, Rect,
 };
 
 const WELCOME_MESSAGES: [&str; 3] = [
@@ -51,26 +53,15 @@ fn main() {
         ),
     );
 
-    let mut clear_fb_buffer = vec![0; fb.buffer().len()];
-    let mut clear_fb = create_clear_fb(&fb, &mut clear_fb_buffer);
-
     let mouse_channel = syscall::connect("sys.mouse").unwrap();
     let keyboard_channel = syscall::connect("sys.keyboard").unwrap();
 
     let mut input = Input::default();
 
-    let desktop_rect = Rect::new(
-        Position::new(0, 0),
-        Position::new(
-            fb.dimensions().width as i64,
-            fb.dimensions().height as i64 - 20,
-        ),
-    )
-    .shrink(10);
-
     //TODO: refresh desktop entries every once in a while
-    let mut desktop = Desktop::new(desktop_rect);
-    desktop.draw(&mut clear_fb, &mut input);
+    let mut clear_fb_buffer = Vec::new();
+    let mut paint_fb_buffer = Vec::new();
+    let mut desktop = Desktop::new(&fb, &mut clear_fb_buffer, &mut paint_fb_buffer);
 
     let window_list_rect = Rect::new(
         Position::new(2, fb.dimensions().height as i64 - 22),
@@ -88,10 +79,26 @@ fn main() {
 
     let mut old_mouse_pos = Position::new(0, 0);
 
-    fb.clear_with(&clear_fb);
+    fb.clear_with(&desktop);
     println!("starting event loop");
 
-    syscall::spawn_with_args("bin/terminal", "home/monoscript/3_func.ms");
+    desktop
+        .paint()
+        .splat(Position::new(100, 50), monos_gfx::Color::new(255, 0, 0));
+    desktop
+        .paint()
+        .splat(Position::new(100, 100), monos_gfx::Color::new(255, 0, 0));
+    desktop
+        .paint()
+        .splat(Position::new(100, 150), monos_gfx::Color::new(255, 0, 0));
+    desktop
+        .paint()
+        .splat(Position::new(100, 200), monos_gfx::Color::new(255, 0, 0));
+    desktop
+        .paint()
+        .splat(Position::new(100, 250), monos_gfx::Color::new(255, 0, 0));
+
+    //syscall::spawn("bin/terminal");
 
     loop {
         while let Some(msg) = syscall::receive_any() {
@@ -111,13 +118,14 @@ fn main() {
 
         let old_mouse_rect = Rect::new(old_mouse_pos, old_mouse_pos + Position::new(6, 9));
         if input.mouse.moved() {
-            fb.clear_region(&old_mouse_rect, &clear_fb);
+            fb.clear_region(&old_mouse_rect, &desktop);
             old_mouse_pos = input.mouse.position;
         }
 
-        //TODO: only redraw desktop if it changed
-        //this requires being able to seperate ui placement from ui rendering
-        desktop.layout(&mut input);
+        let needs_clear = desktop.update(&mut input);
+        if needs_clear {
+            fb.clear_with(&desktop);
+        }
 
         let time = syscall::get_time();
         if time < WELCOME_MESSAGES.len() as u64 * 2500 + toolbar_cibo::MESSAGE_LINGER_TIME + 3000 {
@@ -129,10 +137,10 @@ fn main() {
                 next_message = syscall::get_time() + 2500;
             }
         }
-        toolbar_cibo.draw(&mut fb, &clear_fb);
+        toolbar_cibo.draw(&mut fb, &desktop);
 
-        window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &clear_fb);
-        let res = window_server.draw(&mut fb, &mut input, &clear_fb, old_mouse_rect);
+        window_server.draw_window_list(&mut fb, window_list_rect, &mut input, &desktop);
+        let res = window_server.draw(&mut fb, &mut input, &desktop, old_mouse_rect);
 
         if !res.hide_cursor {
             draw_cursor(&mut fb, input.mouse.position);
@@ -143,28 +151,6 @@ fn main() {
 
         syscall::yield_();
     }
-}
-
-fn create_clear_fb<'a>(main_fb: &Framebuffer, buffer: &'a mut Vec<u8>) -> Framebuffer<'a> {
-    let mut clear_fb = Framebuffer::new(buffer, main_fb.dimensions(), main_fb.format().clone());
-
-    let taskbar = File::open("data/task.ppm").expect("failed to load image data");
-    let taskbar = monos_gfx::Image::from_ppm(&taskbar).expect("failed to parse image data");
-
-    clear_fb.draw_rect(
-        Rect::from_dimensions(clear_fb.dimensions()),
-        Color::new(55, 54, 61),
-    );
-
-    clear_fb.draw_img(
-        &taskbar,
-        Position::new(
-            0,
-            (clear_fb.dimensions().height - taskbar.dimensions().height) as i64,
-        ),
-    );
-
-    clear_fb
 }
 
 fn draw_cursor(fb: &mut Framebuffer, mut pos: Position) {
