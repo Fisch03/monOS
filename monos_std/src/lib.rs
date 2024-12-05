@@ -41,6 +41,13 @@ impl core::fmt::Display for ProcessId {
 pub use prelude::*;
 
 pub mod prelude {
+    pub fn args() -> &'static Vec<String> {
+        #[allow(static_mut_refs)]
+        unsafe {
+            crate::ARGS.as_ref().unwrap()
+        }
+    }
+
     pub use crate::fs::{self, FileHandle as File, Path, PathBuf};
     pub use crate::io::{Read, Seek, Write};
     pub use crate::messaging::MessageData;
@@ -48,6 +55,9 @@ pub mod prelude {
 
     #[cfg(feature = "syscall")]
     pub use crate::syscall;
+    #[cfg(feature = "syscall")]
+    pub use crate::syscall::SysInfo;
+
     #[cfg(feature = "userspace")]
     pub use crate::{dbg, print, println};
 
@@ -61,6 +71,8 @@ pub mod prelude {
     };
     pub use core::prelude::rust_2021::*;
 }
+
+static mut ARGS: Option<Vec<String>> = None;
 
 extern "C" {
     fn main();
@@ -87,10 +99,39 @@ pub unsafe extern "sysv64" fn _start() -> ! {
 #[inline(never)]
 #[allow(dead_code)]
 extern "C" fn start_inner(_heap_start: usize, _heap_size: usize) {
+    let args_ptr: *const u64;
+
+    unsafe {
+        core::arch::asm!("",
+            lateout("rdx") args_ptr,
+            options(pure, nomem, nostack),
+        )
+    };
+
     #[cfg(feature = "userspace")]
     unsafe {
         memory::init(_heap_start, _heap_size)
     };
+
+    let args = if args_ptr.is_null() {
+        Vec::new()
+    } else {
+        let len = unsafe { *(args_ptr as *const u64) };
+
+        let args = unsafe {
+            core::str::from_utf8(core::slice::from_raw_parts(
+                args_ptr.add(1) as *const u8,
+                len as usize,
+            ))
+        }
+        .expect("args are an invalid utf8 string");
+
+        args.split(' ').map(|s| s.into()).collect()
+    };
+
+    unsafe {
+        ARGS = Some(args);
+    }
 
     unsafe { main() };
 

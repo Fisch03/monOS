@@ -82,12 +82,7 @@ impl Desktop {
         entries
             .iter()
             .filter_map(|entry| File::open(entry))
-            .filter_map(|file| {
-                let mut data = vec![0; 255]; // TODO: stat file to get size
-                let len = file.read(&mut data);
-                data.truncate(len);
-                String::from_utf8(data).ok()
-            })
+            .filter_map(|file| file.read_to_string().ok())
             .for_each(|entry| {
                 let mut name = None;
                 let mut icon = None;
@@ -124,3 +119,4 @@ impl Desktop {
             })
     }
 }
+

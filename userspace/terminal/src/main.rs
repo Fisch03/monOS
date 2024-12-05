@@ -8,23 +8,13 @@
 #[allow(unused_imports)]
 use monos_std::prelude::*;
 
-use monos_gfx::{
-    font::{self, Font},
-    text::Origin,
-    ui::{widgets, Direction, TextWrap, UIFrame},
-    Color, Dimension, Input, Rect,
-};
-use monoscript::{ast, ReplContext, ReplInterface};
-use rooftop::{Window, WindowClient};
+mod repl;
+mod script;
+
+use monos_gfx::Color;
+use monoscript::{ast::Value, ArgArray, Interface, RuntimeErrorKind, ScriptHook};
 
 use monos_std::collections::VecDeque;
-
-struct TerminalState {
-    interface: TerminalInterface,
-    input: String,
-    ui: UIFrame,
-    context: ReplContext,
-}
 
 enum LineType {
     Input,
@@ -41,11 +31,19 @@ impl LineType {
     }
 }
 
+#[derive(Debug)]
 struct TerminalInterface {
     lines: VecDeque<String>,
-    line_colors: VecDeque<Color>,
+    line_colors: Vec<Color>,
 }
 impl TerminalInterface {
+    fn new() -> Self {
+        TerminalInterface {
+            lines: VecDeque::new(),
+            line_colors: Vec::new(),
+        }
+    }
+
     fn add_line(&mut self, line: String, line_type: LineType) {
         let line = match line_type {
             LineType::Input => format!("> {}", line),
@@ -53,85 +51,73 @@ impl TerminalInterface {
             LineType::Output => line,
         };
         self.lines.push_back(line);
-        self.line_colors.push_back(line_type.color());
+        self.line_colors.push(line_type.color());
     }
 }
-impl ReplInterface for TerminalInterface {
-    fn print(&mut self, message: &str) {
-        self.add_line(message.to_string(), LineType::Output);
-    }
-}
+impl<'a> Interface<'a> for TerminalInterface {
+    fn inbuilt_function<A: ArgArray<'a>>(
+        &mut self,
+        ident: &'a str,
+        args: A,
+    ) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        match ident {
+            "print" => {
+                let value = args.get_arg(0, "value")?;
+                self.add_line(format!("{value}"), LineType::Output);
+                Ok(Value::None)
+            }
+            "debug" => {
+                let value = args.get_arg(0, "value")?;
+                self.add_line(format!("{value:?}"), LineType::Output);
+                Ok(Value::None)
+            }
 
-impl TerminalState {
-    fn new() -> Self {
-        TerminalState {
-            ui: UIFrame::new(Direction::BottomToTop),
-            input: String::new(),
-            context: ReplContext::new(),
-            interface: TerminalInterface {
-                lines: VecDeque::new(),
-                line_colors: VecDeque::new(),
-            },
+            "exec" => {
+                let path = args.get_arg(0, "path")?.as_string()?;
+                let proc_args = args.get_arg(1, "args").and_then(|a| Ok(a.as_string()?));
+
+                let res = if let Ok(proc_args) = proc_args {
+                    syscall::spawn_with_args(path.as_str(), proc_args.as_str())
+                } else {
+                    syscall::spawn(path.as_str())
+                };
+
+                Ok(Value::Number(
+                    res.map(|pid| pid.as_u32() as f64).unwrap_or(-1.0),
+                ))
+            }
+
+            "time" => Ok(Value::Number(syscall::get_time() as f64)),
+
+            "free_mem" => Ok(Value::Number(syscall::sys_info(SysInfo::FreeMemory) as f64)),
+            "used_mem" => Ok(Value::Number(syscall::sys_info(SysInfo::UsedMemory) as f64)),
+            "total_mem" => Ok(Value::Number(syscall::sys_info(SysInfo::TotalMemory) as f64)),
+
+            "proc_id" => Ok(Value::Number(syscall::sys_info(SysInfo::ProcessId) as f64)),
+            "num_proc" => Ok(Value::Number(
+                syscall::sys_info(SysInfo::NumProcesses) as f64
+            )),
+
+            _ => Err(RuntimeErrorKind::UnknownFunction(ident)),
         }
+    }
+
+    fn attach_hook<A: ArgArray<'a>>(
+        &mut self,
+        kind: &'a str,
+        _params: A,
+        _hook: ScriptHook<'a>,
+    ) -> Result<(), RuntimeErrorKind<'a>> {
+        Err(RuntimeErrorKind::UnknownHook(kind))
     }
 }
 
 #[no_mangle]
 fn main() {
-    println!("terminal started!");
-
-    let mut window_client = WindowClient::new("desktop.windows", TerminalState::new()).unwrap();
-    window_client.create_window("terminal", Dimension::new(320, 240), render);
-
-    loop {
-        window_client.update();
-        syscall::yield_();
-    }
-}
-
-fn render(window: &mut Window, terminal: &mut TerminalState, mut input: Input) {
-    window.clear();
-
-    let rect = Rect::from_dimensions(window.dimensions()).shrink(2);
-
-    terminal.ui.draw_frame(window, rect, &mut input, |ui| {
-        ui.gap(0);
-
-        let textbox = widgets::Textbox::<font::Glean>::new(&mut terminal.input)
-            .wrap(TextWrap::Enabled { hyphenate: false });
-        if ui.add(textbox).submitted {
-            terminal
-                .interface
-                .add_line(terminal.input.clone(), LineType::Input);
-
-            match terminal
-                .context
-                .execute(&terminal.input, &mut terminal.interface)
-            {
-                Ok(ast::OwnedValue::None) => {}
-                Ok(value) => {
-                    terminal
-                        .interface
-                        .add_line(format!("{:?}", value), LineType::Output);
-                }
-                Err(err) => {
-                    terminal
-                        .interface
-                        .add_line(format!("{}", err), LineType::Error);
-                }
-            }
-
-            terminal.input.clear();
-        }
-
-        ui.add(
-            widgets::ScrollableLabel::<font::Glean, _>::new_iter(
-                terminal.interface.lines.iter().map(|line| line.as_str()),
-                Origin::Bottom,
-            )
-            .wrap(TextWrap::Enabled { hyphenate: false })
-            .scroll_y(rect.height() - font::Glean::CHAR_HEIGHT - 4)
-            .text_colors(terminal.interface.line_colors.make_contiguous()),
-        );
-    });
+    if args().len() > 0 {
+        let path = args()[0].as_str();
+        script::run(path)
+    } else {
+        repl::run()
+    };
 }

@@ -366,9 +366,10 @@ impl<'a, F: Font> Lines<'a, F> {
         for (i, line) in self.lines[start_line..end_line].iter().enumerate() {
             let color = match color {
                 ColorMode::Single(color) => color,
-                ColorMode::PerLine(ref colors) => {
-                    colors.get(i).copied().unwrap_or(Color::new(255, 255, 255))
-                }
+                ColorMode::PerLine(ref colors) => colors
+                    .get(start_line + i)
+                    .copied()
+                    .unwrap_or(Color::new(255, 255, 255)),
             };
 
             fb.draw_str_clipped::<F>(color, &line.text, curr_position, rect);

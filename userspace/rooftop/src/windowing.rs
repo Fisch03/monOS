@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8};
 use monos_gfx::{
     input::{KeyEvent, MouseInput},
     Dimension, Framebuffer, FramebufferFormat,
@@ -8,7 +8,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[cfg(feature = "client")]
 pub mod client;
-// #[cfg(not(feature = "client"))]
+#[cfg(not(feature = "client"))]
 pub mod server;
 
 const MAX_DIMENSION: usize = 320 * 240;
@@ -81,6 +81,7 @@ impl WindowChunk {
 #[cfg(feature = "client")]
 impl WindowChunk {
     pub fn keys(&self) -> &[KeyEvent] {
+        use core::sync::atomic::Ordering;
         &self.keyboard[..self.keyboard_len.load(Ordering::Relaxed) as usize]
     }
 }

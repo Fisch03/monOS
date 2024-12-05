@@ -2,7 +2,13 @@ mod path;
 pub use path::*;
 
 #[cfg(feature = "userspace")]
-use crate::io::{Read, Seek, SeekMode, Write};
+use crate::{
+    alloc::{
+        string::{FromUtf8Error, String},
+        vec::Vec,
+    },
+    io::{Read, Seek, SeekMode, Write},
+};
 
 #[cfg(feature = "userspace")]
 use crate::syscall;
@@ -33,6 +39,33 @@ impl FileHandle {
     #[cfg(feature = "userspace")]
     pub fn close(self) {
         core::mem::drop(self);
+    }
+
+    #[cfg(feature = "userspace")]
+    pub fn size(&self) -> usize {
+        let pos = self.get_pos();
+
+        let size = self.seek(0, SeekMode::End) as usize;
+        let _ = self.seek(pos as i64, SeekMode::Start);
+
+        size
+    }
+
+    #[cfg(feature = "userspace")]
+    pub fn read_to_vec(&self) -> Vec<u8> {
+        let size = self.size();
+        let mut buf: Vec<u8> = Vec::new();
+        buf.reserve_exact(size);
+        unsafe { buf.set_len(size) }
+        let read = self.read(buf.as_mut_slice());
+        buf.truncate(read);
+        buf
+    }
+
+    #[cfg(feature = "userspace")]
+    pub fn read_to_string(&self) -> Result<String, FromUtf8Error> {
+        let buf = self.read_to_vec();
+        String::from_utf8(buf)
     }
 
     pub const fn as_u64(&self) -> u64 {

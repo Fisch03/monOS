@@ -1,4 +1,4 @@
-use crate::{ast, execute::*, Interface, OwnedParseError, ParseError, ReplInterface, ScriptHook};
+use crate::{ast, execute::*, Interface, OwnedParseError, ParseError};
 use alloc::{string::String, vec::Vec};
 
 #[derive(Debug)]
@@ -30,35 +30,19 @@ impl<'a> From<RuntimeError<'a>> for ReplError {
     }
 }
 
-struct ReplInterfaceWrapper<'a, I: ReplInterface>(&'a mut I);
-impl<I: ReplInterface> ReplInterface for ReplInterfaceWrapper<'_, I> {
-    fn print(&mut self, message: &str) {
-        self.0.print(message);
-    }
-}
-
-impl<I: ReplInterface> Interface<'_> for ReplInterfaceWrapper<'_, I> {
-    fn spawn_window(&mut self, _content: ScriptHook) {
-        unreachable!("spawn_window not supported in repl");
-    }
-    fn on_key(&mut self, _key: char, _content: ScriptHook) {
-        unreachable!("spawn_window not supported in repl");
-    }
-    fn draw_box(&mut self, _x: usize, _y: usize, _w: usize, _h: usize) {
-        unreachable!("spawn_window not supported in repl");
-    }
-}
-
 impl ReplContext {
     pub fn new() -> Self {
         Self { scope: Vec::new() }
     }
 
-    pub fn execute<'a, I: ReplInterface>(
+    pub fn execute<I>(
         &mut self,
-        code: &'a str,
+        code: &str,
         interface: &mut I,
-    ) -> Result<ast::OwnedValue, ReplError> {
+    ) -> Result<ast::OwnedValue, ReplError>
+    where
+        I: for<'a> Interface<'a>,
+    {
         let statement = ast::Statement::parse(code.into());
 
         let statement = match statement {
@@ -79,7 +63,7 @@ impl ReplContext {
         };
 
         let mut scope = ScopeStack::from_owned(&self.scope);
-        let res = statement.run(&mut scope, &mut ReplInterfaceWrapper(interface))?;
+        let res = statement.run(&mut scope, interface)?;
         let res = res.to_value().to_owned();
         self.scope = scope.get_owned_local_scope();
 

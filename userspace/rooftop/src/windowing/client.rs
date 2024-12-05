@@ -2,42 +2,54 @@ use super::*;
 use core::sync::atomic::Ordering;
 use monos_gfx::{input::KeyboardInput, Framebuffer, Input};
 
-pub struct Window<'a, 'fb> {
+pub struct Window<'a> {
     id: u64,
-    pub fb: Framebuffer<'fb>,
+    pub fb: Framebuffer<'a>,
     pub update_frequency: &'a mut UpdateFrequency,
     pub grab_mouse: &'a mut bool,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum WindowHandle {
-    CreationId(u64),
-    Id(u64),
+pub struct WindowHandle {
+    creation_id: u64,
+    id: Option<u64>,
 }
 
-impl<'a, 'fb> Window<'a, 'fb> {
+impl core::cmp::PartialEq for WindowHandle {
+    fn eq(&self, other: &Self) -> bool {
+        match (self.id, other.id) {
+            (Some(a), Some(b)) => a == b,
+            _ => self.creation_id == other.creation_id,
+        }
+    }
+}
+
+impl<'a> Window<'a> {
     pub fn id(&self) -> u64 {
         self.id
     }
 }
 
-impl<'a, 'fb> core::ops::Deref for Window<'a, 'fb> {
-    type Target = Framebuffer<'fb>;
+impl<'a> core::ops::Deref for Window<'a> {
+    type Target = Framebuffer<'a>;
 
     fn deref(&self) -> &Self::Target {
         &self.fb
     }
 }
 
-impl<'a, 'fb> core::ops::DerefMut for Window<'a, 'fb> {
+impl<'a> core::ops::DerefMut for Window<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.fb
     }
 }
 
-impl From<Window<'_, '_>> for WindowHandle {
+impl From<Window<'_>> for WindowHandle {
     fn from(window: Window) -> Self {
-        WindowHandle::Id(window.id)
+        WindowHandle {
+            creation_id: 0,
+            id: Some(window.id),
+        }
     }
 }
 
@@ -94,6 +106,13 @@ impl<T> WindowClient<T> {
         unsafe { self.channel.receive::<WindowServerMessage>() }
     }
 
+    pub fn next_handle(&self) -> WindowHandle {
+        WindowHandle {
+            creation_id: self.next_creation_id,
+            id: None,
+        }
+    }
+
     pub fn create_window<R>(
         &mut self,
         title: &str,
@@ -122,7 +141,10 @@ impl<T> WindowClient<T> {
             creation_id,
         });
 
-        WindowHandle::CreationId(creation_id)
+        WindowHandle {
+            creation_id,
+            id: None,
+        }
     }
 
     pub fn update(&mut self) {
@@ -234,22 +256,19 @@ impl<T> WindowClient<T> {
     }
 
     fn send_or_queue(&mut self, handle: WindowHandle, msg: QueuedMessage) {
-        match handle {
-            WindowHandle::CreationId(creation_id) => {
-                let window = self
-                    .windows
-                    .iter()
-                    .find(|w| w.creation_id == creation_id)
-                    .unwrap();
+        if let Some(id) = handle.id {
+            self.channel.send(msg.into_message(id))
+        } else {
+            let window = self
+                .windows
+                .iter()
+                .find(|w| w.creation_id == handle.creation_id)
+                .unwrap();
 
-                if let Some(chunk) = &window.chunk {
-                    self.channel.send(msg.into_message(chunk.id));
-                } else {
-                    self.message_queue.push((creation_id, msg));
-                }
-            }
-            WindowHandle::Id(id) => {
-                self.channel.send(msg.into_message(id));
+            if let Some(chunk) = &window.chunk {
+                self.channel.send(msg.into_message(chunk.id));
+            } else {
+                self.message_queue.push((handle.creation_id, msg));
             }
         }
     }

@@ -255,13 +255,14 @@ there is currently no safety in place for channels, meaning that a process can j
   - [ ] save sse/avx context
 - [ ] terminal
   - [x] basic functionality
-  - [ ] fix overflow colors
+  - [x] fix overflow colors
   - [ ] more inbuilt functions
 - [x] running doom!! :)
   - [x] figure out linking
   - [x] scuffed libc port
   - [x] it works!
-  - [ ] keyboard input
+  - [x] keyboard input
+  - [x] mouse input
 - [ ] monoscript
   - [x] basic parsing
   - [ ] missing statements

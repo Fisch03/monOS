@@ -11,6 +11,9 @@ use monos_std::prelude::*;
 
 mod libc;
 
+extern crate alloc;
+
+use alloc::ffi::CString;
 use monos_gfx::{
     input::{KeyCode, KeyEvent, KeyState},
     Dimension, Framebuffer, FramebufferFormat, Input,
@@ -67,15 +70,6 @@ pub unsafe extern "C" fn DG_GetKey(pressed: *mut i32, doom_key: *mut u8) -> i32 
     const DOOM_KEY_ESCAPE: u8 = 27;
     const DOOM_KEY_ENTER: u8 = 13;
 
-    const W_DOWN: u8 = 0x11;
-    const A_DOWN: u8 = 0x1e;
-    const S_DOWN: u8 = 0x1f;
-    const D_DOWN: u8 = 0x20;
-    const E_DOWN: u8 = 0x12;
-    const CTRL_DOWN: u8 = 0x1d;
-    const ENTER_DOWN: u8 = 0x1c;
-    const ESC_DOWN: u8 = 0x01;
-
     if let Some(evt) = unsafe { KEY_QUEUE.pop_front() } {
         unsafe {
             *doom_key = match evt.key.code {
@@ -118,7 +112,14 @@ fn main() {
     let mut window_client = WindowClient::new("desktop.windows", ()).unwrap();
     window_client.create_window("doom", Dimension::new(320, 200), render);
 
-    let args: [&core::ffi::CStr; 4] = [c"bin/doom", c"-iwad", c"data/wads/doom1.wad", c"-nosound"];
+    let wad = if args().len() > 0 {
+        let slice = args()[0].as_str();
+        CString::new(slice).expect("invalid wad path")
+    } else {
+        CString::new("data/wads/doom1.wad").unwrap()
+    };
+
+    let args: [&core::ffi::CStr; 4] = [c"bin/doom", c"-iwad", &wad, c"-nosound"];
     let args = args.iter().map(|s| s.as_ptr()).collect::<Vec<_>>();
     unsafe { doomgeneric_Create(args.len() as i32, args.as_ptr() as *const *const u8) };
 

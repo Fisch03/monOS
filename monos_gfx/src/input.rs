@@ -19,6 +19,7 @@ impl Input {
         self.mouse.left_button.clicked
             || self.mouse.right_button.clicked
             || self.mouse.middle_button.clicked
+            || self.mouse.scroll != 0
             || !self.keyboard.keys.is_empty()
     }
 }

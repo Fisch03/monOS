@@ -20,7 +20,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     // start the desktop environment
     interrupts::without_interrupts(|| {
-        process::spawn("bin/rooftop").expect("failed to start desktop environment");
+        process::spawn("bin/rooftop", "").expect("failed to start desktop environment");
     });
 
     loop {

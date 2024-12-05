@@ -98,6 +98,12 @@ impl core::fmt::Debug for RuntimeErrorKind<'_> {
                     to.print_type()
                 )?;
             }
+            RuntimeErrorKind::UnknownFunction(ident) => {
+                writeln!(f, "call to unknown function: \"{}\"", ident)?;
+            }
+            RuntimeErrorKind::UnknownHook(ident) => {
+                writeln!(f, "unknown hook: \"{}\"", ident)?;
+            }
         };
 
         Ok(())
@@ -109,12 +115,16 @@ pub enum RuntimeErrorKind<'a> {
     MissingArgument(usize, &'a str),
     InvalidOperation(Value<'a>, Value<'a>),
     InvalidConversion(Value<'a>, Value<'a>),
+    UnknownFunction(&'a str),
+    UnknownHook(&'a str),
 }
 pub enum OwnedRuntimeErrorKind {
     UndefinedVariable(String),
     MissingArgument(usize, String),
     InvalidOperation(OwnedValue, OwnedValue),
     InvalidConversion(OwnedValue, OwnedValue),
+    UnknownFunction(String),
+    UnknownHook(String),
 }
 impl RuntimeErrorKind<'_> {
     pub fn to_owned(self) -> OwnedRuntimeErrorKind {
@@ -130,6 +140,12 @@ impl RuntimeErrorKind<'_> {
             }
             RuntimeErrorKind::InvalidConversion(from, to) => {
                 OwnedRuntimeErrorKind::InvalidConversion(from.to_owned(), to.to_owned())
+            }
+            RuntimeErrorKind::UnknownFunction(ident) => {
+                OwnedRuntimeErrorKind::UnknownFunction(ident.to_string())
+            }
+            RuntimeErrorKind::UnknownHook(ident) => {
+                OwnedRuntimeErrorKind::UnknownHook(ident.to_string())
             }
         }
     }
@@ -148,6 +164,12 @@ impl OwnedRuntimeErrorKind {
             }
             OwnedRuntimeErrorKind::InvalidConversion(from, to) => {
                 RuntimeErrorKind::InvalidConversion(from.borrow(), to.borrow())
+            }
+            OwnedRuntimeErrorKind::UnknownFunction(ident) => {
+                RuntimeErrorKind::UnknownFunction(ident.as_str())
+            }
+            OwnedRuntimeErrorKind::UnknownHook(ident) => {
+                RuntimeErrorKind::UnknownHook(ident.as_str())
             }
         }
     }
@@ -354,7 +376,23 @@ impl<'a> Expression<'a> {
                     BinaryOp::Sub => lhs.sub(&rhs),
                     BinaryOp::Mul => lhs.mul(&rhs),
                     BinaryOp::Div => lhs.div(&rhs),
-                    _ => todo!("BinaryOp::{:?} not implemented", op),
+                    BinaryOp::Mod => lhs.modulo(&rhs),
+
+                    BinaryOp::Eq => lhs.eq(&rhs),
+                    BinaryOp::Ne => lhs
+                        .eq(&rhs)
+                        .and_then(|v| Ok(Value::Boolean(!v.as_boolean()?))),
+                    BinaryOp::Lt => lhs.lt(&rhs),
+                    BinaryOp::Gt => lhs.gt(&rhs),
+                    BinaryOp::Le => lhs
+                        .gt(&rhs)
+                        .and_then(|v| Ok(Value::Boolean(!v.as_boolean()?))),
+                    BinaryOp::Ge => lhs
+                        .lt(&rhs)
+                        .and_then(|v| Ok(Value::Boolean(!v.as_boolean()?))),
+
+                    BinaryOp::And => Ok(Value::Boolean(lhs.as_boolean()? && rhs.as_boolean()?)),
+                    BinaryOp::Or => Ok(Value::Boolean(lhs.as_boolean()? || rhs.as_boolean()?)),
                 }
             }
             Expression::FunctionCall { ident, args } => {
@@ -372,7 +410,7 @@ impl<'a> Expression<'a> {
                         ret.map_err(|err| err.kind)
                     }
                     Ok(_) => Err(RuntimeErrorKind::UndefinedVariable(ident)),
-                    Err(_) => inbuilt_function(ident, arg_values, interface),
+                    Err(_) => interface.inbuilt_function(ident, arg_values),
                 }
             }
         }
@@ -387,23 +425,6 @@ impl<'a> Value<'a> {
             Value::Boolean(_) => "boolean",
             Value::Function { .. } => "function",
             Value::None => "none",
-        }
-    }
-
-    // print the value as a string, for debugging purposes
-    pub fn print_value(&self) -> String {
-        match self {
-            Value::String(s) => s.clone(),
-            Value::Number(n) => n.to_string(),
-            Value::Function { .. } => "Function".into(),
-            Value::Boolean(b) => {
-                if *b {
-                    "true".into()
-                } else {
-                    "false".into()
-                }
-            }
-            Value::None => "None".into(),
         }
     }
 
@@ -451,22 +472,30 @@ impl<'a> Value<'a> {
         }
     }
 
+    pub fn as_boolean(&self) -> Result<bool, RuntimeErrorKind<'a>> {
+        match self {
+            Value::Boolean(b) => Ok(*b),
+            Value::Number(n) => Ok(*n != 0.0),
+            Value::String(s) if s == "true" => Ok(true),
+            Value::String(s) if s == "false" => Ok(false),
+            _ => Err(RuntimeErrorKind::InvalidConversion(
+                self.clone(),
+                Value::Boolean(false),
+            )),
+        }
+    }
+
     pub fn add(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
         match (self, other) {
-            (Value::Number(a), other) if other.can_cast_to_number() => {
-                Ok(Value::Number(a + other.as_number()?))
-            }
-            (other, Value::Number(b)) if other.can_cast_to_number() => {
-                Ok(Value::Number(other.as_number()? + b))
-            }
-
+            // if the first value is a string, concatenate it with the second value
             (Value::String(a), other) if other.can_cast_to_string() => {
                 let b = other.as_string()?;
                 Ok(Value::String(format!("{}{}", a, b)))
             }
-            (other, Value::String(b)) if other.can_cast_to_string() => {
-                let a = other.as_string()?;
-                Ok(Value::String(format!("{}{}", a, b)))
+
+            // otherwise, try to add the values as numbers
+            _ if (self.can_cast_to_number() && other.can_cast_to_number()) => {
+                Ok(Value::Number(self.as_number()? + other.as_number()?))
             }
 
             _ => Err(RuntimeErrorKind::InvalidOperation(
@@ -477,49 +506,47 @@ impl<'a> Value<'a> {
     }
 
     pub fn sub(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
-        match (self, other) {
-            (Value::Number(a), other) if other.can_cast_to_number() => {
-                Ok(Value::Number(a - other.as_number()?))
-            }
-            (other, Value::Number(b)) if other.can_cast_to_number() => {
-                Ok(Value::Number(other.as_number()? - b))
-            }
-
-            _ => Err(RuntimeErrorKind::InvalidOperation(
-                self.clone(),
-                other.clone(),
-            )),
-        }
+        Ok(Value::Number(self.as_number()? - other.as_number()?))
     }
 
     pub fn mul(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
-        match (self, other) {
-            (Value::Number(a), other) if other.can_cast_to_number() => {
-                Ok(Value::Number(a * other.as_number()?))
-            }
-            (other, Value::Number(b)) if other.can_cast_to_number() => {
-                Ok(Value::Number(other.as_number()? * b))
-            }
-
-            _ => Err(RuntimeErrorKind::InvalidOperation(
-                self.clone(),
-                other.clone(),
-            )),
-        }
+        Ok(Value::Number(self.as_number()? * other.as_number()?))
     }
 
     pub fn div(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        Ok(Value::Number(self.as_number()? / other.as_number()?))
+    }
+
+    pub fn modulo(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        Ok(Value::Number(self.as_number()? % other.as_number()?))
+    }
+
+    pub fn lt(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        Ok(Value::Boolean(self.as_number()? > other.as_number()?))
+    }
+
+    pub fn gt(&self, other: &Value<'a>) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
+        Ok(Value::Boolean(self.as_number()? < other.as_number()?))
+    }
+
+    fn eq(&self, other: &Self) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
         match (self, other) {
-            (Value::Number(a), other) if other.can_cast_to_number() => {
-                Ok(Value::Number(a / other.as_number()?))
+            // obvious cases
+            (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a == b)),
+            (Value::Boolean(a), Value::Boolean(b)) => Ok(Value::Boolean(a == b)),
+            (Value::String(a), Value::String(b)) => Ok(Value::Boolean(a == b)),
+
+            // number casting is usually faster (and also makes more sense) so we try that first
+            _ if self.can_cast_to_number() && other.can_cast_to_number() => {
+                Ok(Value::Boolean(self.as_number()? == other.as_number()?))
             }
-            (other, Value::Number(b)) if other.can_cast_to_number() => {
-                Ok(Value::Number(other.as_number()? / b))
+
+            // last resort
+            _ if self.can_cast_to_string() && other.can_cast_to_string() => {
+                Ok(Value::Boolean(self.as_string()? == other.as_string()?))
             }
-            _ => Err(RuntimeErrorKind::InvalidOperation(
-                self.clone(),
-                other.clone(),
-            )),
+
+            _ => Ok(Value::Boolean(false)),
         }
     }
 }
@@ -602,25 +629,28 @@ impl<'a> Statement<'a> {
                 };
                 StatementResult::new(Value::None)
             }
-            StatementKind::Hook { kind, block } => match kind {
-                HookType::Window => {
-                    interface.spawn_window(ScriptHook {
-                        block: block.clone(),
-                        local_scope: scope.get_local_scope(),
-                    });
-                    StatementResult::new(Value::None)
-                }
-                HookType::Key(char) => {
-                    interface.on_key(
-                        *char,
+            StatementKind::Hook {
+                kind,
+                params,
+                block,
+            } => {
+                let params = params
+                    .iter()
+                    .map(|expr| expr.evaluate(scope, interface).with_span(self.span))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                interface
+                    .attach_hook(
+                        kind,
+                        params,
                         ScriptHook {
                             block: block.clone(),
                             local_scope: scope.get_local_scope(),
                         },
-                    );
-                    StatementResult::new(Value::None)
-                }
-            },
+                    )
+                    .with_span(self.span)?;
+                StatementResult::new(Value::None)
+            }
             StatementKind::Expression(expr) => {
                 StatementResult::new(expr.evaluate(scope, interface).with_span(self.span)?)
             }
@@ -637,60 +667,5 @@ impl<'a> Statement<'a> {
         };
 
         Ok(res)
-    }
-}
-
-trait ArgArray<'a> {
-    fn get_arg(&self, index: usize, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>>;
-}
-impl<'a> ArgArray<'a> for Vec<Value<'a>> {
-    fn get_arg(&self, index: usize, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
-        self.get(index)
-            .ok_or(RuntimeErrorKind::MissingArgument(index, ident))
-    }
-}
-
-fn inbuilt_function<'a, I: Interface<'a>>(
-    ident: &'a str,
-    args: Vec<Value<'a>>,
-    interface: &mut I,
-) -> Result<Value<'a>, RuntimeErrorKind<'a>> {
-    match ident {
-        "print" => {
-            for arg in args {
-                interface.print(&arg.print_value());
-            }
-            interface.print("\n");
-            Ok(Value::None)
-        }
-        "debug" => {
-            for arg in args {
-                interface.print(&format!("{:?}", arg));
-            }
-            interface.print("\n");
-            Ok(Value::None)
-        }
-
-        "box" => {
-            interface.draw_box(
-                args.get_arg(0, "box x position")?.as_number()? as usize,
-                args.get_arg(1, "box y position")?.as_number()? as usize,
-                args.get_arg(2, "box width")?.as_number()? as usize,
-                args.get_arg(3, "box height")?.as_number()? as usize,
-            );
-
-            Ok(Value::None)
-        }
-        "square" => {
-            interface.draw_box(
-                args.get_arg(0, "square x position")?.as_number()? as usize,
-                args.get_arg(1, "square y position")?.as_number()? as usize,
-                args.get_arg(2, "square size")?.as_number()? as usize,
-                args.get_arg(2, "square size")?.as_number()? as usize,
-            );
-
-            Ok(Value::None)
-        }
-        _ => Err(RuntimeErrorKind::UndefinedVariable(ident)),
     }
 }

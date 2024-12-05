@@ -51,7 +51,7 @@ pub trait Seek {
             SeekMode::End => (self.max_pos() as i64) - offset,
             SeekMode::Current => (self.get_pos() as i64)
                 .saturating_add(offset)
-                .max(self.max_pos() as i64),
+                .min(self.max_pos() as i64),
         };
         self.set_pos(new_pos as usize);
         new_pos as usize

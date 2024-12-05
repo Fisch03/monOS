@@ -13,11 +13,10 @@ use ast::{Block, Span};
 pub mod parse;
 
 pub mod execute;
-use execute::RuntimeError;
-pub use execute::ScriptContext;
+pub use execute::{RuntimeError, RuntimeErrorKind, ScriptContext};
 
 pub mod interface;
-pub use interface::{Interface, ReplInterface, ScriptHook};
+pub use interface::{ArgArray, Interface, ScriptHook};
 
 pub mod repl;
 pub use repl::ReplContext;

@@ -1,8 +1,24 @@
 use crate::{fs::Path, mem::VirtualAddress, process, LOWER_HALF_END};
+use alloc::string::String;
 use core::arch::asm;
 
-pub fn sys_spawn(arg1: u64, arg2: u64) -> u64 {
+pub fn sys_spawn(arg1: u64, arg2: u64, arg3: u64, arg4: u64) -> u64 {
     assert!(arg1 + arg2 < LOWER_HALF_END);
+
+    let args = if arg3 == 0 {
+        &""
+    } else {
+        assert!(arg3 + arg4 < LOWER_HALF_END);
+
+        unsafe {
+            core::str::from_utf8(core::slice::from_raw_parts(
+                arg3 as *const u8,
+                arg4 as usize,
+            ))
+            .unwrap()
+        }
+    };
+    let args = String::from(args); //copy the args into kernel space
 
     let path = unsafe {
         core::str::from_utf8(core::slice::from_raw_parts(
@@ -12,9 +28,9 @@ pub fn sys_spawn(arg1: u64, arg2: u64) -> u64 {
         .expect("invalid utf8 string")
     };
     let path = Path::new(path);
-    crate::println!("sys_spawn: {:?}", path);
+    crate::println!("sys_spawn: {:?} with args {}", path, args);
 
-    let result = process::spawn(path);
+    let result = process::spawn(path, &args);
 
     match result {
         Ok(pid) => pid.as_u32() as u64,

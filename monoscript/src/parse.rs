@@ -105,7 +105,8 @@ impl<'a> Statement<'a> {
             char('('),
             separated_list0(char(','), ws(identifier)),
             char(')'),
-        )).parse(rest)?;
+        ))
+        .parse(rest)?;
 
         let (rest, block) = Block::parse_scoped(rest)?;
 
@@ -115,10 +116,10 @@ impl<'a> Statement<'a> {
             rest,
             Statement {
                 span: input,
-                kind: StatementKind::Assignment { 
-                    ident: ident.fragment(), 
-                    expression: Expression::Literal(Value::Function { args, block }), 
-                    kind: AssignmentKind::Assign
+                kind: StatementKind::Assignment {
+                    ident: ident.fragment(),
+                    expression: Expression::Literal(Value::Function { args, block }),
+                    kind: AssignmentKind::Assign,
                 },
             },
         ))
@@ -138,35 +139,79 @@ impl<'a> Statement<'a> {
     }
 
     fn parse_hook(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, kind) = ws(HookType::parse).parse(input)?;
+        let (rest, kind) = identifier(input)?;
+        let (rest, params) = delimited(
+            char('('),
+            separated_list0(char(','), ws(Expression::parse)),
+            char(')'),
+        )(rest)
+        .unwrap_or((rest, Vec::new()));
+
         let (rest, block) = Block::parse_scoped(rest)?;
 
         Ok((
             rest,
             Statement {
                 span: input,
-                kind: StatementKind::Hook { kind, block },
+                kind: StatementKind::Hook {
+                    kind: &kind,
+                    params,
+                    block,
+                },
             },
         ))
     }
 
     fn parse_expression(input: Span<'a>) -> IResult<Span<'a>, Self> {
         let (rest, expr) = ws(Expression::parse).parse(input)?;
-        Ok((rest, Statement { span: input, kind: StatementKind::Expression(expr) }))
+        Ok((
+            rest,
+            Statement {
+                span: input,
+                kind: StatementKind::Expression(expr),
+            },
+        ))
     }
-
 }
 
 impl<'a> Expression<'a> {
     pub fn parse(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        let (rest, expr) =alt((
+        let (rest, expr) = alt((
             Self::parse_function_call,
             Value::parse_literal.map(Expression::Literal),
             identifier.map(|s| Expression::Identifier(s.fragment())),
             Self::parse_unary,
         ))(input)?;
-        
-        Ok(Self::parse_binary(rest, &expr).unwrap_or((rest, expr)))
+
+        let (rest, mut expr) = Self::parse_binary(rest, &expr).unwrap_or((rest, expr));
+
+        expr.fix_order();
+
+        Ok((rest, expr))
+    }
+
+    fn fix_order(&mut self) {
+        match self {
+            Expression::Binary { op, lhs, rhs } => {
+                if let Expression::Binary {
+                    op: rhs_op,
+                    lhs: rhs_lhs,
+                    rhs: rhs_rhs,
+                } = &mut **rhs
+                {
+                    if op.precedence() <= rhs_op.precedence() {
+                        let new_rhs = Expression::Binary {
+                            op: *op,
+                            lhs: lhs.clone(),
+                            rhs: rhs_lhs.clone(),
+                        };
+                        **lhs = new_rhs;
+                        **rhs = *rhs_rhs.clone();
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     fn parse_args(input: Span<'a>) -> IResult<Span<'a>, Vec<Expression<'a>>> {
@@ -205,10 +250,13 @@ impl<'a> Expression<'a> {
     fn parse_function_call(input: Span<'a>) -> IResult<Span<'a>, Self> {
         let (rest, ident) = identifier(input)?;
         let (rest, args) = Expression::parse_args.parse(rest)?;
-    
+
         Ok((
             rest,
-            Expression::FunctionCall { ident: ident.fragment(), args },
+            Expression::FunctionCall {
+                ident: ident.fragment(),
+                args,
+            },
         ))
     }
 }
@@ -240,15 +288,6 @@ impl<'a> Value<'a> {
         alt((
             tag("true").map(|_| Value::Boolean(true)),
             tag("false").map(|_| Value::Boolean(false)),
-        ))(input)
-    }
-}
-
-impl HookType {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, Self> {
-        alt((
-            tag("window").map(|_| HookType::Window),
-            delimited(tag("key("), anychar, tag(")")).map(|c| HookType::Key(c)),
         ))(input)
     }
 }

@@ -31,6 +31,19 @@ pub enum BinaryOp {
     Or,
 }
 
+impl BinaryOp {
+    pub fn precedence(&self) -> u8 {
+        match self {
+            BinaryOp::Or => 1,
+            BinaryOp::And => 2,
+            BinaryOp::Eq | BinaryOp::Ne => 3,
+            BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => 4,
+            BinaryOp::Add | BinaryOp::Sub => 5,
+            BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => 6,
+        }
+    }
+}
+
 /// ways to assign a value to a variable
 #[derive(Debug, Clone, Copy)]
 pub enum AssignmentKind {
@@ -39,14 +52,6 @@ pub enum AssignmentKind {
     SubAssign,
     MulAssign,
     DivAssign,
-}
-
-/// hooks are special code blocks that get called by the runtime when certain events occur.
-/// they are the main way to interact with the outside world
-#[derive(Debug, Clone)]
-pub enum HookType {
-    Window,
-    Key(char),
 }
 
 pub type Span<'a> = LocatedSpan<&'a str>;
@@ -115,7 +120,8 @@ pub enum StatementKind<'a> {
         kind: AssignmentKind,
     },
     Hook {
-        kind: HookType,
+        kind: &'a str,
+        params: Vec<Expression<'a>>,
         block: Block<'a>,
     },
     If {
@@ -136,7 +142,8 @@ pub enum OwnedStatementKind {
         kind: AssignmentKind,
     },
     Hook {
-        kind: HookType,
+        kind: String,
+        params: Vec<OwnedExpression>,
         block: OwnedBlock,
     },
     If {
@@ -161,8 +168,13 @@ impl StatementKind<'_> {
                 expression: expression.to_owned(),
                 kind,
             },
-            StatementKind::Hook { kind, block } => OwnedStatementKind::Hook {
-                kind,
+            StatementKind::Hook {
+                kind: name,
+                params,
+                block,
+            } => OwnedStatementKind::Hook {
+                kind: name.to_string(),
+                params: params.into_iter().map(|param| param.to_owned()).collect(),
                 block: block.to_owned(),
             },
             StatementKind::If {
@@ -193,8 +205,13 @@ impl OwnedStatementKind {
                 expression: expression.borrow(),
                 kind: *kind,
             },
-            OwnedStatementKind::Hook { kind, block } => StatementKind::Hook {
-                kind: kind.clone(),
+            OwnedStatementKind::Hook {
+                kind,
+                params,
+                block,
+            } => StatementKind::Hook {
+                kind: kind.as_str(),
+                params: params.iter().map(|param| param.borrow()).collect(),
                 block: block.borrow(),
             },
             OwnedStatementKind::If {
@@ -343,5 +360,29 @@ impl OwnedValue {
             },
             OwnedValue::None => Value::None,
         }
+    }
+}
+
+impl core::fmt::Display for Value<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Value::String(s) => write!(f, "{}", s),
+            Value::Number(n) => write!(f, "{}", n),
+            Value::Function { .. } => write!(f, "Function"),
+            Value::Boolean(b) => {
+                if *b {
+                    write!(f, "true")
+                } else {
+                    write!(f, "false")
+                }
+            }
+            Value::None => write!(f, "None"),
+        }
+    }
+}
+
+impl core::fmt::Display for OwnedValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.borrow().fmt(f)
     }
 }

@@ -83,6 +83,30 @@ pub fn unmap(page: &Page<PageSize4K>) -> Result<(), UnmapError> {
         .unmap(page)
 }
 
+pub fn free_memory() -> u64 {
+    FRAME_ALLOCATOR
+        .get()
+        .expect("memory hasn't been initialized yet")
+        .lock()
+        .free_memory()
+}
+
+pub fn used_memory() -> u64 {
+    FRAME_ALLOCATOR
+        .get()
+        .expect("memory hasn't been initialized yet")
+        .lock()
+        .used_memory()
+}
+
+pub fn total_memory() -> u64 {
+    FRAME_ALLOCATOR
+        .get()
+        .expect("memory hasn't been initialized yet")
+        .lock()
+        .total_memory()
+}
+
 pub fn alloc_frame(reason: &str) -> Option<Frame<PageSize4K>> {
     FRAME_ALLOCATOR
         .get()

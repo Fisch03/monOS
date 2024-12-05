@@ -27,7 +27,7 @@ pub enum SyscallType {
     List,
 
     Print,
-    GetSystemTime,
+    SysInfo,
 }
 
 #[repr(C, packed)]
@@ -161,6 +161,20 @@ impl core::fmt::Debug for Syscall {
             .field("sender_channel", &sender_channel)
             .finish()
     }
+}
+
+#[derive(Debug, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum SysInfo {
+    SystemTime,
+
+    FreeMemory,
+    UsedMemory,
+    TotalMemory,
+
+    ProcessId,
+    NumProcesses,
+    // OsVersion,
 }
 
 #[cfg(feature = "userspace")]

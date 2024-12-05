@@ -133,7 +133,7 @@ pub enum SpawnError {
     OpenError(OpenError),
 }
 
-pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Result<ProcessId, SpawnError> {
+pub fn spawn<'p, P: Into<Path<'p>>>(path: P, args: &str) -> Result<ProcessId, SpawnError> {
     let path = path.into();
     let name = path.as_str().to_string();
 
@@ -145,7 +145,7 @@ pub fn spawn<'p, P: Into<Path<'p>>>(path: P) -> Result<ProcessId, SpawnError> {
         data
     };
 
-    Process::new(name, &binary.as_slice())
+    Process::new(name, &binary.as_slice(), args)
 }
 
 pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
@@ -196,6 +196,10 @@ pub fn schedule_next(current_context_addr: VirtualAddress) -> VirtualAddress {
         }
         None => VirtualAddress::new(0),
     }
+}
+
+pub fn num_processes() -> usize {
+    PROCESS_QUEUE.read().len() + CURRENT_PROCESS.read().is_some() as usize
 }
 
 impl Process {
@@ -437,7 +441,7 @@ impl Process {
         Some(handle.1.read_all(buf))
     }
 
-    fn new(name: String, elf: &[u8]) -> Result<ProcessId, SpawnError> {
+    fn new(name: String, elf: &[u8], args: &str) -> Result<ProcessId, SpawnError> {
         if &elf[0..4] != &ELF_BYTES {
             return Err(SpawnError::NotABinary);
         }
@@ -572,6 +576,19 @@ impl Process {
 
             context.r10 = user_heap_addr.as_u64();
             context.r11 = USER_HEAP_SIZE as u64 - 1;
+
+            if !args.is_empty() {
+                let len = args.as_bytes().len();
+                let user_args = unsafe {
+                    core::slice::from_raw_parts_mut((context.rsp - len as u64) as *mut u8, len)
+                };
+                user_args.copy_from_slice(args.as_bytes());
+                context.rsp -= len as u64 + size_of::<u64>() as u64;
+                unsafe {
+                    *(context.rsp as *mut u64) = len as u64;
+                }
+                context.rdx = context.rsp;
+            }
 
             let process = Self {
                 id,

@@ -84,12 +84,14 @@ fn main() {
 
     let mut toolbar_cibo = ToolbarCibo::new();
     let mut next_message = syscall::get_time() + 2500;
-    let mut curr_message = -1;
+    let mut curr_message: i64 = -1;
 
     let mut old_mouse_pos = Position::new(0, 0);
 
     fb.clear_with(&clear_fb);
     println!("starting event loop");
+
+    syscall::spawn_with_args("bin/terminal", "home/monoscript/3_func.ms");
 
     loop {
         while let Some(msg) = syscall::receive_any() {

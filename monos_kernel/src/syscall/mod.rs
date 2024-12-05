@@ -147,7 +147,7 @@ extern "C" fn dispatch_syscall(
     let mut ret = 0;
     if let Ok(syscall) = Syscall::try_from(syscall_id) {
         match syscall.ty {
-            SyscallType::Spawn => ret = process::sys_spawn(arg1, arg2),
+            SyscallType::Spawn => ret = process::sys_spawn(arg1, arg2, arg3, arg4),
             SyscallType::Yield => process::sys_yield(context_addr),
 
             SyscallType::Serve => ipc::sys_serve(arg1, arg2, arg3),
@@ -175,7 +175,7 @@ extern "C" fn dispatch_syscall(
             SyscallType::List => ret = fs::sys_list(arg1, arg2, arg3, arg4),
 
             SyscallType::Print => os::print(arg1, arg2),
-            SyscallType::GetSystemTime => ret = os::get_system_time(),
+            SyscallType::SysInfo => ret = os::sys_info(arg1),
         }
     } else {
         crate::println!(

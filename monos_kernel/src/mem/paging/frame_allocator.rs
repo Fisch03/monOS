@@ -5,20 +5,34 @@ use crate::mem::PhysicalAddress;
 
 use super::{Frame, PageSize4K};
 
-//TODO: at 8mb allocated frames, the system panics, is there some region that is not being marked as unusable?
-
 pub struct FrameAllocator {
+    free_mem: u64,
+    total_mem: u64,
     map: BitArray<32768>, // enough for 1 GiB of memory
     start: PhysicalAddress,
     last_allocated: usize,
 }
 
 impl FrameAllocator {
+    pub fn free_memory(&self) -> u64 {
+        self.free_mem
+    }
+
+    pub fn used_memory(&self) -> u64 {
+        self.total_mem - self.free_mem
+    }
+
+    pub fn total_memory(&self) -> u64 {
+        self.total_mem
+    }
+
     pub fn new(mem_map: &MemoryRegions, start_frame: Frame) -> Self {
         let start_frame_number = start_frame.number() as usize;
 
         let mut map = BitArray::new(true);
         let map_end = start_frame.start_address().as_u64() + map.len() as u64 * 4096;
+
+        let mut free = 0;
 
         for region in mem_map
             .iter()
@@ -30,6 +44,8 @@ impl FrameAllocator {
             // align the end address to the next page
             let end = PhysicalAddress::new(region.end).align(4096);
 
+            free += end.as_u64() - start.as_u64();
+
             let mut curr: Frame<PageSize4K> = Frame::around(start);
             while curr.start_address().as_u64() < end.as_u64() {
                 let curr_num = curr.number() as usize;
@@ -40,7 +56,11 @@ impl FrameAllocator {
             }
         }
 
+        let total_mem = mem_map.iter().map(|r| r.end - r.start).sum();
+
         Self {
+            free_mem: free,
+            total_mem,
             map,
             start: start_frame.start_address(),
             last_allocated: 0,
@@ -65,6 +85,8 @@ impl FrameAllocator {
         //     frame_addr.as_u64() + 4096,
         //     reason
         // );
+
+        self.free_mem -= 4096;
 
         Some(Frame::new(frame_addr).unwrap())
     }
@@ -100,6 +122,9 @@ impl FrameAllocator {
                 frame_addr.as_u64(),
                 frame_addr.as_u64() + count as u64 * 4096
             );
+
+            self.free_mem -= count as u64 * 4096;
+
             Some(Frame::new(frame_addr).unwrap())
         } else {
             None

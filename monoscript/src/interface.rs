@@ -1,16 +1,37 @@
 use crate::ast::{Block, Value};
-use crate::execute::{RuntimeError, ScriptContext};
+use crate::execute::{RuntimeError, RuntimeErrorKind, ScriptContext};
 use alloc::vec::Vec;
 
-pub trait Interface<'a>: ReplInterface {
-    fn spawn_window(&mut self, content: ScriptHook<'a>);
-    fn on_key(&mut self, key: char, content: ScriptHook<'a>);
-
-    fn draw_box(&mut self, x: usize, y: usize, w: usize, h: usize);
+pub trait ArgArray<'a> {
+    fn get_arg(&self, index: usize, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>>;
+}
+impl<'a> ArgArray<'a> for &Vec<Value<'a>> {
+    fn get_arg(&self, index: usize, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
+        self.get(index)
+            .ok_or(RuntimeErrorKind::MissingArgument(index, ident))
+    }
 }
 
-pub trait ReplInterface {
-    fn print(&mut self, message: &str);
+impl<'a> ArgArray<'a> for Vec<Value<'a>> {
+    fn get_arg(&self, index: usize, ident: &'a str) -> Result<&Value<'a>, RuntimeErrorKind<'a>> {
+        self.get(index)
+            .ok_or(RuntimeErrorKind::MissingArgument(index, ident))
+    }
+}
+
+pub trait Interface<'a> {
+    fn inbuilt_function<A: ArgArray<'a>>(
+        &mut self,
+        ident: &'a str,
+        args: A,
+    ) -> Result<Value<'a>, RuntimeErrorKind<'a>>;
+
+    fn attach_hook<A: ArgArray<'a>>(
+        &mut self,
+        kind: &'a str,
+        params: A,
+        hook: ScriptHook<'a>,
+    ) -> Result<(), RuntimeErrorKind<'a>>;
 }
 
 #[derive(Debug)]
