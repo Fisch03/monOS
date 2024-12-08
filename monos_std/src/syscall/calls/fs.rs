@@ -79,11 +79,12 @@ pub fn list<'p, P: Into<Path<'p>>>(path: P) -> Vec<PathBuf> {
     let paths_ptr = &mut paths as *mut _;
 
     let amt = unsafe {
-        syscall_3(
+        syscall_4(
             Syscall::new(SyscallType::List),
             path_ptr,
             path_len,
             paths_ptr as u64,
+            5,
         )
     };
 

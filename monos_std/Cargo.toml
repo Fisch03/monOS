@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false, optional = true }
 linked_list_allocator = { version = "0.10.5", optional = true }
-num_enum = { version = "0.7.2", default-features = false, optional = true }
+num_enum = { version = "0.7.2", default-features = false}
 pc-keyboard = "0.7.0"
 # volatile = { version = "0.6.1", optional = true }
 
@@ -17,4 +17,4 @@ default = ["userspace"]
 # enables all monOS userspace specific features (e.g. syscalls, allocator). without this flag set, the crate is cross-platform compatible (and usable from the kernel)
 userspace = ["dep:linked_list_allocator", "dep:arrayvec", "syscall"] 
 # enables syscall related apis
-syscall = ["dep:num_enum"]
+syscall = []
