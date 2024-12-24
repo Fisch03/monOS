@@ -613,7 +613,7 @@ impl<'a> Framebuffer<'a> {
                     let byte_offset = (y * bytes_per_row as i64 + x / 8) as usize;
                     let bit_offset = x % 8;
                     let bit_offset = 7 - bit_offset;
-                    if image_data[byte_offset] & (1 << bit_offset) == 0 {
+                    if image_data[byte_offset] & (1 << bit_offset) != 0 {
                         self.draw_pixel_unchecked(current_position, *color);
                     }
                 }

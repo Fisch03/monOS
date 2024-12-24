@@ -155,6 +155,7 @@ impl VFSNode {
         } else {
             for node in children {
                 if node.name() == path.as_str() {
+                    node.list();
                     return Some(node.clone());
                 }
             }

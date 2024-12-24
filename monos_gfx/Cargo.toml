@@ -9,6 +9,7 @@ serde = { version = "1", default-features = false, features = ["derive"] }
 rustc-hash = { version = "2", default-features = false }
 hashbrown = { version = "0.14.5", default-features = false, features = ["inline-more"] }
 postcard = { version = "1.0.8", default-features = false, features = ["alloc"] }
+rand = { version = "0.8", default-features = false, features = ["small_rng"] }
 
 micromath = "2.1.0"
 
@@ -17,4 +18,3 @@ default = ["userspace"]
 
 # enables all monOS userspace specific features. without this flag set, the crate is cross-platform compatible (and usable from the kernel)
 userspace = ["monos_std/userspace"]
-

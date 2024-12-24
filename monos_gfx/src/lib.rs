@@ -23,7 +23,10 @@ pub use input::Input;
 
 pub mod ui;
 
+#[cfg(feature = "userspace")]
 pub mod paint;
+#[cfg(feature = "userspace")]
+pub use paint::PaintFramebuffer;
 
 pub mod framebuffer;
 pub use framebuffer::{Framebuffer, FramebufferFormat};

@@ -2,13 +2,11 @@ use monos_gfx::{
     framebuffer::{FramebufferRequest, FramebufferResponse},
     input::Input,
     text::font::Cozette,
-    Color, Framebuffer, Position, Rect,
+    Color, Framebuffer, PaintFramebuffer, Position, Rect,
 };
 
 mod desktop_entries;
 use desktop_entries::DesktopEntries;
-
-use crate::paint::PaintFramebuffer;
 
 pub struct Desktop<'fb> {
     clear_fb: Framebuffer<'fb>,
@@ -16,10 +14,13 @@ pub struct Desktop<'fb> {
 
     taskbar: monos_gfx::Image,
     entries: DesktopEntries,
+
+    needs_redraw: bool,
 }
 
 impl<'fb> Desktop<'fb> {
     pub fn paint(&mut self) -> &mut PaintFramebuffer<'fb> {
+        self.needs_redraw = true;
         &mut self.paint_fb
     }
 
@@ -59,6 +60,8 @@ impl<'fb> Desktop<'fb> {
 
             taskbar,
             entries,
+
+            needs_redraw: false,
         };
 
         desktop.rebuild();
@@ -83,9 +86,9 @@ impl<'fb> Desktop<'fb> {
     pub fn update(&mut self, input: &mut Input) -> bool {
         self.entries.layout(input);
 
-        if self.paint_fb.has_splatters() {
-            self.paint_fb.draw();
+        if self.needs_redraw {
             self.rebuild();
+            self.needs_redraw = false;
             true
         } else {
             false

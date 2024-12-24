@@ -17,8 +17,6 @@ use toolbar_cibo::ToolbarCibo;
 mod desktop;
 use desktop::Desktop;
 
-mod paint;
-
 use monos_std::dev::{keyboard::KeyEvent, mouse::MouseState};
 
 use monos_gfx::{
@@ -82,9 +80,6 @@ fn main() {
     fb.clear_with(&desktop);
     println!("starting event loop");
 
-    desktop
-        .paint()
-        .splat(Position::new(100, 50), monos_gfx::Color::new(255, 0, 0));
     desktop
         .paint()
         .splat(Position::new(100, 100), monos_gfx::Color::new(255, 0, 0));
