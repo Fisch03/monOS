@@ -163,6 +163,14 @@ impl<'a> Framebuffer<'a> {
         (pos.y * self.format.stride as i64 + pos.x) * self.format.bytes_per_pixel as i64
     }
 
+    pub fn multiply_alpha(&mut self, value: f32) {
+        if let Some(a_position) = self.format.a_position {
+            for i in (0..self.buffer.len()).step_by(self.format.bytes_per_pixel as usize) {
+                self.buffer[i + a_position] = (self.buffer[i + a_position] as f32 * value) as u8;
+            }
+        }
+    }
+
     pub fn clear_alpha(&mut self) {
         if let Some(a_position) = self.format.a_position {
             for i in (0..self.buffer.len()).step_by(self.format.bytes_per_pixel as usize) {
@@ -615,6 +623,142 @@ impl<'a> Framebuffer<'a> {
                     let bit_offset = 7 - bit_offset;
                     if image_data[byte_offset] & (1 << bit_offset) != 0 {
                         self.draw_pixel_unchecked(current_position, *color);
+                    }
+                }
+
+                current_position.x += 1;
+            }
+
+            current_position.x = position.x;
+            current_position.y += 1;
+        }
+    }
+
+    pub fn draw_img_with_alpha(&mut self, image: &Image, position: Position, alpha: u8) {
+        let clip = Rect::from_dimensions(self.dimensions);
+
+        match &image.data {
+            ImageFormat::RGB { .. } => {
+                self.draw_img_with_alpha_rgb_clipped(image, position, clip, alpha);
+            }
+            ImageFormat::Bitmap { .. } => {
+                self.draw_img_with_alpha_bitmap_clipped(image, position, clip, alpha)
+            }
+        }
+    }
+
+    fn draw_img_with_alpha_rgb_clipped(
+        &mut self,
+        image: &Image,
+        position: Position,
+        clip: Rect,
+        alpha: u8,
+    ) {
+        let (mut image_data, alpha_val) = match &image.data {
+            ImageFormat::RGB { data, alpha_val } => (data.iter(), alpha_val),
+            _ => panic!("Invalid image format"),
+        };
+
+        let dimensions = image.dimensions();
+
+        if position.y >= self.dimensions.height as i64 || position.x >= self.dimensions.width as i64
+        {
+            return;
+        }
+
+        let clip = Rect {
+            min: Position::new(clip.min.x.max(0), clip.min.y.max(0)),
+            max: Position::new(
+                clip.max.x.min(self.dimensions.width as i64),
+                clip.max.y.min(self.dimensions.height as i64),
+            ),
+        };
+
+        let mut current_position = position.clone();
+
+        for _y in 0..dimensions.height {
+            if current_position.y >= clip.max.y as i64 {
+                return;
+            }
+            for x in 0..dimensions.width {
+                if current_position.x >= clip.max.x as i64 {
+                    let skip = (dimensions.width - x) as usize;
+                    image_data.nth(skip * 3 - 1);
+
+                    break;
+                }
+
+                let color = Color::new(
+                    *image_data.next().unwrap_or(&0),
+                    *image_data.next().unwrap_or(&0),
+                    *image_data.next().unwrap_or(&0),
+                );
+                if current_position.x >= clip.min.x && current_position.y >= clip.min.y {
+                    let skip_alpha = if let Some(alpha_val) = alpha_val {
+                        color == *alpha_val
+                    } else {
+                        false
+                    };
+
+                    if !skip_alpha {
+                        self.draw_pixel_alpha_unchecked(current_position, color, alpha);
+                    }
+                }
+
+                current_position.x += 1;
+            }
+
+            current_position.x = position.x;
+            current_position.y += 1;
+        }
+    }
+
+    fn draw_img_with_alpha_bitmap_clipped(
+        &mut self,
+        image: &Image,
+        position: Position,
+        clip: Rect,
+        alpha: u8,
+    ) {
+        let (image_data, color) = match &image.data {
+            ImageFormat::Bitmap { data, color } => (data, color),
+            _ => panic!("Invalid image format"),
+        };
+
+        let dimensions = image.dimensions();
+        let bytes_per_row =
+            dimensions.width as usize / 8 + if dimensions.width % 8 != 0 { 1 } else { 0 };
+
+        if position.y >= self.dimensions.height as i64 || position.x >= self.dimensions.width as i64
+        {
+            return;
+        }
+
+        let clip = Rect {
+            min: Position::new(clip.min.x.max(0), clip.min.y.max(0)),
+            max: Position::new(
+                clip.max.x.min(self.dimensions.width as i64),
+                clip.max.y.min(self.dimensions.height as i64),
+            ),
+        };
+
+        let mut current_position = position.clone();
+
+        for y in 0..dimensions.height as i64 {
+            if current_position.y >= clip.max.y as i64 {
+                return;
+            }
+            for x in 0..dimensions.width as i64 {
+                if current_position.x >= clip.max.x as i64 {
+                    break;
+                }
+
+                if current_position.x >= clip.min.x && current_position.y >= clip.min.y {
+                    let byte_offset = (y * bytes_per_row as i64 + x / 8) as usize;
+                    let bit_offset = x % 8;
+                    let bit_offset = 7 - bit_offset;
+                    if image_data[byte_offset] & (1 << bit_offset) != 0 {
+                        self.draw_pixel_alpha_unchecked(current_position, *color, alpha);
                     }
                 }
 

@@ -98,6 +98,7 @@ pub unsafe extern "sysv64" fn _start() -> ! {
 
 #[inline(never)]
 #[allow(dead_code)]
+#[cfg(not(target_arch = "wasm32"))]
 extern "C" fn start_inner(_heap_start: usize, _heap_size: usize) {
     let args_ptr: *const u64;
 
