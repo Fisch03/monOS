@@ -22,5 +22,5 @@ ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
 resolver = "2"
-members = [ "monos_gfx", "monos_kernel", "monos_std", "monos_test", "monoscript", "userspace/*"]
+members = [ "monodoc", "monos_gfx", "monos_kernel", "monos_std", "monos_test", "monoscript", "userspace/*"]
 exclude = [ "monoscript_emu", "font_gen", "monos_test/derive" ]

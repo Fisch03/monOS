@@ -8,37 +8,40 @@ monOS is a 64-bit monolithic hobby OS written in Rust, inspired by the vtuber [M
 
 this project is still very much in active development. dont expect anything usable (or working) at all. i would consider this usable once most of the points on the [big todo list](#the-big-todo-list) are done. if you want to try out the os regardless, check [here](#buildingrunning) for some more info
 
-below are some cool things monOS will ship with:
+## goals
+- make a toy operating system thats interesting enough to play around with for a while
+- explore ways of making building applications as easy and accessible as possible
+- learn a bunch about computers while working on it!
 
-### monoscript (work in progress)
+## non-goals
+- write a seriously usable os
+
+## feature overview
+### included applications
+- tools
+  - terminal
+  - editor (wip)
+  - paint (wip)
+  - task manager (wip) 
+  - calculator (wip)
+- games
+  - doom
+  - cibo online! (wip)
+- other
+  - rooftop (desktop environment)
+
+### [monoscript](https://github.com/Fisch03/monOS/tree/master/monoscript)
 while monOS may not be written in its own programming language, it comes with one! 
-monoscript is monOS's very own scripting language, designed to be as simple as possible. you can use it to quickly write tools and even small games for monOS.
-writing a "game" where you move a box around is as simple as:
-```js
-// define two variables for the box position
-x_pos = 0
-y_pos = 0
+monoscript is monOS's very own scripting language, designed to be as simple as possible. 
+monOS's terminal uses monoscript for its commands and more importantly its tightly integrated with monodoc (see below), allowing you to easily write applications for monOS with minimal programming knowledge
 
-// create a window...
-window {
-  // ...and draw a red square at the x and y positions, with width/height 30
-  square(x_pos, y_pos, 30, RED)
-}
-
-// change the box position while W/A/S/D is pressed
-key(w) { y_pos -= 1 }
-key(s) { y_pos += 1 }
-key(a) { x_pos -= 1 }
-key(d) { x_pos += 1 }
-```
-you can find the monoscript source [here](https://github.com/Fisch03/monOS/tree/master/monoscript). you can also view it's documentation from inside monOS (soon™). there is also the very basic [`monoscript_emu`](https://github.com/Fisch03/monOS/tree/master/monoscript_emu) crate that lets you run monoscript on windows/mac/linux
-
-### monodoc (draft, implementation pending)
-accompanying monoscript, there is monodoc. much like TempleOS's DolDoc (if you are familiar with TempleOS, this is basically what every part of the ui except the top bar and window management consists of). monodoc this is a file format for writing text files that can do more than just text!
-it is a superset of markdown (and even shares its file extension - `.md`). this means its super simple to use, and you can read and edit monodoc files with basically all text editors and markdown viewers 
-while only loosing out on some of the fancier features. these special features include:
-- in-document monoscript execution and rendering - play animations or even entire games right inside monodoc documents
-- special links - various actions inside monOS can be executed by clicking one of these links. for example a link with the location (mo:exec/hello_world) will launch the `hello_world` program when clicking it.
+### [monodoc](https://github.com/Fisch03/monOS/tree/master/monodoc)
+accompanying monoscript, there is monodoc. monodoc is inspired by Markdown, HTML and TempleOS's DolDoc.
+in its simplest form, monodoc lets you write formatted text documents with headings, tables, links between documents etc. 
+it can do much more than that though. you can modify the layout of text and even embed monoscript inside it to make monodoc documents interactive.
+this means you can write full tools and games directly from inside monOS. in fact, the following applications shipped with monOS are written entirely using monodoc/monoscript:
+- task manager
+- calculator
 
 <img width="64" align="right" src="https://github.com/Fisch03/monOS/blob/master/img/mono_hmm.png" />
 
@@ -305,10 +308,11 @@ there is currently no safety in place for channels, meaning that a process can j
 # building/running
 you'll need a working rust installation. install llvm-tools (`rustup component add llvm-tools-preview`) and then do a `cargo build` in the workspace root. the disk image will be in `target/debug/build/monos-xxxxxxxxxxx/out/uefi.img`. if you have qemu installed, you can just do `cargo run` and it will be started automatically after the build :)
 
+running in virtualbox seems to work great too. convert the image into a virtualbox `.vdi` disk image using qemu-img (`qemu-img convert uefi.img -f raw -O vdi uefi.vdi`) or a similar tool. set the vm type to "Other" and the version to "Other/Unknown (64-bit)". make sure to tick the "Enable EFI (special OSes only)" option at the hardware step or it won't work.
+
 ## doom
 compiling the doom executable also requires the `x86_64-elf-gcc` compiler to be installed on your system which may cause the build to fail. install it or skip the doom build by temporarily (re)moving the `userspace/doom` directory!
 
-running in virtualbox seems to work great too. convert the image into a virtualbox `.vdi` disk image using qemu-img (`qemu-img convert uefi.img -f raw -O vdi uefi.vdi`) or a similar tool. set the vm type to "Other" and the version to "Other/Unknown (64-bit)". make sure to tick the "Enable EFI (special OSes only)" option at the hardware step or it won't work.
 
 # big thanks
 - to mono for being cool and based and providing me with lots of entertainment while i wrote this thing :3
