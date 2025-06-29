@@ -1,7 +1,6 @@
 #![no_std]
 #![feature(alloc_error_handler)]
 #![feature(naked_functions)]
-#![feature(maybe_uninit_uninit_array)]
 
 extern crate alloc;
 
