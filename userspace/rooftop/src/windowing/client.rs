@@ -7,6 +7,7 @@ pub struct Window<'a> {
     pub fb: Framebuffer<'a>,
     pub update_frequency: &'a mut UpdateFrequency,
     pub grab_mouse: &'a mut bool,
+    pub mouse_grabbed: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -164,6 +165,7 @@ impl<T> WindowClient<T> {
 
                 let mut update_frequency = chunk.update_frequency;
                 let mut grab_mouse = chunk.grab_mouse;
+                let mouse_grabbed = chunk.mouse_grabbed;
 
                 (window.on_render)(
                     &mut Window {
@@ -171,6 +173,7 @@ impl<T> WindowClient<T> {
                         fb: chunk.fb(),
                         update_frequency: &mut update_frequency,
                         grab_mouse: &mut grab_mouse,
+                        mouse_grabbed,
                     },
                     &mut self.app_data,
                     Input::default(),
@@ -230,12 +233,14 @@ impl<T> WindowClient<T> {
 
                 let mut update_frequency = chunk.update_frequency;
                 let mut grab_mouse = chunk.grab_mouse;
+                let mouse_grabbed = chunk.mouse_grabbed;
 
                 let mut window_data = Window {
                     id: chunk.id,
                     fb: chunk.fb(),
                     update_frequency: &mut update_frequency,
                     grab_mouse: &mut grab_mouse,
+                    mouse_grabbed,
                 };
 
                 (window.on_render)(&mut window_data, &mut self.app_data, input);

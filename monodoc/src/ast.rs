@@ -1,24 +1,23 @@
-use monoscript::ast::{Statement, Block};
-use monos_gfx::Image;
-use nom_locate::LocatedSpan;
+use alloc::vec::Vec;
 use hashbrown::HashMap;
+use monos_gfx::Image;
+use monoscript::ast::{Block, Statement};
+use nom_locate::LocatedSpan;
 
 pub type Span<'a> = LocatedSpan<&'a str>;
 
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MonoDoc<'a> {
     pub meta: MetaData<'a>,
     pub main_section: Section<'a>,
     pub sections: HashMap<&'a str, Section<'a>>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct MetaData<'a> {
     pub name: Option<&'a str>,
     pub icon: Option<&'a str>,
-    pub includes: Vec<&'a str>, 
+    pub includes: Vec<&'a str>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +87,7 @@ pub enum InlineKind<'a> {
 #[derive(Debug, Clone)]
 pub enum EmbedTarget<'a> {
     File(&'a str),
-    Image(Image)
+    Image(Image),
 }
 
 #[derive(Debug, Clone)]
@@ -99,3 +98,4 @@ pub enum EmbedAnchor {
     Right,
     Fill,
 }
+

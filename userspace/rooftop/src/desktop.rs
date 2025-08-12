@@ -1,9 +1,4 @@
-use monos_gfx::{
-    framebuffer::{FramebufferRequest, FramebufferResponse},
-    input::Input,
-    text::font::Cozette,
-    Color, Framebuffer, PaintFramebuffer, Position, Rect,
-};
+use monos_gfx::{input::Input, Color, Framebuffer, PaintFramebuffer, Position, Rect};
 
 mod desktop_entries;
 use desktop_entries::DesktopEntries;

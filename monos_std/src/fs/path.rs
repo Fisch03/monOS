@@ -23,6 +23,12 @@ impl<'p> Path<'p> {
         self.0.rsplit('/').next()
     }
 
+    pub fn extension(&self) -> Option<&str> {
+        let file_name = self.file_name()?;
+        let dot_index = file_name.rfind('.')?;
+        Some(&file_name[dot_index + 1..])
+    }
+
     pub fn parent(&self) -> Option<Path<'_>> {
         let parent = self.0.rsplit('/').skip(1).next();
         parent.map(|parent| Path(parent))
@@ -68,6 +74,12 @@ impl From<ArrayPath> for PathBuf {
     #[inline]
     fn from(path: ArrayPath) -> PathBuf {
         PathBuf(path.into())
+    }
+}
+
+impl core::fmt::Display for Path<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

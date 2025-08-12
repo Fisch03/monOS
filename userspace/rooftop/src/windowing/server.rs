@@ -368,6 +368,7 @@ impl WindowServer {
                 UpdateFrequency::Manual => false,
             };
             if should_render {
+                window.chunk.mouse_grabbed = self.mouse_grabbed;
                 window.chunk.mouse.position = input.mouse.position - window_rect.min;
                 window.chunk.mouse.delta += input.mouse.delta;
                 window.chunk.mouse.scroll += input.mouse.scroll;

@@ -26,6 +26,7 @@ pub struct WindowChunk {
 
     focused: bool,
     grab_mouse: bool,
+    mouse_grabbed: bool,
     mouse: MouseInput,
     keyboard: [KeyEvent; 32],
     keyboard_len: AtomicU8,

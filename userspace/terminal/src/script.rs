@@ -1,5 +1,6 @@
 use monos_gfx::{
     font::{self, Font},
+    input::{KeyCode, KeyState},
     text::Origin,
     ui::{widgets, Direction, TextWrap, UIFrame},
     Color, Dimension, Input, Position, Rect,
@@ -16,6 +17,8 @@ struct ScriptState<'a> {
     context: Option<ScriptContext<'a>>,
     interface: ScriptInterface<'a>,
     ui: UIFrame,
+
+    down_keys: Vec<KeyCode>,
 }
 
 impl<'a> ScriptState<'a> {
@@ -24,31 +27,36 @@ impl<'a> ScriptState<'a> {
             context,
             interface,
             ui: UIFrame::new(Direction::BottomToTop),
+            down_keys: Vec::new(),
         }
+    }
+
+    fn is_key_down(&self, key: KeyCode) -> bool {
+        self.down_keys.iter().any(|&k| k == key)
     }
 }
 
+#[derive(Debug)]
 struct ScriptWindow<'a> {
     title: String,
     hook: ScriptHook<'a>,
     handle: WindowHandle,
 }
 
+#[derive(Debug, Default)]
 struct ScriptInterface<'a> {
     terminal: TerminalInterface,
     rendered_lines: usize,
     windows: Vec<ScriptWindow<'a>>,
+    first_window: Option<WindowHandle>,
     window_queue: VecDeque<(String, ScriptHook<'a>)>,
+
+    key_hooks: Vec<(KeyCode, ScriptHook<'a>)>,
 }
 
 impl ScriptInterface<'_> {
     fn new() -> Self {
-        Self {
-            terminal: TerminalInterface::new(),
-            rendered_lines: 0,
-            windows: Vec::new(),
-            window_queue: VecDeque::new(),
-        }
+        Self::default()
     }
 }
 
@@ -77,6 +85,75 @@ impl<'a> Interface<'a> for ScriptInterface<'a> {
                     .unwrap_or(String::from("monoscript window"));
 
                 self.window_queue.push_back((title, hook));
+                Ok(())
+            }
+
+            "key" => {
+                let key = params.get_arg(0, "key")?.as_string()?;
+
+                let key = match key.to_lowercase().as_str() {
+                    "a" => KeyCode::A,
+                    "b" => KeyCode::B,
+                    "c" => KeyCode::C,
+                    "d" => KeyCode::D,
+                    "e" => KeyCode::E,
+                    "f" => KeyCode::F,
+                    "g" => KeyCode::G,
+                    "h" => KeyCode::H,
+                    "i" => KeyCode::I,
+                    "j" => KeyCode::J,
+                    "k" => KeyCode::K,
+                    "l" => KeyCode::L,
+                    "m" => KeyCode::M,
+                    "n" => KeyCode::N,
+                    "o" => KeyCode::O,
+                    "p" => KeyCode::P,
+                    "q" => KeyCode::Q,
+                    "r" => KeyCode::R,
+                    "s" => KeyCode::S,
+                    "t" => KeyCode::T,
+                    "u" => KeyCode::U,
+                    "v" => KeyCode::V,
+                    "w" => KeyCode::W,
+                    "x" => KeyCode::X,
+                    "y" => KeyCode::Y,
+                    "z" => KeyCode::Z,
+
+                    "0" => KeyCode::Key0,
+                    "1" => KeyCode::Key1,
+                    "2" => KeyCode::Key2,
+                    "3" => KeyCode::Key3,
+                    "4" => KeyCode::Key4,
+                    "5" => KeyCode::Key5,
+                    "6" => KeyCode::Key6,
+                    "7" => KeyCode::Key7,
+                    "8" => KeyCode::Key8,
+                    "9" => KeyCode::Key9,
+
+                    "arrowup" => KeyCode::ArrowUp,
+                    "arrowdown" => KeyCode::ArrowDown,
+                    "arrowleft" => KeyCode::ArrowLeft,
+                    "arrowright" => KeyCode::ArrowRight,
+
+                    "space" => KeyCode::Spacebar,
+                    "escape" => KeyCode::Escape,
+                    "shift" | "lshift" => KeyCode::LShift,
+                    "rshift" => KeyCode::RShift,
+                    "ctrl" | "lctrl" => KeyCode::LControl,
+                    "rctrl" => KeyCode::RControl,
+                    "alt" | "lalt" => KeyCode::LAlt,
+                    "altgr" | "ralt" => KeyCode::RAltGr,
+
+                    _ => {
+                        return Err(monoscript::RuntimeErrorKind::InvalidArgument(
+                            0,
+                            "invalid key code",
+                        ))
+                    }
+                };
+
+                self.key_hooks.push((key, hook));
+
                 Ok(())
             }
 
@@ -226,11 +303,48 @@ pub fn run<'p, P: Into<Path<'p>>>(path: P) -> ! {
                 .into_iter()
                 .map(|(title, hook)| {
                     let handle = window_client.next_handle();
+                    if window_client.data().interface.first_window.is_none() {
+                        window_client.data_mut().interface.first_window = Some(handle);
+                    }
+
                     window_client.create_window(
                         &title,
                         Dimension::new(320, 240),
-                        move |window, state, _| {
+                        move |window, state, mut input| {
                             *window.update_frequency = UpdateFrequency::Always;
+
+                            for key_evt in input.keyboard.keys.drain(..) {
+                                match key_evt.state {
+                                    KeyState::Down => {
+                                        if !state.down_keys.contains(&key_evt.key.code) {
+                                            state.down_keys.push(key_evt.key.code);
+                                        }
+                                    }
+                                    KeyState::Up | KeyState::SingleShot => {
+                                        state.down_keys.retain(|&k| k != key_evt.key.code);
+                                    }
+                                }
+                            }
+
+                            if state.interface.first_window.unwrap() == handle {
+                                let key_hooks =
+                                    state.interface.key_hooks.drain(..).collect::<Vec<_>>();
+
+                                for (key, hook) in key_hooks.iter() {
+                                    if state.is_key_down(*key) {
+                                        if let Err(err) = hook.execute(
+                                            state.context.as_mut().unwrap(),
+                                            &mut state.interface,
+                                        ) {
+                                            state
+                                                .interface
+                                                .add_line(format!("{:?}", err), LineType::Error);
+                                        }
+                                    }
+                                }
+
+                                state.interface.key_hooks.extend(key_hooks);
+                            }
 
                             let script_window = state
                                 .interface
@@ -240,6 +354,8 @@ pub fn run<'p, P: Into<Path<'p>>>(path: P) -> ! {
                                 .unwrap();
 
                             let script_window = state.interface.windows.swap_remove(script_window);
+
+                            window.clear();
 
                             let mut interface = WindowInterface {
                                 interface: &mut state.interface,
@@ -297,6 +413,22 @@ fn render(window: &mut Window, state: &mut ScriptState, mut input: Input) {
     *window.update_frequency = UpdateFrequency::Manual;
 
     window.clear();
+
+    // let key_hooks = state.interface.key_hooks.drain(..).collect::<Vec<_>>();
+    // for (key, hook) in key_hooks.iter() {
+    //     if state.is_key_down(*key) {
+    //         let mut interface = WindowInterface {
+    //             interface: &mut state.interface,
+    //             window,
+    //             color: Color::new(255, 255, 255),
+    //         };
+    //
+    //         if let Err(err) = hook.execute(state.context.as_mut().unwrap(), &mut interface) {
+    //             interface.add_line(format!("{:?}", err), LineType::Error);
+    //         }
+    //     }
+    // }
+    // state.interface.key_hooks.extend(key_hooks);
 
     let rect = Rect::from_dimensions(window.dimensions()).shrink(2);
 

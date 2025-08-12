@@ -97,6 +97,7 @@ fn main() {
         .files(c_files)
         .flag("-Werror=implicit-function-declaration")
         .flag("-Werror=builtin-declaration-mismatch")
+        .flag("-std=c99")
         .compiler("x86_64-elf-gcc")
         .opt_level(2)
         .flag("-w")

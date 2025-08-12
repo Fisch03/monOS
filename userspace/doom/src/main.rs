@@ -142,16 +142,18 @@ fn render(window: &mut Window, _app: &mut (), input: Input) {
         KEY_QUEUE.push_back(evt.clone());
     });
 
-    unsafe {
-        DG_AddMouse(
-            input.mouse.delta.x as i32 * 5,
-            -input.mouse.delta.y as i32 * 5,
-            if input.mouse.left_button.pressed {
-                1
-            } else {
-                0
-            },
-        );
+    if window.mouse_grabbed {
+        unsafe {
+            DG_AddMouse(
+                input.mouse.delta.x as i32 * 5,
+                -input.mouse.delta.y as i32 * 5,
+                if input.mouse.left_button.pressed {
+                    1
+                } else {
+                    0
+                },
+            );
+        }
     }
 
     if !FRAME_READY.swap(false, Ordering::Relaxed) {

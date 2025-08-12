@@ -31,7 +31,7 @@ impl LineType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct TerminalInterface {
     lines: VecDeque<String>,
     line_colors: Vec<Color>,
@@ -72,7 +72,7 @@ impl<'a> Interface<'a> for TerminalInterface {
                 Ok(Value::None)
             }
 
-            "exec" => {
+            "exec" | "run" => {
                 let path = args.get_arg(0, "path")?.as_string()?;
                 let proc_args = args.get_arg(1, "args").and_then(|a| Ok(a.as_string()?));
 

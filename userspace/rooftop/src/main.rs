@@ -80,18 +80,18 @@ fn main() {
     fb.clear_with(&desktop);
     println!("starting event loop");
 
-    desktop
-        .paint()
-        .splat(Position::new(100, 100), monos_gfx::Color::new(255, 0, 0));
-    desktop
-        .paint()
-        .splat(Position::new(100, 150), monos_gfx::Color::new(255, 0, 0));
-    desktop
-        .paint()
-        .splat(Position::new(100, 200), monos_gfx::Color::new(255, 0, 0));
-    desktop
-        .paint()
-        .splat(Position::new(100, 250), monos_gfx::Color::new(255, 0, 0));
+    // desktop
+    //     .paint()
+    //     .splat(Position::new(100, 100), monos_gfx::Color::new(255, 0, 0));
+    // desktop
+    //     .paint()
+    //     .splat(Position::new(100, 150), monos_gfx::Color::new(255, 0, 0));
+    // desktop
+    //     .paint()
+    //     .splat(Position::new(100, 200), monos_gfx::Color::new(255, 0, 0));
+    // desktop
+    //     .paint()
+    //     .splat(Position::new(100, 250), monos_gfx::Color::new(255, 0, 0));
 
     //syscall::spawn("bin/terminal");
 

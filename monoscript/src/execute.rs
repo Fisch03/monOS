@@ -2,6 +2,7 @@ use crate::ast::*;
 use crate::{Interface, Script, ScriptHook};
 
 use alloc::{
+    boxed::Box,
     format,
     string::{String, ToString},
     vec::Vec,
@@ -21,7 +22,7 @@ pub struct OwnedRuntimeError {
     span: String,
     pub kind: OwnedRuntimeErrorKind,
 }
-impl<'a> RuntimeError<'a> {
+impl RuntimeError<'_> {
     pub fn to_owned(self) -> OwnedRuntimeError {
         OwnedRuntimeError {
             span: self.span.fragment().to_string(),
@@ -51,7 +52,7 @@ impl core::fmt::Debug for RuntimeError<'_> {
 }
 
 impl OwnedRuntimeError {
-    pub fn borrow<'a>(&'a self) -> RuntimeError<'a> {
+    pub fn borrow(&self) -> RuntimeError {
         RuntimeError {
             span: Span::new(self.span.as_str()),
             kind: self.kind.borrow(),
@@ -78,6 +79,14 @@ impl core::fmt::Debug for RuntimeErrorKind<'_> {
                 writeln!(
                     f,
                     "missing argument no. {} for function call: {}",
+                    index + 1,
+                    ident
+                )?;
+            }
+            RuntimeErrorKind::InvalidArgument(index, ident) => {
+                writeln!(
+                    f,
+                    "invalid argument no. {} for function call: {}",
                     index + 1,
                     ident
                 )?;
@@ -113,14 +122,16 @@ impl core::fmt::Debug for RuntimeErrorKind<'_> {
 pub enum RuntimeErrorKind<'a> {
     UndefinedVariable(&'a str),
     MissingArgument(usize, &'a str),
-    InvalidOperation(Value<'a>, Value<'a>),
-    InvalidConversion(Value<'a>, Value<'a>),
+    InvalidArgument(usize, &'a str),
+    InvalidOperation(Box<Value<'a>>, Box<Value<'a>>),
+    InvalidConversion(Box<Value<'a>>, Box<Value<'a>>),
     UnknownFunction(&'a str),
     UnknownHook(&'a str),
 }
 pub enum OwnedRuntimeErrorKind {
     UndefinedVariable(String),
     MissingArgument(usize, String),
+    InvalidArgument(usize, String),
     InvalidOperation(OwnedValue, OwnedValue),
     InvalidConversion(OwnedValue, OwnedValue),
     UnknownFunction(String),
@@ -133,6 +144,9 @@ impl RuntimeErrorKind<'_> {
                 OwnedRuntimeErrorKind::UndefinedVariable(ident.to_string())
             }
             RuntimeErrorKind::MissingArgument(index, ident) => {
+                OwnedRuntimeErrorKind::MissingArgument(index, ident.to_string())
+            }
+            RuntimeErrorKind::InvalidArgument(index, ident) => {
                 OwnedRuntimeErrorKind::MissingArgument(index, ident.to_string())
             }
             RuntimeErrorKind::InvalidOperation(got, expected) => {
@@ -151,7 +165,7 @@ impl RuntimeErrorKind<'_> {
     }
 }
 impl OwnedRuntimeErrorKind {
-    pub fn borrow<'a>(&'a self) -> RuntimeErrorKind<'a> {
+    pub fn borrow(&self) -> RuntimeErrorKind {
         match self {
             OwnedRuntimeErrorKind::UndefinedVariable(ident) => {
                 RuntimeErrorKind::UndefinedVariable(ident)
@@ -159,11 +173,17 @@ impl OwnedRuntimeErrorKind {
             OwnedRuntimeErrorKind::MissingArgument(index, ident) => {
                 RuntimeErrorKind::MissingArgument(*index, ident.as_str())
             }
+            OwnedRuntimeErrorKind::InvalidArgument(index, ident) => {
+                RuntimeErrorKind::InvalidArgument(*index, ident.as_str())
+            }
             OwnedRuntimeErrorKind::InvalidOperation(got, expected) => {
-                RuntimeErrorKind::InvalidOperation(got.borrow(), expected.borrow())
+                RuntimeErrorKind::InvalidOperation(
+                    Box::new(got.borrow()),
+                    Box::new(expected.borrow()),
+                )
             }
             OwnedRuntimeErrorKind::InvalidConversion(from, to) => {
-                RuntimeErrorKind::InvalidConversion(from.borrow(), to.borrow())
+                RuntimeErrorKind::InvalidConversion(Box::new(from.borrow()), Box::new(to.borrow()))
             }
             OwnedRuntimeErrorKind::UnknownFunction(ident) => {
                 RuntimeErrorKind::UnknownFunction(ident.as_str())
@@ -208,7 +228,7 @@ impl<'a> ScopeStack<'a> {
     pub fn new() -> Self {
         Self {
             root: Scope {
-                variables: HashMap::with_hasher(rustc_hash::FxBuildHasher::default()),
+                variables: HashMap::with_hasher(rustc_hash::FxBuildHasher),
                 is_new_scope: false,
             },
             stack: Vec::new(),
@@ -230,7 +250,7 @@ impl<'a> ScopeStack<'a> {
 
     pub fn enter_block(&mut self) {
         self.stack.push(Scope {
-            variables: HashMap::with_hasher(rustc_hash::FxBuildHasher::default()),
+            variables: HashMap::with_hasher(rustc_hash::FxBuildHasher),
             is_new_scope: false,
         });
     }
@@ -355,15 +375,15 @@ impl<'a> Expression<'a> {
                     UnaryOp::Neg => match value {
                         Value::Number(n) => Ok(Value::Number(-n)),
                         _ => Err(RuntimeErrorKind::InvalidOperation(
-                            value.clone(),
-                            Value::Number(0.0),
+                            Box::new(value.clone()),
+                            Box::new(Value::Number(0.0)),
                         )),
                     },
                     UnaryOp::Not => match value {
                         Value::Boolean(b) => Ok(Value::Boolean(!b)),
                         _ => Err(RuntimeErrorKind::InvalidOperation(
-                            value.clone(),
-                            Value::Boolean(false),
+                            Box::new(value.clone()),
+                            Box::new(Value::Boolean(false)),
                         )),
                     },
                 }
@@ -440,25 +460,26 @@ impl<'a> Value<'a> {
     pub fn as_number(&self) -> Result<f64, RuntimeErrorKind<'a>> {
         match self {
             Value::Number(n) => Ok(*n),
-            Value::String(s) => s
-                .parse()
-                .map_err(|_| RuntimeErrorKind::InvalidConversion(self.clone(), Value::Number(0.0))),
+            Value::String(s) => s.parse().map_err(|_| {
+                RuntimeErrorKind::InvalidConversion(
+                    Box::new(self.clone()),
+                    Box::new(Value::Number(0.0)),
+                )
+            }),
             Value::Boolean(b) => Ok(if *b { 1.0 } else { 0.0 }),
             _ => Err(RuntimeErrorKind::InvalidConversion(
-                self.clone(),
-                Value::Number(0.0),
+                Box::new(self.clone()),
+                Box::new(Value::Number(0.0)),
             )),
         }
     }
 
     // cast the value into a string, if possible
     pub fn can_cast_to_string(&self) -> bool {
-        match self {
-            Value::String(_) => true,
-            Value::Number(_) => true,
-            Value::Boolean(_) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Value::String(_) | Value::Number(_) | Value::Boolean(_)
+        )
     }
     pub fn as_string(&self) -> Result<String, RuntimeErrorKind<'a>> {
         match self {
@@ -466,8 +487,8 @@ impl<'a> Value<'a> {
             Value::Number(n) => Ok(n.to_string()),
             Value::Boolean(b) => Ok(if *b { "true".into() } else { "false".into() }),
             _ => Result::Err(RuntimeErrorKind::InvalidConversion(
-                self.clone(),
-                Value::String("".into()),
+                Box::new(self.clone()),
+                Box::new(Value::String("".into())),
             )),
         }
     }
@@ -479,8 +500,8 @@ impl<'a> Value<'a> {
             Value::String(s) if s == "true" => Ok(true),
             Value::String(s) if s == "false" => Ok(false),
             _ => Err(RuntimeErrorKind::InvalidConversion(
-                self.clone(),
-                Value::Boolean(false),
+                Box::new(self.clone()),
+                Box::new(Value::Boolean(false)),
             )),
         }
     }
@@ -499,8 +520,8 @@ impl<'a> Value<'a> {
             }
 
             _ => Err(RuntimeErrorKind::InvalidOperation(
-                self.clone(),
-                other.clone(),
+                Box::new(self.clone()),
+                Box::new(other.clone()),
             )),
         }
     }
